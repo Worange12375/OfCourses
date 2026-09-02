@@ -25,9 +25,12 @@ interface TrackProgress {
   pct: number;
   mainGroups: GroupProgress[];
   subGroups: GroupProgress[];
-  bestModule?: number;
+  bestModules?: number[];
   isComplete: boolean;
   missingRequired?: string;
+  aGroupComplete?: boolean;
+  aGroupCompleteIds?: number[];
+  specialNote?: string;
 }
 
 export const ToolsPage = () => {
@@ -36,6 +39,7 @@ export const ToolsPage = () => {
   const isDark = theme === "dark";
   const {data: allGroups} = useCourseGroups();
 
+  const [toolPage, setToolPage] = useState<string>("degree");
   const [historyData, setHistoryData] = useState<HistoryData | null>(null);
   const [fileName, setFileName] = useState("");
   const [selectedModules, setSelectedModules] = useState<Record<string, number>>({});
@@ -121,6 +125,121 @@ export const ToolsPage = () => {
     return total || 1;
   };
 
+  // Check if ALL courses in a group are selected
+  const isGroupComplete = (gid: number): boolean => {
+    const cs = groupCourseSet.get(gid);
+    if (!cs || cs.size === 0) return false;
+    for (const cid of cs) {
+      if (!allSelectedIds.has(cid)) return false;
+    }
+    return true;
+  };
+
+  // Get module category: I(1-3), II(4-8), III(9-13)
+  const moduleCategory = (modId: number): number => {
+    if (modId <= 3) return 1;
+    if (modId <= 8) return 2;
+    return 3;
+  };
+
+  // Get all course_ids in a group
+  const courseIdsInGroup = (gid: number): Set<string> => {
+    return groupCourseSet.get(gid) ?? new Set();
+  };
+
+  // Build category course sets: I类 (modules 1-3), II类 (modules 4-8), III类 (modules 9-13)
+  const categoryCourseSets = useMemo(() => {
+    const sets: Record<number, Set<string>> = {1: new Set(), 2: new Set(), 3: new Set()};
+    for (const g of allGroups) {
+      if (g.module_id === null) continue;
+      const cat = moduleCategory(g.module_id);
+      const cs = groupCourseSet.get(g.group_id);
+      if (!cs) continue;
+      for (const cid of cs) sets[cat].add(cid);
+    }
+    return sets;
+  }, [allGroups, groupCourseSet]);
+
+  // Selected credits in a category (deduped by course_id)
+  const selectedCreditsInCategory = (cat: number): number => {
+    const set = categoryCourseSets[cat];
+    if (!set) return 0;
+    let total = 0;
+    for (const cid of set) {
+      if (allSelectedIds.has(cid)) total += courseCreditsMap.get(cid) ?? 0;
+    }
+    return total;
+  };
+
+  // Selected credits across ALL categories combined (deduped)
+  const selectedCreditsAllCategories = (): number => {
+    const seen = new Set<string>();
+    let total = 0;
+    for (const cat of [1, 2, 3]) {
+      for (const cid of categoryCourseSets[cat]) {
+        if (seen.has(cid)) continue;
+        seen.add(cid);
+        if (allSelectedIds.has(cid)) total += courseCreditsMap.get(cid) ?? 0;
+      }
+    }
+    return total;
+  };
+
+  // Count selected / total courses in an A group
+  const aGroupCourseCount = (gid: number): {taken: number; total: number} => {
+    const cs = groupCourseSet.get(gid);
+    if (!cs) return {taken: 0, total: 0};
+    let taken = 0;
+    for (const cid of cs) {
+      if (allSelectedIds.has(cid)) taken++;
+    }
+    return {taken, total: cs.size};
+  };
+
+  // Get total selected credits in a single module (A+B, deduped within module)
+  const moduleTotalSelectedCredits = (modId: number): number => {
+    const info = moduleGroupInfo.get(modId);
+    if (!info) return 0;
+    const seen = new Set<string>();
+    let total = 0;
+    for (const gid of [info.aGroupId, info.bGroupId]) {
+      const cs = groupCourseSet.get(gid);
+      if (!cs) continue;
+      for (const cid of cs) {
+        if (seen.has(cid)) continue;
+        seen.add(cid);
+        if (allSelectedIds.has(cid)) total += courseCreditsMap.get(cid) ?? 0;
+      }
+    }
+    return total;
+  };
+
+  // Cross-category check relative to a specific module:
+  // Are there selected courses that belong to a DIFFERENT category (I/II/III)
+  // than the main module, AND are NOT part of the main module's own groups?
+  const hasCrossCategoryRelativeToModule = (modId: number): boolean => {
+    const modInfo = moduleGroupInfo.get(modId);
+    if (!modInfo) return false;
+    const mainCat = moduleCategory(modId);
+    // Build set of course IDs that are part of this module's A/B groups
+    const modCourseIds = new Set<string>();
+    for (const gid of [modInfo.aGroupId, modInfo.bGroupId]) {
+      const cs = groupCourseSet.get(gid);
+      if (cs) for (const cid of cs) modCourseIds.add(cid);
+    }
+    // Check each selected course: does it belong to a category ≠ mainCat
+    // while NOT being part of the main module's groups?
+    for (const cid of allSelectedIds) {
+      if (modCourseIds.has(cid)) continue;
+      // Does this course belong to any category OTHER than mainCat?
+      for (const cat of [1, 2, 3]) {
+        if (cat === mainCat) continue;
+        if (categoryCourseSets[cat].has(cid)) return true;
+      }
+    }
+    return false;
+  };
+
   // Group progress helper
   const groupProgress = (gid: number, label: string): GroupProgress => {
     const takenCredits = creditsTakenInGroup(gid);
@@ -134,7 +253,7 @@ export const ToolsPage = () => {
     };
   };
 
-  // Compute all track progresses (data-driven from degree_tracks + degree_group_requirements)
+  // Compute all track progresses with new percentage rules
   const trackProgresses = useMemo((): TrackProgress[] => {
     if (!historyData) return [];
 
@@ -142,7 +261,6 @@ export const ToolsPage = () => {
     const trackGroups = structuredData.degree_group_requirements;
     const courseReqs = structuredData.degree_course_requirements;
 
-    // Group requirements by track_code
     const reqByTrack = new Map<string, {main: number[]; sub: number[]}>();
     for (const rg of trackGroups) {
       if (!reqByTrack.has(rg.track_code)) reqByTrack.set(rg.track_code, {main: [], sub: []});
@@ -151,7 +269,6 @@ export const ToolsPage = () => {
       else e.sub.push(rg.group_id);
     }
 
-    // Required courses by track_code
     const reqCoursesByTrack = new Map<string, string[]>();
     for (const rc of courseReqs) {
       if (!reqCoursesByTrack.has(rc.track_code)) reqCoursesByTrack.set(rc.track_code, []);
@@ -163,62 +280,202 @@ export const ToolsPage = () => {
     for (const track of trackData) {
       const code = track.track_code;
       const groups = reqByTrack.get(code);
-      if (!groups) continue;
       const requiredCourses = reqCoursesByTrack.get(code) ?? [];
 
+      let bestModules: number[] | undefined;
+      let ceSpecialNote: string | undefined;
+      let bestModulePct = 0;
+      let bestAComponentPct = 0;
       let creditsEarned = 0;
       let allMainGroups: GroupProgress[] = [];
       let allSubGroups: GroupProgress[] = [];
-      let bestModule: number | undefined;
       let missingRequired: string | undefined;
+      let aGroupComplete = false;
 
-      if (code === "IE" || code === "SE") {
-        // IE/SE: pick the module with highest total credits (A+B), that's the earned amount
-        const moduleIds = groups.main
-          .map((gid) => groupModuleMap.get(gid))
-          .filter((m): m is number => m !== undefined)
-          .filter((m, i, a) => a.indexOf(m) === i)
-          .sort();
+      if (code === "AE" || code === "EM" || code === "PE") {
+        // AE/PE: A组52% (课程数比例) + 模块24学分48%
+        // EM: 弹性力学10% + A组42% + 模块24学分48%
+        const modId = code === "PE" ? 2 : 1;
+        const modInfo = moduleGroupInfo.get(modId);
+        if (modInfo) {
+          const cnt = aGroupCourseCount(modInfo.aGroupId);
+          const totalCreds = moduleTotalSelectedCredits(modId);
+          const aPctBase = cnt.total > 0 ? (cnt.taken / cnt.total) : 0;
 
-        let bestModuleCredits = 0;
-
-        for (const modId of moduleIds) {
-          const modInfo = moduleGroupInfo.get(modId);
-          if (!modInfo) continue;
-          const aGp = groupProgress(modInfo.aGroupId, locale === "zh" ? `模块${modId}A` : `Module ${modId}A`);
-          const bGp = groupProgress(modInfo.bGroupId, locale === "zh" ? `模块${modId}B` : `Module ${modId}B`);
-          const totalModCredits = aGp.takenCredits + bGp.takenCredits;
-          allMainGroups.push(aGp);
-          allSubGroups.push(bGp);
-          if (totalModCredits > bestModuleCredits) {
-            bestModuleCredits = totalModCredits;
-            bestModule = modId;
-            creditsEarned = totalModCredits;
+          if (code === "EM") {
+            const tanxing = allSelectedIds.has("30310084");
+            const tanxingPct = tanxing ? 10 : 0;
+            const aPct = aPctBase * 42;
+            const c24Pct = Math.min(48, (totalCreds / 24) * 48);
+            creditsEarned = Math.min(totalCreds, 24);
+            bestModulePct = Math.min(100, Math.round(tanxingPct + aPct + c24Pct));
+          } else {
+            const aPct = aPctBase * 52;
+            const c24Pct = Math.min(48, (totalCreds / 24) * 48);
+            creditsEarned = Math.min(totalCreds, 24);
+            bestModulePct = Math.min(100, Math.round(aPct + c24Pct));
+          }
+          bestModules = [modId];
+          aGroupComplete = isGroupComplete(modInfo.aGroupId);
+          allMainGroups = [groupProgress(modInfo.aGroupId, locale === "zh" ? `模块${modId}A` : `Module ${modId}A`)];
+          allSubGroups = [groupProgress(modInfo.bGroupId, locale === "zh" ? `模块${modId}B` : `Module ${modId}B`)];
+        }
+      } else if (code === "IE" || code === "SE") {
+        // General: A group (52% cap) + category credits (48% cap)
+        const cat = code === "SE" ? 2 : 3;
+        const mr = code === "SE" ? {s: 4, e: 8} : {s: 9, e: 13};
+        const mids: number[] = [];
+        for (const g of allGroups) {
+          if (g.module_id !== null && g.module_id >= mr.s && g.module_id <= mr.e) {
+            if (!mids.includes(g.module_id)) mids.push(g.module_id);
           }
         }
+        mids.sort();
+
+        const catCredits = selectedCreditsInCategory(cat);
+        const modulePcts: Array<{modId: number; pct: number; aPct: number; aComplete: boolean}> = [];
+
+        for (const modId of mids) {
+          const modInfo = moduleGroupInfo.get(modId);
+          if (!modInfo) continue;
+          const cnt = aGroupCourseCount(modInfo.aGroupId);
+          const aPct = cnt.total > 0 ? (cnt.taken / cnt.total) * 52 : 0;
+          const c24Pct = Math.min(48, (catCredits / 24) * 48);
+          const modPct = aPct + c24Pct;
+          modulePcts.push({modId, pct: modPct, aPct, aComplete: isGroupComplete(modInfo.aGroupId)});
+          allMainGroups.push(groupProgress(modInfo.aGroupId, locale === "zh" ? `模块${modId}A` : `Module ${modId}A`));
+          allSubGroups.push(groupProgress(modInfo.bGroupId, locale === "zh" ? `模块${modId}B` : `Module ${modId}B`));
+        }
+
+        const sorted = [...modulePcts].sort((a, b) => b.pct - a.pct || b.aPct - a.aPct);
+        if (sorted.length > 0) {
+          const best = sorted[0];
+          bestModules = sorted.filter((m) => Math.abs(m.pct - best.pct) < 0.01 && Math.abs(m.aPct - best.aPct) < 0.01).map((m) => m.modId);
+          bestModulePct = best.pct;
+          bestAComponentPct = best.aPct;
+          const bestModInfo = moduleGroupInfo.get(best.modId);
+          aGroupComplete = bestModInfo ? isGroupComplete(bestModInfo.aGroupId) : false;
+        }
+
+        if (bestModules && bestModules.length > 0) {
+          const modInfo = moduleGroupInfo.get(bestModules[0]);
+          if (modInfo) {
+            creditsEarned = Math.min(catCredits, 24);
+          }
+        }
+      } else if (code === "CE") {
+        // CE: A group (52% cap) + ALL categories credits (48% cap)
+        const mod3Info = moduleGroupInfo.get(3);
+        let mod3ABComplete = false;
+        if (mod3Info) {
+          mod3ABComplete = isGroupComplete(mod3Info.aGroupId) && isGroupComplete(mod3Info.bGroupId);
+        }
+
+        const allCatCredits = selectedCreditsAllCategories();
+
+        // Collect qualifying modules: A complete + cross (except module3 A+B = special path, no cross needed)
+        const qualifiedModules: Array<{modId: number; pct: number; aPct: number; isMod3AB: boolean}> = [];
+
+        for (const modId of [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]) {
+          const modInfo = moduleGroupInfo.get(modId);
+          if (!modInfo) continue;
+
+          let aComplete: boolean;
+          let isMod3AB = false;
+          if (modId === 3 && mod3ABComplete) { aComplete = true; isMod3AB = true; }
+          else { aComplete = isGroupComplete(modInfo.aGroupId); }
+
+          if (!aComplete) continue;
+
+          // Module3 A+B special path: no cross-category required
+          // Normal path: cross-category required
+          if (!isMod3AB) {
+            const crossOk = hasCrossCategoryRelativeToModule(modId);
+            if (!crossOk) continue;
+          }
+
+          const cnt = aGroupCourseCount(modInfo.aGroupId);
+          const aPct = cnt.total > 0 ? (cnt.taken / cnt.total) * 52 : 0;
+          const c24Pct = Math.min(48, (allCatCredits / 24) * 48);
+          const modPct = aPct + c24Pct;
+          qualifiedModules.push({modId, pct: modPct, aPct, isMod3AB});
+        }
+
+        allMainGroups = [];
+        allSubGroups = [];
+
+        if (qualifiedModules.length > 0) {
+          bestModules = qualifiedModules.sort((a, b) => b.pct - a.pct || b.aPct - a.aPct).map((m) => m.modId);
+          const best = qualifiedModules.sort((a, b) => b.pct - a.pct || b.aPct - a.aPct)[0];
+
+          // Module 3 A+B special path: pin to 100%
+          if (best.isMod3AB) {
+            bestModulePct = 100;
+          } else {
+            bestModulePct = best.pct;
+          }
+          aGroupComplete = true;
+
+          // Record special note for module 3 A+B path
+          ceSpecialNote = best.isMod3AB ? (locale === "zh" ? "已达标模块3A+B交叉方案" : "Module 3 A+B Cross Path") : undefined;
+
+          const bestInfo = moduleGroupInfo.get(best.modId);
+          if (bestInfo) {
+            creditsEarned = Math.min(allCatCredits, 24);
+          }
+
+          for (const qm of qualifiedModules) {
+            const mi = moduleGroupInfo.get(qm.modId);
+            if (mi) {
+              allMainGroups.push(groupProgress(mi.aGroupId, locale === "zh" ? `模块${qm.modId}A` : `Module ${qm.modId}A`));
+              allSubGroups.push(groupProgress(mi.bGroupId, locale === "zh" ? `模块${qm.modId}B` : `Module ${qm.modId}B`));
+            }
+          }
+        } else {
+          // No fully qualified module: take max pct, apply q*0.9 + 0.1*cross
+          let bestQ = 0;
+          let bestQCross = false;
+          for (const modId of [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]) {
+            const modInfo = moduleGroupInfo.get(modId);
+            if (!modInfo) continue;
+            const cnt = aGroupCourseCount(modInfo.aGroupId);
+            const aPct = cnt.total > 0 ? (cnt.taken / cnt.total) * 52 : 0;
+            const c24Pct = Math.min(48, (allCatCredits / 24) * 48);
+            const modPct = aPct + c24Pct;
+            if (modPct > bestQ) {
+              bestQ = modPct;
+              bestQCross = hasCrossCategoryRelativeToModule(modId);
+            }
+          }
+          const crossScore = bestQCross ? 10 : 0;
+          bestModulePct = bestQ * 0.9 + crossScore * 0.1;
+          if (!bestQCross) {
+            missingRequired = locale === "zh" ? "须至少跨类选择一门课程" : "Must select at least 1 cross-category course";
+          }
+
+          // Show top 3 candidates
+          const candidates = [1,2,3,4,5,6,7,8,9,10,11,12,13].map((modId) => {
+            const mi = moduleGroupInfo.get(modId);
+            if (!mi) return null;
+            const cnt = aGroupCourseCount(mi.aGroupId);
+            const aPct = cnt.total > 0 ? (cnt.taken / cnt.total) * 52 : 0;
+            const c24Pct = Math.min(48, (allCatCredits / 24) * 48);
+            return {modId, pct: aPct + c24Pct, mi};
+          }).filter(Boolean).sort((a, b) => b!.pct - a!.pct).slice(0, 3);
+
+          for (const cand of candidates) {
+            if (cand) {
+              allMainGroups.push(groupProgress(cand.mi.aGroupId, locale === "zh" ? `模块${cand.modId}A` : `Module ${cand.modId}A`));
+              allSubGroups.push(groupProgress(cand.mi.bGroupId, locale === "zh" ? `模块${cand.modId}B` : `Module ${cand.modId}B`));
+            }
+          }
+        }
+      } else if (!groups) {
+        continue;
       } else {
-        // AE / EM / PE: fixed groups
-        allMainGroups = groups.main.map((gid) => {
-          const modId = groupModuleMap.get(gid);
-          const label = modId
-            ? (locale === "zh" ? `模块${modId}A` : `Module ${modId}A`)
-            : (locale === "zh" ? "主体课组" : "Main Group");
-          return groupProgress(gid, label);
-        });
-
-        allSubGroups = groups.sub.map((gid) => {
-          const modId = groupModuleMap.get(gid);
-          const label = modId
-            ? (locale === "zh" ? `模块${modId}B` : `Module ${modId}B`)
-            : (locale === "zh" ? "其他课组" : "Sub Group");
-          return groupProgress(gid, label);
-        });
-
-        for (const mg of allMainGroups) creditsEarned += mg.takenCredits;
-        for (const sg of allSubGroups) creditsEarned += sg.takenCredits;
+        continue;
       }
 
-      // Check required courses
       for (const cid of requiredCourses) {
         if (!allSelectedIds.has(cid)) {
           const c = structuredData.courses.find((cc) => cc.course_id === cid);
@@ -226,23 +483,29 @@ export const ToolsPage = () => {
         }
       }
 
+      const pct = Math.min(100, Math.round(bestModulePct));
+      const isComplete = pct >= 100;
       const creditsReq = track.total_credits_required || 24;
+
       results.push({
         trackCode: code,
         trackName: locale === "zh" ? track.name : track.name,
         creditsEarned,
         creditsRequired: creditsReq,
-        pct: Math.min(100, Math.round((creditsEarned / creditsReq) * 100)),
+        pct,
         mainGroups: allMainGroups,
         subGroups: allSubGroups,
-        bestModule,
-        isComplete: creditsEarned >= creditsReq && !missingRequired,
+        bestModules,
+        specialNote: ceSpecialNote,
+        isComplete,
         missingRequired,
+        aGroupComplete: bestModules && bestModules.length > 0 ? isGroupComplete(moduleGroupInfo.get(bestModules[0])?.aGroupId ?? 0) : false,
+        aGroupCompleteIds: allMainGroups.filter((g) => isGroupComplete(g.groupId)).map((g) => g.groupId),
       });
     }
 
     return results.sort((a, b) => b.pct - a.pct);
-  }, [historyData, allGroups, groupCourseSet, courseCreditsMap, moduleGroupInfo, groupModuleMap, allSelectedIds, locale]);
+  }, [historyData, allGroups, groupCourseSet, courseCreditsMap, moduleGroupInfo, groupModuleMap, allSelectedIds, locale, categoryCourseSets]);
 
   const allSelectedCount = allSelectedIds.size;
 
@@ -293,8 +556,37 @@ export const ToolsPage = () => {
   };
 
   return (
-    <div className={`flex flex-1 flex-col gap-3 p-3 overflow-auto ${isDark ? "bg-[#0e0e14]" : "bg-gray-50"}`}>
-      {/* ===== Import section ===== */}
+    <div className={`flex flex-1 flex-row h-full ${isDark ? "bg-[#0e0e14]" : "bg-gray-50"}`}>
+      {/* ===== Sidebar ===== */}
+      <div className={`flex flex-col w-36 shrink-0 border-r p-2 gap-1 ${borderCls} ${isDark ? "bg-[#14141e]" : "bg-white"}`}>
+        <button
+          onClick={() => setToolPage("degree")}
+          className={`cursor-pointer rounded border-none px-3 py-2 text-xs font-medium text-left transition-colors ${
+            toolPage === "degree"
+              ? isDark ? "bg-blue-500/20 text-blue-300" : "bg-blue-100 text-blue-600"
+              : isDark ? "text-white/60 hover:bg-white/5" : "text-gray-600 hover:bg-gray-100"
+          }`}
+        >{locale === "zh" ? "学位评定" : "Degree Eval."}</button>
+        <button
+          onClick={() => setToolPage("ai")}
+          className={`cursor-pointer rounded border-none px-3 py-2 text-xs font-medium text-left transition-colors ${
+            toolPage === "ai"
+              ? isDark ? "bg-blue-500/20 text-blue-300" : "bg-blue-100 text-blue-600"
+              : isDark ? "text-white/60 hover:bg-white/5" : "text-gray-600 hover:bg-gray-100"
+          }`}
+        >{locale === "zh" ? "AI推荐助手" : "AI Assistant"}</button>
+        <button
+          onClick={() => setToolPage("review")}
+          className={`cursor-pointer rounded border-none px-3 py-2 text-xs font-medium text-left transition-colors ${
+            toolPage === "review"
+              ? isDark ? "bg-blue-500/20 text-blue-300" : "bg-blue-100 text-blue-600"
+              : isDark ? "text-white/60 hover:bg-white/5" : "text-gray-600 hover:bg-gray-100"
+          }`}
+        >{locale === "zh" ? "课程评价" : "Reviews"}</button>
+      </div>
+      {/* ===== Content ===== */}
+      <div className={`flex-1 flex flex-col gap-3 p-3 overflow-auto`}>
+      {toolPage === "degree" && <>
       <Island className={`${bgCard}`}>
         <Header border>
           <span className={`text-sm font-semibold ${textDark}`}>
@@ -396,11 +688,18 @@ export const ToolsPage = () => {
                     </div>
 
                     {/* Module info */}
-                    {tp.bestModule && (
+                    {tp.bestModules && tp.bestModules.length > 0 && (
                       <div className={`text-[11px] mt-1.5 ${textMuted}`}>
                         {locale === "zh"
-                          ? `最佳匹配：模块${tp.bestModule}`
-                          : `Best match: Module ${tp.bestModule}`}
+                          ? `最佳匹配：${tp.bestModules.map((m) => `模块${m}`).join("、")}`
+                          : `Best match: ${tp.bestModules.map((m) => `Module ${m}`).join(", ")}`}
+                      </div>
+                    )}
+
+                    {/* Special note (module 3 A+B path) */}
+                    {tp.specialNote && (
+                      <div className={`mt-1 text-[11px] font-medium ${isDark ? "text-green-300" : "text-green-600"}`}>
+                        ✅ {tp.specialNote}
                       </div>
                     )}
 
@@ -408,7 +707,16 @@ export const ToolsPage = () => {
                     <div className="mt-2 space-y-1">
                       {tp.mainGroups.map((g) => (
                         <div key={`m-${g.groupId}`} className="flex justify-between text-[11px]">
-                          <span className={textBody}>{g.label}</span>
+                          <span className={`flex items-center gap-1 ${textBody}`}>
+                            {g.label}
+                            {tp.aGroupCompleteIds?.includes(g.groupId) && (
+                              <span className={`text-[9px] px-1 py-0.5 rounded ${
+                                isDark ? "bg-blue-500/20 text-blue-300" : "bg-blue-100 text-blue-700"
+                              }`}>
+                                {locale === "zh" ? "A课组已修完" : "Complete"}
+                              </span>
+                            )}
+                          </span>
                           <span className={textMuted}>
                             {g.takenCredits}/{g.totalCredits} 学分
                           </span>
@@ -603,9 +911,10 @@ export const ToolsPage = () => {
         </>
       )}
 
-      {/* ===== Placeholder for other tools ===== */}
-      <div className="flex gap-3">
-        <Island className={`flex-1 ${bgCard}`}>
+      </>}
+
+      {toolPage === "ai" && (
+      <Island className={`${bgCard}`}>
           <Header border>
             <span className={`text-sm font-semibold ${textDark}`}>
               {locale === "zh" ? "课程推荐 AI 助手" : "AI Course Assistant"}
@@ -616,8 +925,11 @@ export const ToolsPage = () => {
               {locale === "zh" ? "此功能正在开发中，敬请期待。" : "Coming soon."}
             </div>
           </Content>
-        </Island>
-        <Island className={`flex-1 ${bgCard}`}>
+      </Island>
+      )}
+
+      {toolPage === "review" && (
+      <Island className={`${bgCard}`}>
           <Header border>
             <span className={`text-sm font-semibold ${textDark}`}>
               {locale === "zh" ? "课程评价" : "Course Reviews"}
@@ -629,7 +941,8 @@ export const ToolsPage = () => {
             </div>
           </Content>
         </Island>
-      </div>
+      )}
+    </div>
     </div>
   );
 };

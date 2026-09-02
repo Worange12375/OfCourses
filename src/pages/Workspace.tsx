@@ -93,12 +93,16 @@ export const Workspace = ({onNavigate}: WorkspaceProps) => {
   });
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [stagingSemester, setStagingSemester] = useState<string>("");
-  const [customCourses, setCustomCourses] = useState<Record<string, Array<{id: string; name: string; credits: number}>>>(() => {
+  const [customCourses, setCustomCourses] = useState<Record<string, Array<{id: string; name: string; credits: number; property?: string}>>>(() => {
     try { return JSON.parse(localStorage.getItem("oc_custom") ?? "{}"); }
     catch { return {}; }
   });
   const [customName, setCustomName] = useState("");
   const [customCredits, setCustomCredits] = useState("");
+  const [customProperty, setCustomProperty] = useState("无");
+  const [customDuplicateMsg, setCustomDuplicateMsg] = useState<string | null>(null);
+  /** 统计变量接口：通识-艺术/社科/人文/科学/SRT 五类的总学分数，供后续功能使用 */
+  const customStatsRef = useRef<Record<string, number>>({ "通识-艺术": 0, "通识-社科": 0, "通识-人文": 0, "通识-科学": 0, "SRT": 0 });
   const [showImportModal, setShowImportModal] = useState(false);
   const [importPreview, setImportPreview] = useState<string | null>(null);
   const [showForceConfirm, setShowForceConfirm] = useState(false);
@@ -115,6 +119,7 @@ export const Workspace = ({onNavigate}: WorkspaceProps) => {
     conflictId: string;
     conflictName: string;
   } | null>(null);
+  const [historyDetail, setHistoryDetail] = useState<string | null>(null);
   const [clearConfirm, setClearConfirm] = useState(false);
   const [recommendEnabled, setRecommendEnabled] = useState(true);
   const historyScrollRef = useRef<HTMLDivElement>(null);
@@ -174,21 +179,33 @@ export const Workspace = ({onNavigate}: WorkspaceProps) => {
     localStorage.setItem("oc_history", JSON.stringify(next));
   };
 
-  const persistCustom = (next: Record<string, Array<{id: string; name: string; credits: number}>>) => {
+  const persistCustom = (next: Record<string, Array<{id: string; name: string; credits: number; property?: string}>>) => {
     setCustomCourses(next);
     localStorage.setItem("oc_custom", JSON.stringify(next));
   };
 
   const addCustomCourse = () => {
     if (!stagingSemester || !customName.trim()) return;
+    // 去重检查
+    const allCustomNames = new Set();
+    for (const list of Object.values(customCourses)) {
+      list.forEach((cc) => allCustomNames.add(cc.name));
+    }
+    if (allCustomNames.has(customName.trim())) {
+      setCustomDuplicateMsg("同名课程已存在：" + customName.trim());
+      return;
+    }
+    setCustomDuplicateMsg(null);
     const creds = parseFloat(customCredits) || 0;
-    const id = `custom_${Date.now()}`;
+    const id = "custom_" + Date.now();
     const next = {...customCourses};
     if (!next[stagingSemester]) next[stagingSemester] = [];
-    next[stagingSemester] = [...next[stagingSemester], {id, name: customName.trim(), credits: creds}];
+    next[stagingSemester] = [...next[stagingSemester], {id, name: customName.trim(), credits: creds, property: customProperty !== "无" ? customProperty : undefined}];
     persistCustom(next);
     setCustomName("");
     setCustomCredits("");
+    setCustomProperty("无");
+    setCustomDuplicateMsg(null);
   };
 
   const removeCustomCourse = (sem: string, cid: string) => {
@@ -323,12 +340,12 @@ export const Workspace = ({onNavigate}: WorkspaceProps) => {
       if (totalInSet > (cs.max_select ?? 1)) {
         checks.push({
           type: "warning",
-          msg: locale === "zh" ? `「${cs.name}」最多选 ${cs.max_select} 门` : `"${cs.name}" max ${cs.max_select}`,
+          msg: locale === "zh" ? `「${cs.name}」可只选 ${cs.max_select} 门` : `"${cs.name}" max ${cs.max_select}`,
         });
       } else if (selectedInSet.length > (cs.max_select ?? 1)) {
         checks.push({
           type: "warning",
-          msg: locale === "zh" ? `「${cs.name}」最多选 ${cs.max_select} 门` : `"${cs.name}" max ${cs.max_select}`,
+          msg: locale === "zh" ? `「${cs.name}」可只选 ${cs.max_select} 门` : `"${cs.name}" max ${cs.max_select}`,
         });
       }
     }
@@ -448,13 +465,21 @@ export const Workspace = ({onNavigate}: WorkspaceProps) => {
 
     const isAlreadySelected = selectedCourses.has(courseId);
     if (!isAlreadySelected) {
-      // Check duplicate: course already in savedHistory
+      // Preventative: if course is already in history, block adding
       let foundInHistory = false;
       for (const [, ids] of Object.entries(savedHistory)) {
         if (ids.includes(courseId)) { foundInHistory = true; break; }
       }
       if (foundInHistory) {
-        // We still let them add it, but run choice set conflict check below
+        // Show alert that this course is already taken
+        setChoiceConflict({
+          courseId,
+          courseName: courseMap.get(courseId)?.name ?? courseId,
+          setName: locale === "zh" ? "历史已选课程" : "Already Taken",
+          conflictId: courseId,
+          conflictName: locale === "zh" ? "该课程已在历史记录中，无法重复添加" : "This course is already in your history",
+        });
+        return;
       }
 
       // Check choice set conflict across ALL taken courses
@@ -755,6 +780,24 @@ export const Workspace = ({onNavigate}: WorkspaceProps) => {
   }, [stagingSemester, semesterMap, courseGroupInfo, allSelectedIds]);
 
   // --- Per-course semester bonus map ---
+  /** Foundation group codes for 大二·春季 bonus */
+  const FOUNDATION_GROUP_CODES = new Set(["MATH_BASIS","PHY_BASIS","ME_BASIS","MECH_BASIS","CS_BASIS","OR_STAT","COMP_BASIS"]);
+
+  /** Course IDs for 大二·春季 special +62 */
+  const DAER_CHUN_SPECIAL_62 = new Set(["10680022","10680142","14201032"]);
+
+  /** English3(14201022) and English4(14201032) weight maps */
+  const ENGLISH3_WEIGHT: Record<string, number> = {
+    "大二·秋季": 0, "大二·春季": 1, "大二·夏季": 0,
+    "大三·秋季": 2, "大三·春季": 3, "大三·夏季": 0,
+    "大四·秋季": 4, "大四·春季": 4,
+  };
+  const ENGLISH4_WEIGHT: Record<string, number> = {
+    "大二·秋季": 0, "大二·春季": 0, "大二·夏季": 0,
+    "大三·秋季": 1, "大三·春季": 2, "大三·夏季": 0,
+    "大四·秋季": 3, "大四·春季": 4,
+  };
+
   const COURSE_BONUS: Record<string, Array<{semesterMatch: string; bonus: number}>> = {
     "10691342": [{semesterMatch: "大一·秋季", bonus: 62}],
     "30160023": [{semesterMatch: "大一·春季", bonus: 62}],
@@ -832,6 +875,30 @@ export const Workspace = ({onNavigate}: WorkspaceProps) => {
         }
       }
 
+      // 大二·春 special bonus: foundation category courses in 大二·春 +61
+      if (stagingSemester === "大二·春季") {
+        const courseCats = courseGroupInfo.get(c.course_id) ?? [];
+        const inFoundation = courseCats.some((i) => FOUNDATION_GROUP_CODES.has(i.groupCode));
+        if (inFoundation && stagingCourseIds.has(c.course_id)) {
+          score += 61;
+        }
+        // 三门特殊课程 +62
+        if (DAER_CHUN_SPECIAL_62.has(c.course_id)) {
+          score += 62;
+        }
+      }
+
+      // English3 bonus: weight * 101 if not in history
+      if (c.course_id === "14201022" && !historyCourseIds.has("14201022") && stagingSemester) {
+        const w = ENGLISH3_WEIGHT[stagingSemester];
+        if (w !== undefined && w > 0) score += w * 101;
+      }
+      // English4 bonus: weight * 101 if not in history
+      if (c.course_id === "14201032" && !historyCourseIds.has("14201032") && stagingSemester) {
+        const w = ENGLISH4_WEIGHT[stagingSemester];
+        if (w !== undefined && w > 0) score += w * 101;
+      }
+
       // History deduction: courses already recorded in history get -400
       if (historyCourseIds.has(c.course_id)) {
         score -= 400;
@@ -841,7 +908,7 @@ export const Workspace = ({onNavigate}: WorkspaceProps) => {
     }
 
     return scores;
-  }, [courses, stagingCourseInfo, courseModuleMap, foundationActive, moduleScoreMap, courseGroupInfo, moduleScoringConfig, savedHistory]);
+  }, [courses, stagingCourseInfo, courseModuleMap, foundationActive, moduleScoreMap, courseGroupInfo, moduleScoringConfig, savedHistory, stagingSemester]);
 
   const hasActiveFilters =
     filters.group !== "all" ||
@@ -1037,6 +1104,21 @@ export const Workspace = ({onNavigate}: WorkspaceProps) => {
                             )}
                           </div>
                           <div className="flex items-center gap-1">
+                            {/* Detail button */}
+                            {hasSaved && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setHistoryDetail(historyDetail === sem ? null : sem);
+                                }}
+                                className={`flex h-5 w-5 cursor-pointer items-center justify-center rounded border-none text-[9px] font-bold transition-colors ${
+                                  isDark
+                                    ? "bg-white/10 text-white/60 hover:bg-white/20 hover:text-white/85"
+                                    : "bg-gray-100 text-gray-500 hover:bg-gray-200 hover:text-gray-700"
+                                }`}
+                                title={locale === "zh" ? "查看详情" : "View details"}
+                              >i</button>
+                            )}
                             {/* Edit button — recall to staging */}
                             {hasSaved && (
                               <button
@@ -1124,6 +1206,7 @@ export const Workspace = ({onNavigate}: WorkspaceProps) => {
                                 <span className={isDark ? "text-white/60 italic" : "text-gray-500 italic"} style={{wordBreak: "break-word", maxWidth: "calc(100% - 2rem)"}}>
                                   {cc.name}
                                 </span>
+                                {cc.property && <span className={`shrink-0 text-[9px] mr-1 ${isDark ? "text-white/40" : "text-gray-400"}`}>{cc.property}</span>}
                                 <span className={`shrink-0 ${textMuted}`}>{cc.credits}</span>
                               </div>
                             ))}
@@ -1436,7 +1519,7 @@ export const Workspace = ({onNavigate}: WorkspaceProps) => {
                       }`}
                       placeholder={t("workspace.customCourseName")}
                       value={customName}
-                      onChange={(e) => setCustomName(e.target.value)}
+                      onChange={(e) => { setCustomName(e.target.value); setCustomDuplicateMsg(null); }}
                     />
                     <input
                       className="w-16 rounded border px-1.5 py-0.5 text-xs outline-none"
@@ -1459,13 +1542,40 @@ export const Workspace = ({onNavigate}: WorkspaceProps) => {
                           ? "bg-blue-500/20 text-blue-300 hover:bg-blue-500/30"
                           : "bg-blue-500/10 text-blue-600 hover:bg-blue-500/20"
                       }`}
-                    >{t("workspace.customCourseAdd")}</button>
+>{t("workspace.customCourseAdd")}</button>
                   </div>
+                  {/* 课程属性下拉框: 用 Ring UI Select 实现，暗色模式自适应 */}
+                  <div className="flex items-center gap-1 mb-1">
+                    <span className={`text-[10px] shrink-0 ${textMuted}`}>{locale === "zh" ? "课程属性" : "Property"}</span>
+                    <div>
+                      <Select
+                        data={[
+                          {key: "无", label: locale === "zh" ? "无" : "None"},
+                          {key: "通识-艺术", label: "通识-艺术"},
+                          {key: "通识-社科", label: "通识-社科"},
+                          {key: "通识-人文", label: "通识-人文"},
+                          {key: "通识-科学", label: "通识-科学"},
+                          {key: "SRT", label: "SRT"},
+                          {key: "重修", label: locale === "zh" ? "重修" : "Retake"},
+                          {key: "其他", label: locale === "zh" ? "其他" : "Other"},
+                        ]}
+                        selected={{key: customProperty, label: customProperty === "无" ? (locale === "zh" ? "无" : "None") : customProperty}}
+                        onSelect={(opt) => { if (opt) setCustomProperty(opt.key as string); }}
+                        label=""
+                        style={{width: "100%", minWidth: "100%", boxSizing: "border-box"}}
+                        />
+                    </div>
+                  </div>
+                  {/* 重复提示 */}
+                  {customDuplicateMsg && (
+                    <div className={`text-[10px] ${isDark ? "text-red-300" : "text-red-600"}`}>{customDuplicateMsg}</div>
+                  )}
                   {stagingSemester && (customCourses[stagingSemester] ?? []).length > 0 && (
                     <div className="flex flex-col gap-0.5">
                       {(customCourses[stagingSemester] ?? []).map((cc) => (
                         <div key={cc.id} className={`flex items-center justify-between rounded px-1.5 py-0.5 text-xs ${hoverBg}`}>
                           <span className={`flex-1 min-w-0 truncate ${textBody}`}>{cc.name}</span>
+                          {cc.property && <span className={`shrink-0 text-[9px] mr-1 ${isDark ? "text-white/40" : "text-gray-400"}`}>{cc.property}</span>}
                           <span className={`shrink-0 ${textMuted} mr-1`}>{cc.credits}</span>
                           <button
                             onClick={() => removeCustomCourse(stagingSemester, cc.id)}
@@ -1539,29 +1649,41 @@ export const Workspace = ({onNavigate}: WorkspaceProps) => {
           {/* ===== Choice conflict modal ===== */}
           {choiceConflict && (
             <div className="fixed inset-0 z-50 flex items-center justify-center" style={{background: "rgba(0,0,0,0.4)"}}>
-              <div className={`w-72 rounded-xl shadow-2xl border p-4 ${isDark ? "bg-[#1e1e2a] border-white/10" : "bg-white border-gray-200"}`}>
+              <div className={`w-80 rounded-xl shadow-2xl border p-4 ${isDark ? "bg-[#1e1e2a] border-white/10" : "bg-white border-gray-200"}`}>
                 <div className={`text-sm font-semibold mb-2 ${textDark}`}>
-                  {locale === "zh" ? "选课冲突" : "Course Conflict"}
+                  {choiceConflict.courseId === choiceConflict.conflictId && choiceConflict.setName === "历史已选课程"
+                    ? (locale === "zh" ? "课程重复选择" : "Course Duplicate")
+                    : choiceConflict.courseId === choiceConflict.conflictId
+                    ? (locale === "zh" ? "提示" : "Notice")
+                    : (locale === "zh" ? "选课冲突" : "Course Conflict")}
                 </div>
-                <div className={`text-xs mb-3 ${textBody}`}>
-                  {locale === "zh"
-                    ? `「${choiceConflict.courseName}」与「${choiceConflict.conflictName}」属于「${choiceConflict.setName}」，只需选择一门。`
-                    : `"${choiceConflict.courseName}" and "${choiceConflict.conflictName}" are in "${choiceConflict.setName}". Only one is needed.`}
+                <div className={`text-xs mb-3 leading-relaxed ${textBody}`}>
+                  {choiceConflict.courseId === choiceConflict.conflictId ? (
+                    choiceConflict.conflictName
+                  ) : (
+                    locale === "zh"
+                      ? `「${choiceConflict.courseName}」与「${choiceConflict.conflictName}」属于「${choiceConflict.setName}」，只需选择一门。`
+                      : `"${choiceConflict.courseName}" and "${choiceConflict.conflictName}" are in "${choiceConflict.setName}". Only one is needed.`
+                  )}
                 </div>
                 <div className="flex gap-2 justify-end">
                   <Button onClick={() => setChoiceConflict(null)}>
-                    {locale === "zh" ? "取消选择" : "Cancel"}
+                    {choiceConflict.courseId === choiceConflict.conflictId && choiceConflict.setName !== "历史已选课程"
+                      ? (locale === "zh" ? "知道了" : "OK")
+                      : (locale === "zh" ? "取消" : "Cancel")}
                   </Button>
-                  <Button onClick={() => {
-                    setChoiceConflict(null);
-                    setSelectedCourses((prev) => {
-                      const next = new Set(prev);
-                      next.add(choiceConflict.courseId);
-                      return next;
-                    });
-                  }}>
-                    {locale === "zh" ? "仍然选择" : "Select Anyway"}
-                  </Button>
+                  {(choiceConflict.courseId !== choiceConflict.conflictId || choiceConflict.setName === "历史已选课程") && (
+                    <Button onClick={() => {
+                      setChoiceConflict(null);
+                      setSelectedCourses((prev) => {
+                        const next = new Set(prev);
+                        next.add(choiceConflict.courseId);
+                        return next;
+                      });
+                    }}>
+                      {locale === "zh" ? "仍然选课" : "Select Anyway"}
+                    </Button>
+                  )}
                 </div>
               </div>
             </div>
@@ -1596,6 +1718,122 @@ export const Workspace = ({onNavigate}: WorkspaceProps) => {
               </div>
             </div>
           )}
+
+          {/* ===== History Detail Popup ===== */}
+          {historyDetail && (() => {
+            const sem = historyDetail;
+            const savedIds = savedHistory[sem] ?? [];
+            const savedCourses = savedIds.map((id) => courseMap.get(id)).filter(Boolean) as typeof courses;
+            const semesterCustom = customCourses[sem] ?? [];
+            return (
+              <div
+                className="fixed inset-0 z-50 flex items-start justify-center pt-12"
+                style={{background: isDark ? "rgba(0,0,0,0.4)" : "rgba(0,0,0,0.15)"}}
+                onClick={() => setHistoryDetail(null)}
+              >
+                <div
+                  className={`w-96 max-h-[75vh] overflow-auto rounded-xl shadow-2xl border ${isDark ? "bg-[#1e1e2a]" : "bg-white"} ${borderCls}`}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className={`flex items-center justify-between px-5 py-4 border-b ${borderCls}`}>
+                    <span className={`text-base font-semibold ${textDark}`}>
+                      {locale === "zh" ? abbreviateSemester(sem) : tSemester(sem)}
+                      <span className={`ml-2 text-xs font-normal ${textMuted}`}>
+                        ({locale === "zh" ? `共${savedCourses.length + semesterCustom.length}门` : `${savedCourses.length + semesterCustom.length} courses`})
+                      </span>
+                    </span>
+                    <button
+                      onClick={() => setHistoryDetail(null)}
+                      className={`flex h-7 w-7 cursor-pointer items-center justify-center rounded-full border-none text-sm transition-colors ${
+                        isDark ? "hover:bg-white/10 text-white/60" : "hover:bg-gray-100 text-gray-400"
+                      }`}
+                    >✕</button>
+                  </div>
+                  <div className="flex flex-col gap-3 px-5 py-4">
+                    {savedCourses.length === 0 && semesterCustom.length === 0 && (
+                      <span className={`text-sm ${textMuted}`}>{locale === "zh" ? "无课程数据" : "No courses"}</span>
+                    )}
+                    {savedCourses.map((c) => {
+                      const prereqIds = prereqMap.get(c.course_id) ?? [];
+                      const prereqNames = prereqIds.map((pid) => {
+                        const pc = courseMap.get(pid);
+                        return pc ? tName(pid, pc.name) : pid;
+                      });
+                      const categories = getCourseCategories(c.course_id);
+                      const sems = courseSemesterMap.get(c.course_id) ?? [];
+                      const enName = enNameMap.get(c.course_id);
+                      const csInfo = courseChoiceSets.get(c.course_id);
+                      return (
+                        <div key={c.course_id} className={`rounded-lg border p-3 ${borderCls}`}>
+                          <div className={`text-base font-semibold ${textDark}`}>{tName(c.course_id, c.name)}</div>
+                          {locale === "zh" && enName && (
+                            <div className={`text-xs ${textMuted} mb-1`}>{enName}</div>
+                          )}
+                          <div className={`flex flex-col gap-1 mt-1 text-sm ${textMuted}`}>
+                            <div className="flex justify-between">
+                              <span>{locale === "zh" ? "编号" : "Code"}</span>
+                              <span className={`font-mono ${textDark}`}>{c.course_id.startsWith("NEW") ? "新开课" : c.course_id}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span>{locale === "zh" ? "学分" : "Credits"}</span>
+                              <span className={`font-semibold ${textDark}`}>{c.credits}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span>{locale === "zh" ? "类别" : "Category"}</span>
+                              <span className={`text-right ${textDark}`} style={{maxWidth: "65%"}}>
+                                {categories.length > 0 ? categories.join(", ") : "—"}
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span>{locale === "zh" ? "推荐学期" : "Semester"}</span>
+                              <span className={`text-right ${textDark}`}>
+                                {sems.length > 0
+                                  ? sems.map((s) => (locale === "zh" ? abbreviateSemester(s) : tSemester(s))).join(", ")
+                                  : "—"}
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span>{locale === "zh" ? "先修课程" : "Prerequisites"}</span>
+                              <span className={`text-right ${textDark}`} style={{maxWidth: "65%"}}>
+                                {prereqNames.length > 0 ? prereqNames.join("; ") : "—"}
+                              </span>
+                            </div>
+                            {csInfo && csInfo.length > 0 && (
+                              <div className="flex flex-col gap-0.5 mt-1">
+                                <span className={`text-xs ${textMuted}`}>{locale === "zh" ? "多选一关系" : "Mutual Exclusion"}</span>
+                                {csInfo.map((cs) => (
+                                  <span key={cs.setId} className={`pl-2 text-xs ${isDark ? "text-yellow-300" : "text-yellow-700"}`}>
+                                    {cs.setName}（{cs.maxSelect}选1）：{cs.siblings.map((s) => tName(s.courseId, s.name)).join("、")}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {semesterCustom.map((cc) => (
+                      <div key={cc.id} className={`rounded-lg border p-3 ${borderCls}`}>
+                        <div className={`text-base font-semibold ${textDark}`}>{cc.name}</div>
+                        <div className={`flex flex-col gap-1 mt-1 text-sm ${textMuted}`}>
+                          <div className="flex justify-between">
+                            <span>{locale === "zh" ? "来源" : "Source"}</span>
+                            <span className={isDark ? "text-white/60 italic" : "text-gray-500 italic"}>
+                              {locale === "zh" ? "自定义课程" : "Custom"}{cc.property ? "(" + cc.property + ")" : ""}
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span>{locale === "zh" ? "学分" : "Credits"}</span>
+                            <span className={`font-semibold ${textDark}`}>{cc.credits}</span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
 
           {/* ===== Import/Export modal ===== */}
           {showImportModal && (
@@ -1665,7 +1903,7 @@ export const Workspace = ({onNavigate}: WorkspaceProps) => {
                   <div className="flex items-center gap-1">
                     <button
                       onClick={() => setRecommendEnabled(!recommendEnabled)}
-                      className={`shrink-0 cursor-pointer rounded border px-1.5 py-1 text-[9px] font-medium leading-none transition-colors ${
+                      className={`shrink-0 cursor-pointer rounded border px-3 py-1.5 text-xs font-medium leading-none transition-colors ${
                         recommendEnabled
                           ? isDark
                             ? "bg-blue-500/20 border-blue-500/30 text-blue-300"
@@ -1754,6 +1992,17 @@ export const Workspace = ({onNavigate}: WorkspaceProps) => {
                         const modStr = shownMods.map(([id]) => `模块${id}`).join("、");
                         lines.push(`${idx}.${locale === "zh" ? `推荐${modStr}` : `Recommended: ${modStr}`}`);
                       }
+                    }
+
+                    // ④ English course hint: only English3/4 when in top recommended
+                    const hasEng3 = stagingCids.includes("14201022") && ENGLISH3_WEIGHT[stagingSemester ?? ""] > 0;
+                    const hasEng4 = stagingCids.includes("14201032") && ENGLISH4_WEIGHT[stagingSemester ?? ""] > 0;
+                    if (hasEng3 || hasEng4) {
+                      const engParts: string[] = [];
+                      if (hasEng3) engParts.push(locale === "zh" ? "英语(3)" : "English(3)");
+                      if (hasEng4) engParts.push(locale === "zh" ? "英语(4)" : "English(4)");
+                      idx++;
+                      lines.push(`${idx}.${locale === "zh" ? `推荐${engParts.join("、")}` : `Rec: ${engParts.join(", ")}`}`);
                     }
 
                     const hint = lines.join(" ");
@@ -1850,13 +2099,41 @@ export const Workspace = ({onNavigate}: WorkspaceProps) => {
                       ? sems.map((s) => (locale === "zh" ? abbreviateSemester(s) : tSemester(s))).join(", ")
                       : "—";
                   const isSelected = selectedCourses.has(c.course_id);
+                  // Check if course is in history (already taken)
+                  const isInHistory = Object.values(savedHistory).some((ids) => ids.includes(c.course_id));
 
                   return (
                     <div
                       key={c.course_id}
                       className={`flex items-start gap-2 px-3 py-1.5 text-xs border-b ${borderLight} ${hoverBg} ${textBody}`}
                     >
-                      {/* +/- button */}
+                      {/* +/- button: green✓ for staged, yellow✓ for history, + for none */}
+                      {isInHistory ? (
+                        <button
+                          onClick={() => {
+                            let foundSem = "";
+                            for (const [sem, ids] of Object.entries(savedHistory)) {
+                              if (ids.includes(c.course_id)) { foundSem = sem; break; }
+                            }
+                            const semLabel = foundSem ? (locale === "zh" ? abbreviateSemester(foundSem) : tSemester(foundSem)) : "";
+                            setChoiceConflict({
+                              courseId: c.course_id,
+                              courseName: tName(c.course_id, c.name),
+                              setName: locale === "zh" ? "历史已选课程" : "Already Taken",
+                              conflictId: c.course_id,
+                              conflictName: locale === "zh"
+                                ? `该课程已在${semLabel}的历史记录中。如需特殊原因重复选择，请点击"仍然选课"`
+                                : `This course is already in ${semLabel} history. Click "Select Anyway" to proceed.`,
+                            });
+                          }}
+                          className={`mt-0.5 flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded border-none text-sm font-bold transition-colors ${
+                            isDark
+                              ? "bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30"
+                              : "bg-yellow-500/15 text-yellow-600 hover:bg-yellow-500/25"
+                          }`}
+                          title={locale === "zh" ? "已在历史记录中，点击重新选课" : "Already in history, click to re-select"}
+                        >✓</button>
+                      ) : (
                       <button
                         onClick={() => toggleSelected(c.course_id)}
                         className={`mt-0.5 flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded border-none text-sm font-bold transition-colors ${
@@ -1872,6 +2149,7 @@ export const Workspace = ({onNavigate}: WorkspaceProps) => {
                       >
                         {isSelected ? "✓" : "+"}
                       </button>
+                      )}
                       {/* Course ID */}
                       <span className={`w-20 shrink-0 truncate font-mono pt-0.5 ${textMuted}`} title={c.course_id}>
                         {c.course_id.startsWith("NEW") ? "新开课" : c.course_id}

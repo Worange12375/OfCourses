@@ -1947,7 +1947,7 @@
       "course_name": "热参数近代测试技术"
     },
     {
-      "semester": "大四·春季",
+      "semester": "大四·秋季",
       "course_id": "84100343",
       "course_name": "深度学习"
     },
@@ -2253,6 +2253,12 @@
       "name": "软件工程",
       "total_credits_required": 24,
       "description": "修完模块4-8任一模块的A课组，并选择模块4-8的其他课程，共计24学分"
+    },
+    {
+      "track_code": "CE",
+      "name": "交叉工程",
+      "total_credits_required": 24,
+      "description": "修完某个模块中的A课组作为主修模块，其余课程可以从所有模块中选择，且至少跨类选择一门课程"
     }
   ],
   "degree_group_requirements": [

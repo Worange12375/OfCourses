@@ -148,7 +148,6 @@ export const CurriculumPage = () => {
   const [showFeishuLinks, setShowFeishuLinks] = useState(false);
 
   const tabs = DEFAULT_TABS;
-  const activeContent = tabs.find((t) => t.id === activeTab)?.content ?? "";
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -182,8 +181,6 @@ export const CurriculumPage = () => {
   const tabActiveBg = isDark ? "bg-white/10" : "bg-gray-100";
   const tabActiveText = isDark ? "text-white" : "text-gray-900";
 
-  const isImageTab = tabs.find((t) => t.id === activeTab)?.isImage ?? false;
-
   return (
     <div className={`flex h-full flex-col ${isDark ? "bg-[#0e0e14]" : "bg-gray-50"}`}>
       <div id="curriculum-split" className="flex flex-1 overflow-hidden">
@@ -198,7 +195,7 @@ export const CurriculumPage = () => {
             </div>
             <div className={`flex flex-1 items-center justify-center ${isDark ? "text-white/30" : "text-gray-400"}`}>
               <div className="text-center">
-                <div className="text-4xl mb-2">🧠</div>
+                <div className="text-4xl mb-2">🔧</div>
                 <div className="text-xs">{locale === "zh" ? "培养方案导图（开发中）" : "Curriculum Map (Coming Soon)"}</div>
               </div>
             </div>
@@ -277,42 +274,50 @@ export const CurriculumPage = () => {
             </div>
           </div>
 
-          <div className={`flex-1 overflow-auto px-4 py-3 ${bgPanel}`}>
-            {isImageTab ? (
-              <div className="flex flex-col items-center gap-4 pb-8">
-                <div className={`text-xs text-center mb-2 ${textMuted}`}>
-                  {locale === "zh"
-                    ? `笃实书院培养方案解读（共${introImages.length}页）`
-                    : `Curriculum Interpretation (${introImages.length} pages)`}
-                </div>
-                {introImages.length === 0 ? (
-                  <div className={`text-xs ${textMuted}`}>
-                    {locale === "zh" ? "图片加载中..." : "Loading images..."}
-                  </div>
-                ) : (
-                  introImages.map(({num, src}) => (
-                    <div key={num} className="w-full max-w-3xl">
-                      <div className={`text-[10px] mb-1 ${textMuted}`}>
-                        {locale === "zh" ? `第${num}页` : `Page ${num}`}
-                      </div>
-                      <img
-                        src={src}
-                        alt={`培养方案解读第${num}页`}
-                        className="w-full h-auto rounded-lg border"
-                        style={{borderColor: isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)"}}
-                        loading="lazy"
-                      />
+          <div className={`flex-1 flex flex-col min-h-0 overflow-hidden ${bgPanel}`}>
+            {/* Each tab has its own scrollable container with independent scroll position */}
+            {tabs.map((tab) => (
+              <div
+                key={tab.id}
+                className={`flex-1 overflow-auto px-4 py-3 ${tab.id === activeTab ? "block" : "hidden"}`}
+              >
+                {tab.id === "intro" ? (
+                  <div className="flex flex-col items-center gap-4 pb-8">
+                    <div className={`text-xs text-center mb-2 ${textMuted}`}>
+                      {locale === "zh"
+                        ? `笃实书院培养方案解读（共${introImages.length}页）`
+                        : `Curriculum Interpretation (${introImages.length} pages)`}
                     </div>
-                  ))
+                    {introImages.length === 0 ? (
+                      <div className={`text-xs ${textMuted}`}>
+                        {locale === "zh" ? "图片加载中..." : "Loading images..."}
+                      </div>
+                    ) : (
+                      introImages.map(({num, src}) => (
+                        <div key={num} className="w-full max-w-3xl">
+                          <div className={`text-[10px] mb-1 ${textMuted}`}>
+                            {locale === "zh" ? `第${num}页` : `Page ${num}`}
+                          </div>
+                          <img
+                            src={src}
+                            alt={`培养方案解读第${num}页`}
+                            className="w-full h-auto rounded-lg border"
+                            style={{borderColor: isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)"}}
+                            loading="lazy"
+                          />
+                        </div>
+                      ))
+                    )}
+                  </div>
+                ) : tab.content ? (
+                  <SimpleMarkdown text={tab.content} isDark={isDark} />
+                ) : (
+                  <div className={`flex h-full items-center justify-center text-xs ${textMuted}`}>
+                    {locale === "zh" ? "文档加载中..." : "Loading document..."}
+                  </div>
                 )}
               </div>
-            ) : activeContent ? (
-              <SimpleMarkdown text={activeContent} isDark={isDark} />
-            ) : (
-              <div className={`flex h-full items-center justify-center text-xs ${textMuted}`}>
-                {locale === "zh" ? "文档加载中..." : "Loading document..."}
-              </div>
-            )}
+            ))}
           </div>
         </div>
       </div>
