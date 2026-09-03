@@ -5,6 +5,7 @@ import {useLocale} from "../i18n/LocaleContext";
 import {useAppTheme} from "../theme/ThemeContext";
 import {useSemester} from "../hooks/SemesterContext";
 import {useTName} from "../hooks/useCurriculumData";
+import {HelpButton} from "../onboarding/HelpButton";
 import singleLogo from "../assets/OfCourses_singleLogo.ico";
 import duShi from "../assets/DuShi.png";
 
@@ -15,11 +16,11 @@ interface NavbarProps {
     onNavigate: (page: NavPage) => void;
 }
 
-const navLinks: {page: NavPage; labelKey: string}[] = [
+const navLinks: {page: NavPage; labelKey: string; tour?: string}[] = [
     {page: "home", labelKey: "nav.home"},
-    {page: "curriculum", labelKey: "nav.curriculum"},
+    {page: "curriculum", labelKey: "nav.curriculum", tour: "nav-curriculum"},
     {page: "workspace", labelKey: "nav.workspace"},
-    {page: "tools", labelKey: "nav.tools"},
+    {page: "tools", labelKey: "nav.tools", tour: "nav-tools"},
     {page: "about", labelKey: "nav.about"},
 ];
 
@@ -38,7 +39,7 @@ export const Navbar = ({currentPage, onNavigate}: NavbarProps) => {
     return (
         <nav
             className={
-                `flex h-14 items-center justify-between px-5 transition-colors duration-300 ${
+                `sticky top-0 z-50 shrink-0 flex h-14 items-center justify-between px-5 transition-colors duration-300 ${
                     isDark
                         ? "border-b border-[rgba(255,255,255,0.06)] bg-[rgba(18,18,24,0.92)] text-white"
                         : "border-b border-[rgba(0,0,0,0.08)] bg-white/95 text-gray-800 shadow-sm"
@@ -58,9 +59,10 @@ export const Navbar = ({currentPage, onNavigate}: NavbarProps) => {
 
             {/* Nav links */}
             <div className="flex items-center gap-1">
-                {navLinks.map(({page, labelKey}) => (
+                {navLinks.map(({page, labelKey, tour}) => (
                     <button
                         key={page}
+                        data-tour={tour}
                         onClick={() => onNavigate(page)}
                         className={
                             `cursor-pointer rounded-lg border-none px-4 py-1.5 text-sm font-medium transition-all duration-200 ${
@@ -87,7 +89,7 @@ export const Navbar = ({currentPage, onNavigate}: NavbarProps) => {
                         <span className={`whitespace-nowrap text-xs ${isDark ? "text-white/60" : "text-gray-500"}`}>
                             {t("nav.currentSemester")}
                         </span>
-                        <div className="min-w-40">
+                        <div className="min-w-40" data-tour="semester">
                             <Select
                                 data={semesterOptions}
                                 selected={{key: semester, label: tSemester(semester)}}
@@ -95,6 +97,7 @@ export const Navbar = ({currentPage, onNavigate}: NavbarProps) => {
                                     if (option) setSemester(option.key as typeof semester);
                                 }}
                                 filter
+                                popupClassName="oc-nav-select-popup"
                             />
                         </div>
                     </div>
@@ -166,6 +169,7 @@ export const Navbar = ({currentPage, onNavigate}: NavbarProps) => {
                             locale === "zh" ? "left-1" : "right-1"
                         }`} />
                     </button>
+                    <HelpButton />
             </div>
         </nav>
     );

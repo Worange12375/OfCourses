@@ -4,3 +4,26 @@ html, body, #root {
     height: 100%;
     margin: 0;
 }
+
+/* Ring UI 弹层（Select/List）通过 portal 渲染到 body，脱离 RingThemeProvider 包裹层，
+   无法继承暗色 CSS 变量。这里用 html[data-theme="dark"] 覆盖其背景与文字色。 */
+[data-theme="dark"] .ring-select-popup,
+[data-theme="dark"] .ring-list {
+    background-color: #1e1e2a !important;
+    color: rgba(255, 255, 255, 0.9) !important;
+    border-color: rgba(255, 255, 255, 0.12) !important;
+}
+[data-theme="dark"] .ring-list-item {
+    color: rgba(255, 255, 255, 0.9) !important;
+}
+[data-theme="dark"] .ring-list-item:hover,
+[data-theme="dark"] .ring-list-item[aria-selected="true"],
+[data-theme="dark"] .ring-list-item.selected {
+    background-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+/* 导航栏内的学期下拉弹层：Ring UI 弹层默认 z-index 仅 5，低于导航栏的 z-50，
+   导致弹层被压在导航栏之下。这里单独抬升其层级，使其显示在导航栏之上。 */
+.oc-nav-select-popup {
+    z-index: 100 !important;
+}

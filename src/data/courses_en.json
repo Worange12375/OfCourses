@@ -1,5 +1,13 @@
 {
   "courses": {
+    "14201002": "English(1)",
+    "14201012": "English(2)",
+    "14201022": "English(3)",
+    "14201032": "English(4)",
+    "FOREIGN_1": "Second Foreign Language(1)",
+    "FOREIGN_2": "Second Foreign Language(2)",
+    "FOREIGN_3": "Second Foreign Language(3)",
+    "FOREIGN_4": "Second Foreign Language(4)",
     "00740302": "Advanced Computer Programming",
     "04790012": "Systems Thinking & Systems Engineering Exploration",
     "10220053": "Electrical and Electronic Technology Fundamentals",

@@ -235,6 +235,30 @@
       "module_type": null
     },
     {
+      "course_id": "FOREIGN_1",
+      "name": "第二外国语(1)",
+      "credits": 4,
+      "module_type": null
+    },
+    {
+      "course_id": "FOREIGN_2",
+      "name": "第二外国语(2)",
+      "credits": 4,
+      "module_type": null
+    },
+    {
+      "course_id": "FOREIGN_3",
+      "name": "第二外国语(3)",
+      "credits": 4,
+      "module_type": null
+    },
+    {
+      "course_id": "FOREIGN_4",
+      "name": "第二外国语(4)",
+      "credits": 4,
+      "module_type": null
+    },
+    {
       "course_id": "14202002",
       "name": "初级汉语阅读与写作(1)",
       "credits": 2,

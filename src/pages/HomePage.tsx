@@ -1,6 +1,7 @@
 import type {NavPage} from "../components/Navbar";
 import {useLocale} from "../i18n/LocaleContext";
 import {useAppTheme} from "../theme/ThemeContext";
+import {HelpButton} from "../onboarding/HelpButton";
 import mainLogo from "../assets/OfCourses_Logo.png";
 
 interface HomePageProps {
@@ -47,6 +48,8 @@ export const HomePage = ({onNavigate}: HomePageProps) => {
                         locale === "zh" ? "left-1" : "right-1"
                     }`} />
                 </button>
+
+                <HelpButton />
 
                 {/* Theme toggle */}
                 <button
@@ -133,25 +136,25 @@ export const HomePage = ({onNavigate}: HomePageProps) => {
 
                 {/* Custom buttons */}
                 <div className="mt-2 flex items-center gap-4">
-                    {/* Curriculum 按钮 - 渐变紫色 */}
+                    {/* Curriculum 按钮 - 次级（描边） */}
                     <button
                         onClick={() => onNavigate("curriculum")}
-                        className={`cursor-pointer rounded-xl border-none bg-gradient-to-r from-[#863bff] to-[#a855f7] px-8 py-3 text-sm font-semibold text-white shadow-lg transition-all duration-300 hover:scale-105 hover:shadow-xl ${
+                        className={`cursor-pointer rounded-xl border px-8 py-3 text-sm font-semibold transition-all duration-300 hover:scale-105 ${
                             isDark
-                                ? "shadow-[rgba(134,59,255,0.35)] hover:shadow-[rgba(134,59,255,0.5)]"
-                                : "shadow-[rgba(134,59,255,0.25)] hover:shadow-[rgba(134,59,255,0.4)]"
+                                ? "border-white/15 bg-white/5 text-white/80 backdrop-blur-sm hover:border-white/30 hover:bg-white/10 hover:text-white"
+                                : "border-[rgba(134,59,255,0.2)] bg-[rgba(134,59,255,0.04)] text-[rgba(134,59,255,0.8)] hover:border-[rgba(134,59,255,0.35)] hover:bg-[rgba(134,59,255,0.08)] hover:text-[#863bff]"
                         }`}
                     >
                         {t("nav.curriculum")}
                     </button>
 
-                    {/* Workspace 按钮 */}
+                    {/* Workspace 按钮 - 最突出（渐变紫） */}
                     <button
                         onClick={() => onNavigate("workspace")}
-                        className={`cursor-pointer rounded-xl border px-8 py-3 text-sm font-semibold transition-all duration-300 hover:scale-105 ${
+                        className={`cursor-pointer rounded-xl border-none bg-gradient-to-r from-[#863bff] to-[#a855f7] px-8 py-3 text-sm font-semibold text-white shadow-lg transition-all duration-300 hover:scale-105 hover:shadow-xl ${
                             isDark
-                                ? "border-white/15 bg-white/5 text-white/80 backdrop-blur-sm hover:border-white/30 hover:bg-white/10 hover:text-white"
-                                : "border-[rgba(134,59,255,0.2)] bg-[rgba(134,59,255,0.04)] text-[rgba(134,59,255,0.8)] hover:border-[rgba(134,59,255,0.35)] hover:bg-[rgba(134,59,255,0.08)] hover:text-[#863bff]"
+                                ? "shadow-[rgba(134,59,255,0.35)] hover:shadow-[rgba(134,59,255,0.5)]"
+                                : "shadow-[rgba(134,59,255,0.25)] hover:shadow-[rgba(134,59,255,0.4)]"
                         }`}
                     >
                         {t("nav.workspace")}

@@ -1,4 +1,4 @@
-import {useState} from "react";
+import {useEffect, useState} from "react";
 import Theme, {ThemeProvider as RingThemeProvider} from "@jetbrains/ring-ui-built/components/global/theme";
 import {LocaleProvider} from "./i18n/LocaleContext";
 import {AppThemeProvider, useAppTheme} from "./theme/ThemeContext";
@@ -9,11 +9,17 @@ import {Workspace} from "./pages/Workspace";
 import {CurriculumPage} from "./pages/CurriculumPage";
 import {ToolsPage} from "./pages/ToolsPage";
 import {AboutPage} from "./pages/AboutPage";
+import {OnboardingProvider, useOnboarding, TourOverlay, HelpPanel} from "./onboarding";
 
 const AppShell = () => {
     const [page, setPage] = useState<NavPage>("home");
     const {theme} = useAppTheme();
+    const {registerNavigate} = useOnboarding();
     const isDark = theme === "dark";
+
+    useEffect(() => {
+        registerNavigate(setPage);
+    }, [registerNavigate, setPage]);
 
     const baseBg = isDark ? "bg-[#0e0e14]" : "bg-gray-50";
 
@@ -44,6 +50,10 @@ const AppShell = () => {
                     <AboutPage />
                 </div>
             </div>
+
+            {/* Onboarding UI (tour overlay + help panel) */}
+            <TourOverlay />
+            <HelpPanel />
         </div>
     );
 };
@@ -54,7 +64,9 @@ const AppInner = () => {
         <RingThemeProvider theme={theme === "dark" ? Theme.DARK : Theme.LIGHT} className="h-full">
             <LocaleProvider>
                 <SemesterProvider>
-                    <AppShell />
+                    <OnboardingProvider>
+                        <AppShell />
+                    </OnboardingProvider>
                 </SemesterProvider>
             </LocaleProvider>
         </RingThemeProvider>

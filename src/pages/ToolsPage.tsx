@@ -33,6 +33,20 @@ interface TrackProgress {
   specialNote?: string;
 }
 
+// —— 学位评定常量（培养方案相对稳定，集中管理便于维护）——
+const MODULE_CREDIT_CAP = 24;          // 单模块毕业要求学分上限
+const CREDIT_PCT_CAP = 48;             // 学分部分占模块评定上限（%）
+const A_GROUP_PCT_CAP = 52;            // A 组课程数占模块评定上限（%）
+const EM_A_GROUP_PCT = 42;             // EM 轨道 A 组占比（%）
+const EM_TANXIAN_PCT = 10;             // EM 轨道"弹性力学"占比（%）
+const CE_CROSS_BONUS = 10;             // 兜底路径跨类加成（%）
+const PCT_MAX = 100;                   // 百分比满值
+const FALLBACK_W_MAIN = 0.9;           // 兜底路径主权重
+const FALLBACK_W_CROSS = 0.1;          // 兜底路径跨类权重
+const PCT_EPSILON = 0.01;              // 浮点相等判定阈值
+const TANXIAN_COURSE_ID = "30310084";  // 弹性力学课号
+const ALL_MODULE_IDS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]; // 全模块编号
+
 export const ToolsPage = () => {
   const {locale} = useLocale();
   const {theme} = useAppTheme();
@@ -140,11 +154,6 @@ export const ToolsPage = () => {
     if (modId <= 3) return 1;
     if (modId <= 8) return 2;
     return 3;
-  };
-
-  // Get all course_ids in a group
-  const courseIdsInGroup = (gid: number): Set<string> => {
-    return groupCourseSet.get(gid) ?? new Set();
   };
 
   // Build category course sets: I类 (modules 1-3), II类 (modules 4-8), III类 (modules 9-13)
@@ -285,12 +294,10 @@ export const ToolsPage = () => {
       let bestModules: number[] | undefined;
       let ceSpecialNote: string | undefined;
       let bestModulePct = 0;
-      let bestAComponentPct = 0;
       let creditsEarned = 0;
       let allMainGroups: GroupProgress[] = [];
       let allSubGroups: GroupProgress[] = [];
       let missingRequired: string | undefined;
-      let aGroupComplete = false;
 
       if (code === "AE" || code === "EM" || code === "PE") {
         // AE/PE: A组52% (课程数比例) + 模块24学分48%
@@ -303,20 +310,19 @@ export const ToolsPage = () => {
           const aPctBase = cnt.total > 0 ? (cnt.taken / cnt.total) : 0;
 
           if (code === "EM") {
-            const tanxing = allSelectedIds.has("30310084");
-            const tanxingPct = tanxing ? 10 : 0;
-            const aPct = aPctBase * 42;
-            const c24Pct = Math.min(48, (totalCreds / 24) * 48);
-            creditsEarned = Math.min(totalCreds, 24);
-            bestModulePct = Math.min(100, Math.round(tanxingPct + aPct + c24Pct));
+            const tanxing = allSelectedIds.has(TANXIAN_COURSE_ID);
+            const tanxingPct = tanxing ? EM_TANXIAN_PCT : 0;
+            const aPct = aPctBase * EM_A_GROUP_PCT;
+            const c24Pct = Math.min(CREDIT_PCT_CAP, (totalCreds / MODULE_CREDIT_CAP) * CREDIT_PCT_CAP);
+            creditsEarned = Math.min(totalCreds, MODULE_CREDIT_CAP);
+            bestModulePct = Math.min(PCT_MAX, Math.round(tanxingPct + aPct + c24Pct));
           } else {
-            const aPct = aPctBase * 52;
-            const c24Pct = Math.min(48, (totalCreds / 24) * 48);
-            creditsEarned = Math.min(totalCreds, 24);
-            bestModulePct = Math.min(100, Math.round(aPct + c24Pct));
+            const aPct = aPctBase * A_GROUP_PCT_CAP;
+            const c24Pct = Math.min(CREDIT_PCT_CAP, (totalCreds / MODULE_CREDIT_CAP) * CREDIT_PCT_CAP);
+            creditsEarned = Math.min(totalCreds, MODULE_CREDIT_CAP);
+            bestModulePct = Math.min(PCT_MAX, Math.round(aPct + c24Pct));
           }
           bestModules = [modId];
-          aGroupComplete = isGroupComplete(modInfo.aGroupId);
           allMainGroups = [groupProgress(modInfo.aGroupId, locale === "zh" ? `模块${modId}A` : `Module ${modId}A`)];
           allSubGroups = [groupProgress(modInfo.bGroupId, locale === "zh" ? `模块${modId}B` : `Module ${modId}B`)];
         }
@@ -339,8 +345,8 @@ export const ToolsPage = () => {
           const modInfo = moduleGroupInfo.get(modId);
           if (!modInfo) continue;
           const cnt = aGroupCourseCount(modInfo.aGroupId);
-          const aPct = cnt.total > 0 ? (cnt.taken / cnt.total) * 52 : 0;
-          const c24Pct = Math.min(48, (catCredits / 24) * 48);
+          const aPct = cnt.total > 0 ? (cnt.taken / cnt.total) * A_GROUP_PCT_CAP : 0;
+          const c24Pct = Math.min(CREDIT_PCT_CAP, (catCredits / MODULE_CREDIT_CAP) * CREDIT_PCT_CAP);
           const modPct = aPct + c24Pct;
           modulePcts.push({modId, pct: modPct, aPct, aComplete: isGroupComplete(modInfo.aGroupId)});
           allMainGroups.push(groupProgress(modInfo.aGroupId, locale === "zh" ? `模块${modId}A` : `Module ${modId}A`));
@@ -350,17 +356,14 @@ export const ToolsPage = () => {
         const sorted = [...modulePcts].sort((a, b) => b.pct - a.pct || b.aPct - a.aPct);
         if (sorted.length > 0) {
           const best = sorted[0];
-          bestModules = sorted.filter((m) => Math.abs(m.pct - best.pct) < 0.01 && Math.abs(m.aPct - best.aPct) < 0.01).map((m) => m.modId);
+          bestModules = sorted.filter((m) => Math.abs(m.pct - best.pct) < PCT_EPSILON && Math.abs(m.aPct - best.aPct) < PCT_EPSILON).map((m) => m.modId);
           bestModulePct = best.pct;
-          bestAComponentPct = best.aPct;
-          const bestModInfo = moduleGroupInfo.get(best.modId);
-          aGroupComplete = bestModInfo ? isGroupComplete(bestModInfo.aGroupId) : false;
         }
 
         if (bestModules && bestModules.length > 0) {
           const modInfo = moduleGroupInfo.get(bestModules[0]);
           if (modInfo) {
-            creditsEarned = Math.min(catCredits, 24);
+            creditsEarned = Math.min(catCredits, MODULE_CREDIT_CAP);
           }
         }
       } else if (code === "CE") {
@@ -376,7 +379,7 @@ export const ToolsPage = () => {
         // Collect qualifying modules: A complete + cross (except module3 A+B = special path, no cross needed)
         const qualifiedModules: Array<{modId: number; pct: number; aPct: number; isMod3AB: boolean}> = [];
 
-        for (const modId of [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]) {
+        for (const modId of ALL_MODULE_IDS) {
           const modInfo = moduleGroupInfo.get(modId);
           if (!modInfo) continue;
 
@@ -395,8 +398,8 @@ export const ToolsPage = () => {
           }
 
           const cnt = aGroupCourseCount(modInfo.aGroupId);
-          const aPct = cnt.total > 0 ? (cnt.taken / cnt.total) * 52 : 0;
-          const c24Pct = Math.min(48, (allCatCredits / 24) * 48);
+          const aPct = cnt.total > 0 ? (cnt.taken / cnt.total) * A_GROUP_PCT_CAP : 0;
+          const c24Pct = Math.min(CREDIT_PCT_CAP, (allCatCredits / MODULE_CREDIT_CAP) * CREDIT_PCT_CAP);
           const modPct = aPct + c24Pct;
           qualifiedModules.push({modId, pct: modPct, aPct, isMod3AB});
         }
@@ -414,14 +417,13 @@ export const ToolsPage = () => {
           } else {
             bestModulePct = best.pct;
           }
-          aGroupComplete = true;
 
           // Record special note for module 3 A+B path
           ceSpecialNote = best.isMod3AB ? (locale === "zh" ? "已达标模块3A+B交叉方案" : "Module 3 A+B Cross Path") : undefined;
 
           const bestInfo = moduleGroupInfo.get(best.modId);
           if (bestInfo) {
-            creditsEarned = Math.min(allCatCredits, 24);
+            creditsEarned = Math.min(allCatCredits, MODULE_CREDIT_CAP);
           }
 
           for (const qm of qualifiedModules) {
@@ -435,31 +437,31 @@ export const ToolsPage = () => {
           // No fully qualified module: take max pct, apply q*0.9 + 0.1*cross
           let bestQ = 0;
           let bestQCross = false;
-          for (const modId of [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]) {
+          for (const modId of ALL_MODULE_IDS) {
             const modInfo = moduleGroupInfo.get(modId);
             if (!modInfo) continue;
             const cnt = aGroupCourseCount(modInfo.aGroupId);
-            const aPct = cnt.total > 0 ? (cnt.taken / cnt.total) * 52 : 0;
-            const c24Pct = Math.min(48, (allCatCredits / 24) * 48);
+            const aPct = cnt.total > 0 ? (cnt.taken / cnt.total) * A_GROUP_PCT_CAP : 0;
+            const c24Pct = Math.min(CREDIT_PCT_CAP, (allCatCredits / MODULE_CREDIT_CAP) * CREDIT_PCT_CAP);
             const modPct = aPct + c24Pct;
             if (modPct > bestQ) {
               bestQ = modPct;
               bestQCross = hasCrossCategoryRelativeToModule(modId);
             }
           }
-          const crossScore = bestQCross ? 10 : 0;
-          bestModulePct = bestQ * 0.9 + crossScore * 0.1;
+          const crossScore = bestQCross ? CE_CROSS_BONUS : 0;
+          bestModulePct = bestQ * FALLBACK_W_MAIN + crossScore * FALLBACK_W_CROSS;
           if (!bestQCross) {
             missingRequired = locale === "zh" ? "须至少跨类选择一门课程" : "Must select at least 1 cross-category course";
           }
 
           // Show top 3 candidates
-          const candidates = [1,2,3,4,5,6,7,8,9,10,11,12,13].map((modId) => {
+          const candidates = ALL_MODULE_IDS.map((modId) => {
             const mi = moduleGroupInfo.get(modId);
             if (!mi) return null;
             const cnt = aGroupCourseCount(mi.aGroupId);
-            const aPct = cnt.total > 0 ? (cnt.taken / cnt.total) * 52 : 0;
-            const c24Pct = Math.min(48, (allCatCredits / 24) * 48);
+            const aPct = cnt.total > 0 ? (cnt.taken / cnt.total) * A_GROUP_PCT_CAP : 0;
+            const c24Pct = Math.min(CREDIT_PCT_CAP, (allCatCredits / MODULE_CREDIT_CAP) * CREDIT_PCT_CAP);
             return {modId, pct: aPct + c24Pct, mi};
           }).filter(Boolean).sort((a, b) => b!.pct - a!.pct).slice(0, 3);
 
@@ -485,7 +487,7 @@ export const ToolsPage = () => {
 
       const pct = Math.min(100, Math.round(bestModulePct));
       const isComplete = pct >= 100;
-      const creditsReq = track.total_credits_required || 24;
+      const creditsReq = track.total_credits_required || MODULE_CREDIT_CAP;
 
       results.push({
         trackCode: code,
@@ -895,7 +897,7 @@ export const ToolsPage = () => {
                     })}
                   </div>
                   {(() => {
-                    const hasEM = allSelectedIds.has("30310084");
+                    const hasEM = allSelectedIds.has(TANXIAN_COURSE_ID);
                     return (
                       <div className={`mt-2 text-[11px] ${hasEM ? "text-green-500" : isDark ? "text-yellow-300" : "text-yellow-600"}`}>
                         {locale === "zh"

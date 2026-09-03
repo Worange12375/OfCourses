@@ -74,6 +74,20 @@ export type TranslationKey =
     | "workspace.importConfirm"
     | "workspace.importSuccess"
     | "workspace.importError"
+    | "workspace.importMergeHint"
+    | "workspace.importConfirmMerge"
+    | "workspace.importConfirmOverwrite"
+    | "workspace.importCancel"
+    | "workspace.blueNeed"
+    | "workspace.blueRec"
+    | "workspace.blueRecEng"
+    | "workspace.geCredits"
+    | "workspace.foundI"
+    | "workspace.foundII"
+    | "workspace.foundIII"
+    | "workspace.conflictDuplicate"
+    | "workspace.conflictNotice"
+    | "workspace.conflictTitle"
     | "workspace.exportSuccess"
     | "workspace.creditLimit"
     | "workspace.creditMin"
@@ -165,6 +179,20 @@ export const translations: Translations = {
         "workspace.importConfirm": "即将导入数据，是否继续？",
         "workspace.importSuccess": "导入成功！",
         "workspace.importError": "文件解析失败，请检查格式",
+        "workspace.importMergeHint": "将【合并】到现有数据（按学期并集），不会覆盖已有记录。",
+        "workspace.importConfirmMerge": "确认导入（合并）",
+        "workspace.importConfirmOverwrite": "确认导入（覆盖）",
+        "workspace.importCancel": "取消",
+        "workspace.blueNeed": "须选择",
+        "workspace.blueRec": "推荐",
+        "workspace.blueRecEng": "推荐",
+        "workspace.geCredits": "通识学分 · ",
+        "workspace.foundI": "I类",
+        "workspace.foundII": "II类",
+        "workspace.foundIII": "III类",
+        "workspace.conflictDuplicate": "课程重复选择",
+        "workspace.conflictNotice": "提示",
+        "workspace.conflictTitle": "选课冲突",
         "workspace.exportSuccess": "已导出记录到本地",
         "workspace.creditLimit": "学分约束",
         "workspace.creditMin": "每学期至少6学分（军训/暑期除外）",
@@ -255,6 +283,20 @@ export const translations: Translations = {
         "workspace.importConfirm": "Import data? This will overwrite current records.",
         "workspace.importSuccess": "Import successful!",
         "workspace.importError": "Invalid file format",
+        "workspace.importMergeHint": "Will be [merged] into existing data (union per semester); current records are kept.",
+        "workspace.importConfirmMerge": "Confirm (merge)",
+        "workspace.importConfirmOverwrite": "Confirm (overwrite)",
+        "workspace.importCancel": "Cancel",
+        "workspace.blueNeed": "Need ",
+        "workspace.blueRec": "Recommended: ",
+        "workspace.blueRecEng": "Rec: ",
+        "workspace.geCredits": "GE credits · ",
+        "workspace.foundI": "Type I",
+        "workspace.foundII": "Type II",
+        "workspace.foundIII": "Type III",
+        "workspace.conflictDuplicate": "Course Duplicate",
+        "workspace.conflictNotice": "Notice",
+        "workspace.conflictTitle": "Course Conflict",
         "workspace.exportSuccess": "Records exported",
         "workspace.creditLimit": "Credit Limits",
         "workspace.creditMin": "Min 6 credits/semester (excl. boot camp/summer)",

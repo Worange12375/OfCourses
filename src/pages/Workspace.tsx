@@ -20,6 +20,17 @@ import enData from "@/data/courses_en.json";
 import type { Database } from "@/database.types";
 type Course = Database["public"]["Tables"]["courses"]["Row"];
 
+// 自定义课程属性的双语标签（"通识-艺术" 等），用于通识学分统计展示
+const GE_PROP_LABELS: Record<string, {zh: string; en: string}> = {
+  "通识-艺术": {zh: "艺术", en: "Art"},
+  "通识-社科": {zh: "社科", en: "Social Sci"},
+  "通识-人文": {zh: "人文", en: "Humanities"},
+  "通识-科学": {zh: "科学", en: "Natural Sci"},
+  "SRT": {zh: "SRT", en: "SRT"},
+};
+const geLabelFor = (k: string, locale: string) =>
+  GE_PROP_LABELS[k]?.[locale === "zh" ? "zh" : "en"] ?? k;
+
 interface WorkspaceProps {
   onNavigate?: (page: NavPage) => void;
 }
@@ -102,11 +113,15 @@ export const Workspace = ({onNavigate}: WorkspaceProps) => {
   const [customProperty, setCustomProperty] = useState("无");
   const [customDuplicateMsg, setCustomDuplicateMsg] = useState<string | null>(null);
   /** 统计变量接口：通识-艺术/社科/人文/科学/SRT 五类的总学分数，供后续功能使用 */
-  const customStatsRef = useRef<Record<string, number>>({ "通识-艺术": 0, "通识-社科": 0, "通识-人文": 0, "通识-科学": 0, "SRT": 0 });
+  const [customStats, setCustomStats] = useState<Record<string, number>>({ "通识-艺术": 0, "通识-社科": 0, "通识-人文": 0, "通识-科学": 0, "SRT": 0 });
   const [showImportModal, setShowImportModal] = useState(false);
   const [importPreview, setImportPreview] = useState<string | null>(null);
+  const [pendingImport, setPendingImport] = useState<{
+    history: Record<string, string[]>;
+    customCourses: Record<string, Array<{id: string; name: string; credits: number; property?: string}>>;
+  } | null>(null);
   const [showForceConfirm, setShowForceConfirm] = useState(false);
-  const [forceSaveData, setForceSaveData] = useState<string[] | null>(null);
+  const [, setForceSaveData] = useState<string[] | null>(null);
   const [diagExpanded, setDiagExpanded] = useState(false);
   const [dismissedDiag, setDismissedDiag] = useState<Set<string>>(() => {
     try { return new Set(JSON.parse(localStorage.getItem("oc_diag_dismiss") ?? "[]")); }
@@ -186,12 +201,15 @@ export const Workspace = ({onNavigate}: WorkspaceProps) => {
 
   const addCustomCourse = () => {
     if (!stagingSemester || !customName.trim()) return;
-    // 去重检查
-    const allCustomNames = new Set();
+    // 去重检查：用正则归一化课程名（去空白、全角括号转半角、转小写）后比对，
+    // 避免“机器学习”与“机器学习 ”被误判为不同课程而导致重复添加。
+    const normalizeName = (n: string) => n.replace(/\s+/g, "").replace(/[（）()]/g, "").toLowerCase();
+    const normTarget = normalizeName(customName.trim());
+    const existingNorm = new Set<string>();
     for (const list of Object.values(customCourses)) {
-      list.forEach((cc) => allCustomNames.add(cc.name));
+      list.forEach((cc) => existingNorm.add(normalizeName(cc.name)));
     }
-    if (allCustomNames.has(customName.trim())) {
+    if (existingNorm.has(normTarget)) {
       setCustomDuplicateMsg("同名课程已存在：" + customName.trim());
       return;
     }
@@ -215,6 +233,17 @@ export const Workspace = ({onNavigate}: WorkspaceProps) => {
     if (next[sem].length === 0) delete next[sem];
     persistCustom(next);
   };
+
+  // 五类通识自定义课程总学分统计：遍历所有学期的自定义课程，按课程属性累加学分，结果同步到 customStats 用于展示。
+  useEffect(() => {
+    const stats: Record<string, number> = { "通识-艺术": 0, "通识-社科": 0, "通识-人文": 0, "通识-科学": 0, "SRT": 0 };
+    for (const list of Object.values(customCourses)) {
+      for (const cc of list) {
+        if (cc.property && cc.property in stats) stats[cc.property] += cc.credits;
+      }
+    }
+    setCustomStats(stats);
+  }, [customCourses]);
 
   // --- Credit limits ---
   const getCreditLimit = (sem: string): {max: number; min: number} | null => {
@@ -432,28 +461,85 @@ export const Workspace = ({onNavigate}: WorkspaceProps) => {
     URL.revokeObjectURL(url);
   };
 
+  // 解析并校验导入文件，暂存待确认（不直接覆盖已有数据）
   const handleImport = (file: File) => {
     const reader = new FileReader();
     reader.onload = () => {
       try {
         const data = JSON.parse(reader.result as string);
-        if (!data.version || !data.history) {
+        if (!data || typeof data !== "object") {
           alert(t("workspace.importError"));
           return;
         }
-        setImportPreview(JSON.stringify(data.history, null, 2).slice(0, 500) + "...");
-        // Apply import
-        const nextHistory = data.history as Record<string, string[]>;
-        const nextCustom = (data.customCourses as typeof customCourses) ?? {};
-        persistHistory(nextHistory);
-        persistCustom(nextCustom);
-        setShowImportModal(false);
-        setImportPreview(null);
+        const history = data.history;
+        if (!history || typeof history !== "object" || Array.isArray(history)) {
+          alert(t("workspace.importError"));
+          return;
+        }
+        for (const ids of Object.values(history)) {
+          if (!Array.isArray(ids)) {
+            alert(t("workspace.importError"));
+            return;
+          }
+        }
+        const customCoursesIn =
+          data.customCourses && typeof data.customCourses === "object" && !Array.isArray(data.customCourses)
+            ? (data.customCourses as typeof customCourses)
+            : {};
+        const histCount = Object.values(history as Record<string, string[]>).reduce((n, a) => n + a.length, 0);
+        const customCount = Object.values(customCoursesIn).reduce((n, a) => n + a.length, 0);
+        setPendingImport({
+          history: history as Record<string, string[]>,
+          customCourses: customCoursesIn,
+        });
+        setImportPreview(
+          `${locale === "zh" ? "历史学期数" : "History semesters"}: ${Object.keys(history).length}\n` +
+            `${locale === "zh" ? "历史课程数" : "History courses"}: ${histCount}\n` +
+            `${locale === "zh" ? "自定义课程数" : "Custom courses"}: ${customCount}`
+        );
       } catch {
         alert(t("workspace.importError"));
       }
     };
     reader.readAsText(file);
+  };
+
+  // 合并导入（按学期并集），避免静默覆盖已有数据
+  const confirmImport = () => {
+    if (!pendingImport) return;
+    const mergedHistory: Record<string, string[]> = {...savedHistory};
+    for (const [sem, ids] of Object.entries(pendingImport.history)) {
+      const set = new Set(mergedHistory[sem] ?? []);
+      ids.forEach((id) => set.add(id));
+      mergedHistory[sem] = [...set];
+    }
+    const mergedCustom = {...customCourses};
+    for (const [sem, list] of Object.entries(pendingImport.customCourses)) {
+      const byId = new Map((mergedCustom[sem] ?? []).map((c) => [c.id, c]));
+      list.forEach((c) => byId.set(c.id, c));
+      mergedCustom[sem] = [...byId.values()];
+    }
+    persistHistory(mergedHistory);
+    persistCustom(mergedCustom);
+    setPendingImport(null);
+    setImportPreview(null);
+    setShowImportModal(false);
+  };
+
+  // 覆盖导入：直接以导入文件替换现有历史与自定义课程
+  const confirmImportOverwrite = () => {
+    if (!pendingImport) return;
+    persistHistory(pendingImport.history);
+    persistCustom(pendingImport.customCourses);
+    setPendingImport(null);
+    setImportPreview(null);
+    setShowImportModal(false);
+  };
+
+  const cancelImport = () => {
+    setPendingImport(null);
+    setImportPreview(null);
+    setShowImportModal(false);
   };
 
   const toggleSelected = (courseId: string) => {
@@ -515,6 +601,20 @@ export const Workspace = ({onNavigate}: WorkspaceProps) => {
       const course = courseMap.get(sc.course_id);
       if (course) prev.push(course);
       m.set(sc.semester, prev);
+    }
+    // 英语1-4为常年开课（数据 semester_courses 中的 semester 仅表示"推荐学期"，非开课学期）。
+    // 在运行时把所有春秋学期都注入英语，使跨学期选课与"延迟惩罚"生效，且不污染原始数据。
+    const ENGLISH_IDS = ["14201002", "14201012", "14201022", "14201032"];
+    for (const [sem, list] of m.entries()) {
+      if (sem.includes("夏季") || sem.includes("开学前")) continue;
+      const ids = new Set(list.map((c) => c.course_id));
+      for (const id of ENGLISH_IDS) {
+        const ec = courseMap.get(id);
+        if (ec && !ids.has(id)) {
+          list.push(ec);
+          ids.add(id);
+        }
+      }
     }
     return m;
   }, [semesterCourses, courseMap]);
@@ -807,6 +907,19 @@ export const Workspace = ({onNavigate}: WorkspaceProps) => {
     "44100203": [{semesterMatch: "大二·秋季", bonus: 11}],
   };
 
+  // 学期顺序（用于延迟惩罚的"越往后优先级越高"语义）
+  const SEM_ORDER = ["大一·秋季","大一·春季","大一·夏季","大二·秋季","大二·春季","大二·夏季","大三·秋季","大三·春季","大三·夏季","大四·秋季","大四·春季","大四·夏季"];
+  const termIdx = (s: string) => SEM_ORDER.indexOf(s);
+
+  // 是否已选/已修第二外国语（FOREIGN_1~4）：选了则英语3/4 视为已满足，不再推荐/惩罚
+  const hasSecondForeign = useMemo(() => {
+    const ids = new Set<string>();
+    for (const idsArr of Object.values(savedHistory)) idsArr.forEach((id) => ids.add(id));
+    for (const list of Object.values(customCourses)) list.forEach((cc) => ids.add(cc.id));
+    for (const id of selectedCourses) ids.add(id);
+    return [...ids].some((id) => id.startsWith("FOREIGN_"));
+  }, [savedHistory, customCourses, selectedCourses]);
+
   // --- Recommendation scores ---
   const courseScores = useMemo(() => {
     const scores = new Map<string, number>();
@@ -888,15 +1001,23 @@ export const Workspace = ({onNavigate}: WorkspaceProps) => {
         }
       }
 
-      // English3 bonus: weight * 101 if not in history
-      if (c.course_id === "14201022" && !historyCourseIds.has("14201022") && stagingSemester) {
+      // English3 bonus: weight * 101 if not in history (二外替代时跳过)
+      if (c.course_id === "14201022" && !historyCourseIds.has("14201022") && stagingSemester && !hasSecondForeign) {
         const w = ENGLISH3_WEIGHT[stagingSemester];
         if (w !== undefined && w > 0) score += w * 101;
       }
-      // English4 bonus: weight * 101 if not in history
-      if (c.course_id === "14201032" && !historyCourseIds.has("14201032") && stagingSemester) {
+      // English4 bonus: weight * 101 if not in history (二外替代时跳过)
+      if (c.course_id === "14201032" && !historyCourseIds.has("14201032") && stagingSemester && !hasSecondForeign) {
         const w = ENGLISH4_WEIGHT[stagingSemester];
         if (w !== undefined && w > 0) score += w * 101;
+      }
+
+      // 英语1/2 必修：若已过大一且历史未修，后续学期直接拉极高优先级（+400）
+      if (c.course_id === "14201002" && !historyCourseIds.has("14201002") && stagingSemester && termIdx(stagingSemester) > termIdx("大一·秋季")) {
+        score += 400;
+      }
+      if (c.course_id === "14201012" && !historyCourseIds.has("14201012") && stagingSemester && termIdx(stagingSemester) > termIdx("大一·春季")) {
+        score += 400;
       }
 
       // History deduction: courses already recorded in history get -400
@@ -908,7 +1029,7 @@ export const Workspace = ({onNavigate}: WorkspaceProps) => {
     }
 
     return scores;
-  }, [courses, stagingCourseInfo, courseModuleMap, foundationActive, moduleScoreMap, courseGroupInfo, moduleScoringConfig, savedHistory, stagingSemester]);
+  }, [courses, stagingCourseInfo, courseModuleMap, foundationActive, moduleScoreMap, courseGroupInfo, moduleScoringConfig, savedHistory, stagingSemester, hasSecondForeign]);
 
   const hasActiveFilters =
     filters.group !== "all" ||
@@ -917,18 +1038,24 @@ export const Workspace = ({onNavigate}: WorkspaceProps) => {
     searchText.trim().length > 0;
 
   // --- Filtered Courses ---
+  // 第二外国语系列检索别名：输入这些词时命中所有"第二外国语"课程
+  const FOREIGN_ALIASES = ["二外","日语","俄语","德语","西班牙语","法语","韩语","韩国语","意大利语","葡萄牙语","阿拉伯语","希腊语","波斯语"];
   const filteredCourses = useMemo(() => {
     let result = courses;
 
     if (searchText.trim()) {
       const q = searchText.toLowerCase();
       const isNewQuery = q === "新开课" || q === "新开" || q === "new course";
+      const isForeignAlias = FOREIGN_ALIASES.some((a) => q.includes(a));
       result = result.filter((c) => {
         // "新开课"/"新开"/"new course" → show all NEW-id courses
         if (isNewQuery && c.course_id.startsWith("NEW")) return true;
 
         // Pure numeric query should NOT match NEW-id (e.g. "007" should not match "NEW007")
         if (c.course_id.startsWith("NEW") && /^\d+$/.test(q)) return false;
+
+        // 外语检索别名：二外/各语种名 → 命中第二外国语系列课程
+        if (isForeignAlias) return c.name.startsWith("第二外国语");
 
         return (
           c.course_id.toLowerCase().includes(q) ||
@@ -1023,13 +1150,12 @@ export const Workspace = ({onNavigate}: WorkspaceProps) => {
     setSearchText("");
   };
 
-  const inputTheme = isDark ? "dark" : "light";
   const moduleEnabled = filters.module !== "all" && filters.module !== "none";
 
   return (
     <div className={`flex h-full flex-col ${isDark ? "bg-[#0e0e14]" : "bg-gray-50"}`}>
       <Navbar currentPage="workspace" onNavigate={onNavigate ?? (() => {})} />
-      <main className="flex flex-1 gap-3 p-3 overflow-hidden">
+      <main data-tour="workspace" className="flex flex-1 gap-3 p-3 overflow-hidden">
         {/* ========== LEFT: History ========== */}
         <section
           className="h-full flex flex-col overflow-hidden transition-all duration-300"
@@ -1042,7 +1168,9 @@ export const Workspace = ({onNavigate}: WorkspaceProps) => {
                   <span className={`text-sm font-semibold text-nowrap ${textDark}`}>{t("workspace.history")}</span>
                   <div className="ml-auto flex items-center gap-1">
                     <Button onClick={handleExport}>{t("workspace.exportBtn")}</Button>
+                    <span data-tour="history">
                     <Button onClick={() => setShowImportModal(true)}>{t("workspace.importBtn")}</Button>
+                    </span>
                     <Button onClick={() => setClearConfirm(true)}>{locale === "zh" ? "清除" : "Clear"}</Button>
                     <Button onClick={() => setLeftExpanded(!leftExpanded)}>
                       {leftExpanded ? t("workspace.fold") : t("workspace.unfold")}
@@ -1075,8 +1203,6 @@ export const Workspace = ({onNavigate}: WorkspaceProps) => {
                     const semesterCustom = customCourses[sem] ?? [];
                     const totalDisplayCourses = savedCourses.length + semesterCustom.length;
                     const totalDisplayCredits = savedCourses.reduce((sum, c) => sum + c.credits, 0) + semesterCustom.reduce((sum, c) => sum + c.credits, 0);
-                    // Default courses from semesterMap (for showing default data)
-                    const defaultCourses = semesterMap.get(sem) ?? [];
                     // Display: only show saved data, no default fallback
                     const displayCourses = savedIds.length > 0 ? savedCourses : [];
                     const hasSaved = savedIds.length > 0;
@@ -1544,10 +1670,10 @@ export const Workspace = ({onNavigate}: WorkspaceProps) => {
                       }`}
 >{t("workspace.customCourseAdd")}</button>
                   </div>
-                  {/* 课程属性下拉框: 用 Ring UI Select 实现，暗色模式自适应 */}
+                  {/* 课程属性下拉框: Ring UI Select，暗色模式通过 index.css 的 [data-theme="dark"] 覆盖弹层实现 */}
                   <div className="flex items-center gap-1 mb-1">
                     <span className={`text-[10px] shrink-0 ${textMuted}`}>{locale === "zh" ? "课程属性" : "Property"}</span>
-                    <div>
+                    <div className="shrink-0" style={{width: "8rem"}}>
                       <Select
                         data={[
                           {key: "无", label: locale === "zh" ? "无" : "None"},
@@ -1562,7 +1688,7 @@ export const Workspace = ({onNavigate}: WorkspaceProps) => {
                         selected={{key: customProperty, label: customProperty === "无" ? (locale === "zh" ? "无" : "None") : customProperty}}
                         onSelect={(opt) => { if (opt) setCustomProperty(opt.key as string); }}
                         label=""
-                        style={{width: "100%", minWidth: "100%", boxSizing: "border-box"}}
+                        size={Select.Size.FULL}
                         />
                     </div>
                   </div>
@@ -1590,6 +1716,11 @@ export const Workspace = ({onNavigate}: WorkspaceProps) => {
                   {(!stagingSemester || (customCourses[stagingSemester] ?? []).length === 0) && (
                     <div className={`text-[10px] ${textMuted} py-1`}>{t("workspace.customCourseEmpty")}</div>
                   )}
+                  {/* 五类通识自定义课程总学分统计 */}
+                  <div className={`mt-1 text-[9px] leading-tight ${textMuted}`}>
+                    {t("workspace.geCredits")}
+                    {geLabelFor("通识-艺术", locale)} {customStats["通识-艺术"]} / {geLabelFor("通识-社科", locale)} {customStats["通识-社科"]} / {geLabelFor("通识-人文", locale)} {customStats["通识-人文"]} / {geLabelFor("通识-科学", locale)} {customStats["通识-科学"]} / {geLabelFor("SRT", locale)} {customStats["SRT"]}
+                  </div>
                 </div>
               </div>
 
@@ -1652,10 +1783,10 @@ export const Workspace = ({onNavigate}: WorkspaceProps) => {
               <div className={`w-80 rounded-xl shadow-2xl border p-4 ${isDark ? "bg-[#1e1e2a] border-white/10" : "bg-white border-gray-200"}`}>
                 <div className={`text-sm font-semibold mb-2 ${textDark}`}>
                   {choiceConflict.courseId === choiceConflict.conflictId && choiceConflict.setName === "历史已选课程"
-                    ? (locale === "zh" ? "课程重复选择" : "Course Duplicate")
+                    ? t("workspace.conflictDuplicate")
                     : choiceConflict.courseId === choiceConflict.conflictId
-                    ? (locale === "zh" ? "提示" : "Notice")
-                    : (locale === "zh" ? "选课冲突" : "Course Conflict")}
+                    ? t("workspace.conflictNotice")
+                    : t("workspace.conflictTitle")}
                 </div>
                 <div className={`text-xs mb-3 leading-relaxed ${textBody}`}>
                   {choiceConflict.courseId === choiceConflict.conflictId ? (
@@ -1838,7 +1969,7 @@ export const Workspace = ({onNavigate}: WorkspaceProps) => {
           {/* ===== Import/Export modal ===== */}
           {showImportModal && (
             <div className="fixed inset-0 z-50 flex items-center justify-center" style={{background: "rgba(0,0,0,0.4)"}}
-                 onClick={() => { setShowImportModal(false); setImportPreview(null); }}>
+                 onClick={cancelImport}>
               <div className={`w-80 rounded-xl shadow-2xl border p-4 ${isDark ? "bg-[#1e1e2a] border-white/10" : "bg-white border-gray-200"}`}
                    onClick={(e) => e.stopPropagation()}>
                 <div className={`text-sm font-semibold mb-3 ${textDark}`}>{t("workspace.importTitle")}</div>
@@ -1868,6 +1999,18 @@ export const Workspace = ({onNavigate}: WorkspaceProps) => {
                 {importPreview && (
                   <div className={`mt-2 rounded px-2 py-1.5 text-[10px] ${isDark ? "bg-white/5 text-white/70" : "bg-gray-50 text-gray-600"}`}>
                     <pre className="whitespace-pre-wrap">{importPreview}</pre>
+                    {pendingImport && (
+                      <>
+                        <div className="mt-1 opacity-70 text-[10px]">
+                          {t("workspace.importMergeHint")}
+                        </div>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          <Button onClick={confirmImport}>{t("workspace.importConfirmMerge")}</Button>
+                          <Button onClick={confirmImportOverwrite}>{t("workspace.importConfirmOverwrite")}</Button>
+                          <Button onClick={cancelImport}>{t("workspace.importCancel")}</Button>
+                        </div>
+                      </>
+                    )}
                   </div>
                 )}
               </div>
@@ -1895,13 +2038,13 @@ export const Workspace = ({onNavigate}: WorkspaceProps) => {
                     value={searchText}
                     onChange={(e) => setSearchText(e.currentTarget.value)}
                     onClear={() => setSearchText("")}
-                    theme={inputTheme}
                   />
                 </div>
                 {/* Col 2: Recommend toggle + ? + hint */}
                 <div className={`flex flex-col gap-0.5 min-w-0 justify-end`}>
                   <div className="flex items-center gap-1">
                     <button
+                      data-tour="recommend"
                       onClick={() => setRecommendEnabled(!recommendEnabled)}
                       className={`shrink-0 cursor-pointer rounded border px-3 py-1.5 text-xs font-medium leading-none transition-colors ${
                         recommendEnabled
@@ -1941,7 +2084,7 @@ export const Workspace = ({onNavigate}: WorkspaceProps) => {
                     if (!isSummerLocal && peCourseIdsLocal.size > 0 && ![...selectedCourses].some((id) => peCourseIdsLocal.has(id))) {
                       const peName = [...peCourseIdsLocal].map((id) => tName(id, courseMap.get(id)?.name ?? "")).join("/");
                       idx++;
-                      lines.push(`${idx}.${locale === "zh" ? `须选择${peName}` : `Need ${peName}`}`);
+                      lines.push(`${idx}.${t("workspace.blueNeed")}${peName}`);
                     }
                     const stagingCids = stagingSemester ? (semesterMap.get(stagingSemester) ?? []).map((c) => c.course_id) : [];
                     const shuyuanInStaging = stagingCids.filter((cid) => {
@@ -1951,7 +2094,7 @@ export const Workspace = ({onNavigate}: WorkspaceProps) => {
                     if (shuyuanInStaging.length > 0 && !shuyuanInStaging.some((id) => selectedCourses.has(id))) {
                       const syName = shuyuanInStaging.map((id) => tName(id, courseMap.get(id)?.name ?? "")).join("/");
                       idx++;
-                      lines.push(`${idx}.${locale === "zh" ? `须选择${syName}` : `Need ${syName}`}`);
+                      lines.push(`${idx}.${t("workspace.blueNeed")}${syName}`);
                     }
                     const shijianInStaging = stagingCids.filter((cid) => {
                       const infos = courseGroupInfo.get(cid) ?? [];
@@ -1960,20 +2103,20 @@ export const Workspace = ({onNavigate}: WorkspaceProps) => {
                     if (shijianInStaging.length > 0 && !shijianInStaging.some((id) => selectedCourses.has(id))) {
                       const sjName = shijianInStaging.map((id) => tName(id, courseMap.get(id)?.name ?? "")).join("/");
                       idx++;
-                      lines.push(`${idx}.${locale === "zh" ? `须选择${sjName}` : `Need ${sjName}`}`);
+                      lines.push(`${idx}.${t("workspace.blueNeed")}${sjName}`);
                     }
 
                     // ② Foundation direction hints
                     const foundationLabels: Record<string, string> = {
-                      COMP_BASIS: locale === "zh" ? "II类" : "Type II",
-                      OR_STAT: locale === "zh" ? "III类" : "Type III",
-                      MECH_BASIS: locale === "zh" ? "I类" : "Type I",
+                      COMP_BASIS: t("workspace.foundII"),
+                      OR_STAT: t("workspace.foundIII"),
+                      MECH_BASIS: t("workspace.foundI"),
                     };
                     const activeDirs = [...foundationActive.keys()].map((k) => foundationLabels[k] ?? k);
                     if (activeDirs.length > 0) {
                       idx++;
                       const dirStr = activeDirs.join(locale === "zh" ? "、" : ", ");
-                      lines.push(`${idx}.${locale === "zh" ? `推荐${dirStr}` : `Recommended: ${dirStr}`}`);
+                      lines.push(`${idx}.${t("workspace.blueRec")}${dirStr}`);
                     }
 
                     // ③ Module score hints: top 2 (ties all shown)
@@ -1990,19 +2133,26 @@ export const Workspace = ({onNavigate}: WorkspaceProps) => {
                       if (shownMods.length > 0) {
                         idx++;
                         const modStr = shownMods.map(([id]) => `模块${id}`).join("、");
-                        lines.push(`${idx}.${locale === "zh" ? `推荐${modStr}` : `Recommended: ${modStr}`}`);
+                        lines.push(`${idx}.${t("workspace.blueRec")}${modStr}`);
                       }
                     }
 
-                    // ④ English course hint: only English3/4 when in top recommended
-                    const hasEng3 = stagingCids.includes("14201022") && ENGLISH3_WEIGHT[stagingSemester ?? ""] > 0;
-                    const hasEng4 = stagingCids.includes("14201032") && ENGLISH4_WEIGHT[stagingSemester ?? ""] > 0;
-                    if (hasEng3 || hasEng4) {
+                    // ④ English course hint: 漏修的外语课进入 top-3 时提示
+                    const top3Ids = [...stagingCids]
+                      .sort((a, b) => (courseScores.get(b) ?? 0) - (courseScores.get(a) ?? 0))
+                      .slice(0, 3);
+                    const eng1InTop3 = top3Ids.includes("14201002") && termIdx(stagingSemester) > termIdx("大一·秋季");
+                    const eng2InTop3 = top3Ids.includes("14201012") && termIdx(stagingSemester) > termIdx("大一·春季");
+                    const eng3InTop3 = top3Ids.includes("14201022") && !hasSecondForeign;
+                    const eng4InTop3 = top3Ids.includes("14201032") && !hasSecondForeign;
+                    if (eng1InTop3 || eng2InTop3 || eng3InTop3 || eng4InTop3) {
                       const engParts: string[] = [];
-                      if (hasEng3) engParts.push(locale === "zh" ? "英语(3)" : "English(3)");
-                      if (hasEng4) engParts.push(locale === "zh" ? "英语(4)" : "English(4)");
+                      if (eng1InTop3) engParts.push(tName("14201002", locale === "zh" ? "英语(1)" : "English(1)"));
+                      if (eng2InTop3) engParts.push(tName("14201012", locale === "zh" ? "英语(2)" : "English(2)"));
+                      if (eng3InTop3) engParts.push(tName("14201022", locale === "zh" ? "英语(3)" : "English(3)"));
+                      if (eng4InTop3) engParts.push(tName("14201032", locale === "zh" ? "英语(4)" : "English(4)"));
                       idx++;
-                      lines.push(`${idx}.${locale === "zh" ? `推荐${engParts.join("、")}` : `Rec: ${engParts.join(", ")}`}`);
+                      lines.push(`${idx}.${t("workspace.blueRecEng")}${engParts.join(locale === "zh" ? "、" : ", ")}`);
                     }
 
                     const hint = lines.join(" ");

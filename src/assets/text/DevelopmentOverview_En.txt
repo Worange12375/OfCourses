@@ -1,12 +1,14 @@
-OfCourses — Smart Course Planning Assistant
+Developer & Contact:
+Wu Tiancheng (Dushi 41)     Campus Email: wutc24@mails.tsinghua.edu.cn
 
-OfCourses is an intelligent course selection planning system designed for the Dushi Academy (笃实书院) of Tsinghua University. Built with the modern Vite + React 19 tech stack, it provides students with an intuitive and efficient course planning experience.
+About the Website:
+    This website is built to help students of Dushi Academy (笃实书院) plan their course selections with greater ease. The idea for the project grew out of the "Dushi Think Tank" (笃实智囊团) initiative launched in autumn 2025.
+    The site is still under active development, so imperfections and errors are to be expected — we sincerely welcome your feedback.
+    For more background, please refer to our public account article: https://mp.weixin.qq.com/s/F8C_A46i7PYeFnHJCvaRdg
 
-Core Features:
-- Course Catalog: Browse all courses offered by the academy, with filtering by module, group, and recommended semester
-- Smart Planning: Plan your courses by semester with visual timeline support
-- Curriculum Display: View the complete curriculum structure organized by modules and groups
-- Degree Track Tracking: Track progress across 5 degree tracks (AE, EM, PE, IE, SE)
-- Prerequisite Checking: Automatic prerequisite validation when selecting courses
-
-This project is continuously developed and maintained by the Dushi Academy student team.
+A Note from the Developer:
+    Every course-selection season, I see students weighing one course against another among the many on offer, unable to decide — and I know that tangle of hesitation and anxiety all too well. Especially once sophomore year arrives and the specialized courses come one after another, many fall into confusion about where their future lies. Back then I quietly wished: if only there were a practical tool to help everyone sort out their academic planning clearly, how good that would be…
+    In autumn 2025, heeding the call of Professor Wang Chen, I joined the "Dushi Think Tank." When I first joined the team, my engineering practice was still thin and my development skills quite limited. At the time we chose to present the curriculum with a mind map, but when we found that the intertwined relationships among the many course groups would have to be shown with complex lines, I realized: this really needs to be presented through code!
+    It was precisely this valuable experience that gave me the idea to launch this project. Just as the project's name, OfCourses, suggests, I hope that when choosing courses everyone can carry that "of course" decisiveness. I want to do my part to ease students' hesitation and confusion at course-selection time, and to clear away the fog over their future direction.
+    My thanks to Professor Wang Chen, for giving me both the idea and the opportunity to do something for everyone in the academy. Thanks to my classmate Wang Deyu, who provided valuable architectural ideas in the early stages of building the site. And thanks to artificial intelligence: with AI tools at hand, development became far easier — in the work of extracting and converting the curriculum data, it gave crucial support that kept the project moving forward.
+    For now the site still has a number of features left to develop, and they will be gradually refined through UI optimization and new feature iterations. If you spot a bug we overlooked, or have any suggestion for improvement — big or small — every piece of feedback makes the site more stable and more usable. We very much look forward to hearing from you; please click the "Feedback" link below to leave your valuable comments in our shared document.

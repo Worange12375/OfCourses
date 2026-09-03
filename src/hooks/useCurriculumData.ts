@@ -17,7 +17,7 @@ type CoursePrereq = Database["public"]["Tables"]["course_prerequisites"]["Row"];
 interface SemesterCourse {
   semester: string;
   course_id: string;
-  course_name: string;
+  course_name?: string;
 }
 
 interface GroupCourses {
