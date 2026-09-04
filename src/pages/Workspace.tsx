@@ -17,8 +17,7 @@ import {
 } from "../hooks/useCurriculumData";
 import structuredData from "@/data/structured_data.json";
 import enData from "@/data/courses_en.json";
-import type { Database } from "@/database.types";
-type Course = Database["public"]["Tables"]["courses"]["Row"];
+import type {Course} from "@/types/curriculum";
 
 // 自定义课程属性的双语标签（"通识-艺术" 等），用于通识学分统计展示
 const GE_PROP_LABELS: Record<string, {zh: string; en: string}> = {

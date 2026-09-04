@@ -1,18 +1,18 @@
 import { useMemo } from "react";
-import type { Database } from "@/database.types";
 import structuredData from "@/data/structured_data.json";
 import enData from "@/data/courses_en.json";
 import { useLocale } from "@/i18n/LocaleContext";
-
-type Course = Database["public"]["Tables"]["courses"]["Row"];
-type Module = Database["public"]["Tables"]["modules"]["Row"];
-type CourseGroup = Database["public"]["Tables"]["course_groups"]["Row"];
-type ChoiceSet = Database["public"]["Tables"]["choice_sets"]["Row"];
-type ChoiceSetCourse = Database["public"]["Tables"]["choice_set_courses"]["Row"];
-type DegreeTrack = Database["public"]["Tables"]["degree_tracks"]["Row"];
-type DegreeGroupReq = Database["public"]["Tables"]["degree_group_requirements"]["Row"];
-type DegreeCourseReq = Database["public"]["Tables"]["degree_course_requirements"]["Row"];
-type CoursePrereq = Database["public"]["Tables"]["course_prerequisites"]["Row"];
+import type {
+  Course,
+  CourseGroup,
+  CoursePrereq,
+  ChoiceSet,
+  ChoiceSetCourse,
+  DegreeCourseReq,
+  DegreeGroupReq,
+  DegreeTrack,
+  Module,
+} from "@/types/curriculum";
 
 interface SemesterCourse {
   semester: string;
