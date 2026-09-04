@@ -79,7 +79,7 @@ const abbreviateSemester = (sem: string): string =>
 
 interface NativeSelectProps {
   value: string;
-  options: {key: string; label: string; disabled?: boolean}[];
+  options: {key: string | number; label: React.ReactNode; disabled?: boolean}[];
   onChange: (key: string) => void;
   className?: string;
   dark?: boolean;
@@ -122,8 +122,15 @@ export const Workspace = ({onNavigate: _onNavigate, mobile = false}: WorkspacePr
   const [filters, setFilters] = useState<FilterState>({
     group: "all", semester: "all", module: "all", abGroup: "all",
   });
-  // 移动端：筛选区默认折叠，有活跃筛选时自动展开
+  // 移动端：搜索与筛选侧边栏默认关闭（抽屉式），点击展开按钮从左侧滑出占 80% 宽度
   const [filtersCollapsed, setFiltersCollapsed] = useState(true);
+  // 抽屉滑动手势状态（从右向左滑关闭）
+  const filterDragRef = useRef<{startX: number; startY: number; startT: number; currentX: number} | null>(null);
+  const [filterDragging, setFilterDragging] = useState(false);
+  const [filterTranslate, setFilterTranslate] = useState(0);
+  // 移动端首次进入课程目录时，短暂显示的引导提示条（仅触发一次）
+  const [showFilterHint, setShowFilterHint] = useState(false);
+  const filterHintShownRef = useRef(false);
   const [selectedCourses, setSelectedCourses] = useState<Set<string>>(new Set());
   const [detailCourse, setDetailCourse] = useState<Course | null>(null);
   const [savedHistory, setSavedHistory] = useState<Record<string, string[]>>(() => {
@@ -145,6 +152,15 @@ export const Workspace = ({onNavigate: _onNavigate, mobile = false}: WorkspacePr
   const [showImportModal, setShowImportModal] = useState(false);
   // 移动端：目录/历史 两段 Tab + 预选抽屉
   const [mobileTab, setMobileTab] = useState<"catalog" | "history">("catalog");
+  // 移动端首次进入「课程目录」时，显示一次引导提示条，提示左侧有搜索筛选抽屉，4.5s 后自动消失（可手动关闭）
+  useEffect(() => {
+    if (mobile && mobileTab === "catalog" && !filterHintShownRef.current) {
+      filterHintShownRef.current = true;
+      setShowFilterHint(true);
+      const t = window.setTimeout(() => setShowFilterHint(false), 4500);
+      return () => window.clearTimeout(t);
+    }
+  }, [mobile, mobileTab]);
   // 加入课程时给预选按钮的抖动反馈
   const [shakeBtn, setShakeBtn] = useState(false);
   const prevSelectedCountRef = useRef(selectedCourses.size);
@@ -158,6 +174,17 @@ export const Workspace = ({onNavigate: _onNavigate, mobile = false}: WorkspacePr
     prevSelectedCountRef.current = selectedCourses.size;
   }, [selectedCourses.size]);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  // 预选抽屉滑动手势状态（从上向下滑关闭）
+  const stagingDragRef = useRef<{startY: number; startT: number; currentY: number} | null>(null);
+  const [stagingDragging, setStagingDragging] = useState(false);
+  const [stagingTranslate, setStagingTranslate] = useState(0);
+  // 移动端预选浮动按钮垂直位置（可上下拖动），持久化到 localStorage，范围 56~240px
+  const [stagingBtnBottom, setStagingBtnBottom] = useState(() => {
+    const saved = typeof window !== "undefined" ? window.localStorage.getItem("ofcourses-staging-btn-bottom") : null;
+    const n = saved ? Number(saved) : NaN;
+    return Number.isFinite(n) ? Math.max(56, Math.min(240, n)) : 80;
+  });
+  const stagingBtnDragRef = useRef<{startY: number; startBottom: number; dragging: boolean} | null>(null);
   const [importPreview, setImportPreview] = useState<string | null>(null);
   const [pendingImport, setPendingImport] = useState<{
     history: Record<string, string[]>;
@@ -1080,10 +1107,8 @@ export const Workspace = ({onNavigate: _onNavigate, mobile = false}: WorkspacePr
     filters.module !== "all" ||
     searchText.trim().length > 0;
 
-  // 移动端有活跃筛选时自动展开筛选区
-  useEffect(() => {
-    if (mobile) setFiltersCollapsed(!hasActiveFilters);
-  }, [mobile, hasActiveFilters]);
+  // 移动端：有活跃筛选时若抽屉关闭，在统计头显示提示；不自动展开抽屉，避免打断浏览
+  const activeFilterCount = [filters.group, filters.semester, filters.module, searchText.trim()].filter((v) => v && v !== "all").length;
 
   // --- Filtered Courses ---
   // 第二外国语系列检索别名：输入这些词时命中所有"第二外国语"课程
@@ -1200,6 +1225,73 @@ export const Workspace = ({onNavigate: _onNavigate, mobile = false}: WorkspacePr
 
   const moduleEnabled = filters.module !== "all" && filters.module !== "none";
 
+  // --- 移动端抽屉滑动手势 ---
+  // 筛选抽屉：在抽屉上水平向左滑动超过阈值即关闭
+  const onFilterTouchStart = (e: React.TouchEvent) => {
+    const t = e.touches[0];
+    filterDragRef.current = {startX: t.clientX, startY: t.clientY, startT: Date.now(), currentX: t.clientX};
+    setFilterDragging(false);
+  };
+  const onFilterTouchMove = (e: React.TouchEvent) => {
+    const d = filterDragRef.current;
+    if (!d) return;
+    const t = e.touches[0];
+    const dx = t.clientX - d.startX;
+    const dy = t.clientY - d.startY;
+    if (!filterDragging && Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 8) {
+      setFilterDragging(true);
+    }
+    if (!filterDragging) return;
+    e.preventDefault();
+    d.currentX = t.clientX;
+    // 只允许向左滑（关闭方向），向右滑时不偏移
+    setFilterTranslate(dx < 0 ? dx : 0);
+  };
+  const onFilterTouchEnd = () => {
+    const d = filterDragRef.current;
+    if (!d) return;
+    filterDragRef.current = null;
+    setFilterDragging(false);
+    const dx = d.currentX - d.startX;
+    const dt = Date.now() - d.startT;
+    const velocity = dt > 0 ? Math.abs(dx) / dt : 0;
+    if (dx < -80 || (dx < -40 && velocity > 0.6)) {
+      setFiltersCollapsed(true);
+    }
+    setFilterTranslate(0);
+  };
+  // 预选抽屉：在头部拖动条从上向下滑动超过阈值即关闭
+  const onStagingTouchStart = (e: React.TouchEvent) => {
+    const t = e.touches[0];
+    stagingDragRef.current = {startY: t.clientY, startT: Date.now(), currentY: t.clientY};
+    setStagingDragging(false);
+  };
+  const onStagingTouchMove = (e: React.TouchEvent) => {
+    const d = stagingDragRef.current;
+    if (!d) return;
+    const t = e.touches[0];
+    const dy = t.clientY - d.startY;
+    if (!stagingDragging && dy > 8) {
+      setStagingDragging(true);
+    }
+    if (!stagingDragging) return;
+    d.currentY = t.clientY;
+    setStagingTranslate(dy > 0 ? dy : 0);
+  };
+  const onStagingTouchEnd = () => {
+    const d = stagingDragRef.current;
+    if (!d) return;
+    stagingDragRef.current = null;
+    setStagingDragging(false);
+    const dy = d.currentY - d.startY;
+    const dt = Date.now() - d.startT;
+    const velocity = dt > 0 ? dy / dt : 0;
+    if (dy > 80 || (dy > 40 && velocity > 0.6)) {
+      setDrawerOpen(false);
+    }
+    setStagingTranslate(0);
+  };
+
   return (
     <div className={`flex h-full flex-col ${isDark ? "bg-[#0e0e14]" : "bg-gray-50"}`}>
       <main
@@ -1228,7 +1320,7 @@ export const Workspace = ({onNavigate: _onNavigate, mobile = false}: WorkspacePr
           className={`h-full flex flex-col overflow-hidden transition-all duration-300 ${
             mobile ? (mobileTab === "history" ? "w-full" : "hidden") : ""
           }`}
-          style={mobile ? undefined : {flex: leftExpanded ? "5" : "3"}}
+          style={mobile ? undefined : {flex: leftExpanded ? "4" : "3"}}
         >
           <Island className={`flex h-full flex-col ${bgCard}`}>
             <Header border>
@@ -1241,9 +1333,12 @@ export const Workspace = ({onNavigate: _onNavigate, mobile = false}: WorkspacePr
                       <Button onClick={() => setShowImportModal(true)} className={mobile ? "text-[10px] px-2 py-1" : ""}>{t("workspace.importBtn")}</Button>
                     </span>
                     <Button onClick={() => setClearConfirm(true)} className={mobile ? "text-[10px] px-2 py-1" : ""}>{locale === "zh" ? "清除" : "Clear"}</Button>
-                    <Button onClick={() => setLeftExpanded(!leftExpanded)} className={mobile ? "text-[10px] px-2 py-1" : ""}>
-                      {leftExpanded ? t("workspace.fold") : t("workspace.unfold")}
-                    </Button>
+                    {/* 历史展开/折叠仅对 PC 三栏布局生效；移动端该 section 恒为 w-full，此按钮无效，故仅在 PC 渲染 */}
+                    {!mobile && (
+                      <Button onClick={() => setLeftExpanded(!leftExpanded)}>
+                        {leftExpanded ? t("workspace.fold") : t("workspace.unfold")}
+                      </Button>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1562,10 +1657,27 @@ export const Workspace = ({onNavigate: _onNavigate, mobile = false}: WorkspacePr
           />
         )}
         <section
-          className={`h-full flex flex-col overflow-hidden ${mobile ? `fixed inset-x-0 bottom-0 z-50 max-h-[85vh] rounded-t-2xl ${isDark ? "bg-[#16161f]" : "bg-white"} transition-transform duration-300 ease-out ${drawerOpen ? "translate-y-0" : "translate-y-full pointer-events-none"}` : ""}`}
-          style={{flex: "2"}}
+          className={`h-full flex flex-col overflow-hidden ${mobile ? `fixed inset-x-0 bottom-0 z-50 max-h-[85vh] rounded-t-2xl ${isDark ? "bg-[#16161f]" : "bg-white"}` : ""}`}
+          style={mobile ? {
+            flex: undefined,
+            minWidth: undefined,
+            transition: stagingDragging ? "none" : "transform 300ms ease-out",
+            transform: drawerOpen ? `translateY(${stagingTranslate}px)` : "translateY(100%)",
+            pointerEvents: drawerOpen ? "auto" : "none",
+          } : {flex: "2", minWidth: 240}}
         >
           <Island className={`flex h-full flex-col ${bgCard}`}>
+            {/* 拖动条：按住并向下滑动可关闭预选抽屉 */}
+            {mobile && (
+              <div
+                onTouchStart={onStagingTouchStart}
+                onTouchMove={onStagingTouchMove}
+                onTouchEnd={onStagingTouchEnd}
+                className="shrink-0 cursor-grab touch-none pt-2 pb-1 active:cursor-grabbing"
+              >
+                <div className={`mx-auto h-1 w-10 rounded-full ${isDark ? "bg-white/20" : "bg-gray-300"}`} />
+              </div>
+            )}
             <Header border>
               <span className={`text-sm font-semibold ${textDark}`}>{t("workspace.stagingCourse")}</span>
             </Header>
@@ -1747,12 +1859,13 @@ export const Workspace = ({onNavigate: _onNavigate, mobile = false}: WorkspacePr
                       }`}
 >{t("workspace.customCourseAdd")}</button>
                   </div>
-                  {/* 课程属性下拉框: Ring UI Select，暗色模式通过 index.css 的 [data-theme="dark"] 覆盖弹层实现 */}
+                  {/* 课程属性下拉框：移动端用原生 select，避免 Ring UI 弹层在抽屉/遮罩内打不开 */}
                   <div className="flex items-center gap-1 mb-1">
                     <span className={`text-[10px] shrink-0 ${textMuted}`}>{locale === "zh" ? "课程属性" : "Property"}</span>
                     <div className="shrink-0" style={{width: "8rem"}}>
-                      <Select
-                        data={[
+                      <NativeSelect
+                        value={customProperty}
+                        options={[
                           {key: "无", label: locale === "zh" ? "无" : "None"},
                           {key: "通识-艺术", label: "通识-艺术"},
                           {key: "通识-社科", label: "通识-社科"},
@@ -1762,11 +1875,11 @@ export const Workspace = ({onNavigate: _onNavigate, mobile = false}: WorkspacePr
                           {key: "重修", label: locale === "zh" ? "重修" : "Retake"},
                           {key: "其他", label: locale === "zh" ? "其他" : "Other"},
                         ]}
-                        selected={{key: customProperty, label: customProperty === "无" ? (locale === "zh" ? "无" : "None") : customProperty}}
-                        onSelect={(opt) => { if (opt) setCustomProperty(opt.key as string); }}
-                        label=""
-                        size={Select.Size.FULL}
-                        />
+                        onChange={(key) => setCustomProperty(key)}
+                        dark={isDark}
+                        borderCls={isDark ? "border-white/10" : "border-gray-200"}
+                        textMuted={textMuted}
+                      />
                     </div>
                   </div>
                   {/* 重复提示 */}
@@ -2099,20 +2212,156 @@ export const Workspace = ({onNavigate: _onNavigate, mobile = false}: WorkspacePr
           className={`h-full flex flex-col overflow-hidden ${
             mobile ? (mobileTab === "catalog" ? "w-full" : "hidden") : ""
           }`}
-          style={mobile ? undefined : {flex: leftExpanded ? "3" : "5"}}
+          style={mobile ? undefined : {flex: leftExpanded ? "4" : "5", minWidth: 520}}
         >
-          <Island className={`flex h-full flex-col ${bgCard}`}>
-            <Header border>
-              <span className={`text-sm font-semibold ${textDark}`}>{t("workspace.catalog")}</span>
-            </Header>
+          {/* 移动端首次进入「课程目录」时短暂显示的引导提示条（可手动关闭，约 4.5s 自动消失） */}
+          {mobile && showFilterHint && (
+            <div
+              className={`flex shrink-0 items-center gap-2 rounded-md border px-3 py-2 text-[11px] leading-snug ${isDark ? "border-[#863bff]/30 bg-[#863bff]/10 text-purple-200" : "border-[#863bff]/30 bg-[#863bff]/10 text-[#863bff]"}`}
+            >
+              <span className="flex-1">{t("workspace.filterSidebarHint")}</span>
+              <button
+                onClick={() => { setShowFilterHint(false); setFiltersCollapsed(false); }}
+                className={`shrink-0 rounded border px-2 py-0.5 text-[10px] transition-colors ${isDark ? "border-white/20 bg-white/10 text-white/80 hover:text-white" : "border-[#863bff]/30 bg-white/80 text-[#863bff] hover:bg-white"}`}
+              >
+                {locale === "zh" ? "去筛选" : "Filter"}
+              </button>
+              <button
+                onClick={() => setShowFilterHint(false)}
+                className={`shrink-0 rounded px-1 text-base leading-none ${isDark ? "text-white/60 hover:text-white" : "text-gray-500 hover:text-gray-800"}`}
+                aria-label="close hint"
+              >×</button>
+            </div>
+          )}
 
-            {/* ===== Filters ===== */}
+          <Island className={`flex ${mobile ? "flex-1 min-h-0" : "h-full"} flex-col ${bgCard}`}>
+            {!mobile && (
+              <Header border>
+                <span className={`text-sm font-semibold ${textDark}`}>{t("workspace.catalog")}</span>
+              </Header>
+            )}
+
+            {/* 移动端：搜索与筛选抽屉（从左侧滑出，占屏幕宽度 80%） */}
+            {mobile && (
+              <>
+                {/* 遮罩 */}
+                <div
+                  className={`fixed inset-0 z-40 bg-black/50 transition-opacity duration-300 ${filtersCollapsed ? "opacity-0 pointer-events-none" : "opacity-100"}`}
+                  onClick={() => setFiltersCollapsed(true)}
+                />
+                {/* 抽屉 */}
+                <div
+                  onTouchStart={onFilterTouchStart}
+                  onTouchMove={onFilterTouchMove}
+                  onTouchEnd={onFilterTouchEnd}
+                  className={`fixed inset-y-0 left-0 z-50 w-[80vw] max-w-[320px] flex flex-col shadow-2xl touch-pan-y ${isDark ? "bg-[#16161f]" : "bg-white"}`}
+                  style={{
+                    transition: filterDragging ? "none" : "transform 300ms ease-out",
+                    transform: filtersCollapsed ? "translateX(-100%)" : `translateX(${filterTranslate}px)`,
+                  }}
+                >
+                  <div className={`flex items-center justify-between gap-2 border-b px-3 py-2 ${borderCls}`}>
+                    <span className={`flex items-center gap-1.5 text-sm font-semibold ${textDark}`}>
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                      {t("workspace.searchFilter")}
+                    </span>
+                    <button
+                      onClick={() => setFiltersCollapsed(true)}
+                      className={`flex items-center gap-1 rounded border px-2 py-0.5 text-[10px] font-medium transition-colors ${isDark ? "border-white/10 text-white/55 hover:text-white/85" : "border-gray-200 text-gray-500 hover:text-gray-800"}`}
+                    >
+                      <span>{t("workspace.collapseFilters")}</span>
+                      <span className="text-xs leading-none">▴</span>
+                    </button>
+                  </div>
+                  <div className="flex-1 overflow-auto p-3">
+                    <div className="flex flex-col gap-2">
+                      <Input
+                        label={t("workspace.searchPlaceholder")}
+                        value={searchText}
+                        onChange={(e) => setSearchText(e.currentTarget.value)}
+                        onClear={() => setSearchText("")}
+                      />
+                      <button
+                        data-tour="recommend"
+                        onClick={() => setRecommendEnabled(!recommendEnabled)}
+                        className={`self-start rounded border px-3 py-1.5 text-xs font-medium leading-none transition-colors ${
+                          recommendEnabled
+                            ? isDark
+                              ? "bg-blue-500/20 border-blue-500/30 text-blue-300"
+                              : "bg-blue-500/10 border-blue-500/30 text-blue-600"
+                            : isDark
+                              ? "bg-white/5 border-white/10 text-white/50"
+                              : "bg-gray-50 border-gray-200 text-gray-400"
+                        }`}
+                      >
+                        {locale === "zh" ? `推荐${recommendEnabled ? "ON" : "OFF"}` : `Rec.${recommendEnabled ? "ON" : "OFF"}`}
+                      </button>
+                      <div className={`text-xs font-medium ${textMuted} pt-1`}>{t("workspace.filterHeader")}</div>
+                      <div className="flex flex-col gap-2">
+                        <div className="flex flex-col gap-0.5">
+                          <span className={`text-xs ${textBody}`}>{t("workspace.filterGroup")}</span>
+                          <NativeSelect
+                            value={filters.group}
+                            options={groupOptions.map((o) => ({key: o.key, label: o.label}))}
+                            onChange={(key) => setFilters((f) => ({...f, group: key}))}
+                            dark={isDark}
+                            borderCls={borderCls}
+                            textMuted={textMuted}
+                          />
+                        </div>
+                        <div className="flex flex-col gap-0.5">
+                          <span className={`text-xs ${textBody}`}>{t("workspace.filterSemester")}</span>
+                          <NativeSelect
+                            value={filters.semester}
+                            options={semesterOptions.map((o) => ({key: o.key, label: o.label}))}
+                            onChange={(key) => setFilters((f) => ({...f, semester: key}))}
+                            dark={isDark}
+                            borderCls={borderCls}
+                            textMuted={textMuted}
+                          />
+                        </div>
+                        <div className="flex flex-col gap-0.5">
+                          <span className={`text-xs ${textBody}`}>{t("workspace.filterModule")}</span>
+                          <NativeSelect
+                            value={filters.module}
+                            options={moduleOptions.map((o) => ({key: o.key, label: o.label}))}
+                            onChange={(key) => setFilters((f) => ({...f, module: key, abGroup: "all"}))}
+                            dark={isDark}
+                            borderCls={borderCls}
+                            textMuted={textMuted}
+                          />
+                        </div>
+                        <div className="flex flex-col gap-0.5">
+                          <span className={`text-xs ${textBody}`}>{t("workspace.filterABGroup")}</span>
+                          <NativeSelect
+                            value={filters.abGroup}
+                            options={abOptions.map((o) => ({key: o.key, label: o.label, disabled: !moduleEnabled && o.key !== "all"}))}
+                            onChange={(key) => moduleEnabled && setFilters((f) => ({...f, abGroup: key}))}
+                            dark={isDark}
+                            borderCls={borderCls}
+                            textMuted={textMuted}
+                          />
+                        </div>
+                      </div>
+                      {hasActiveFilters && (
+                        <div className="pt-1">
+                          <Button onClick={clearFilters}>{t("workspace.filterClear")}</Button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* ===== Filters (PC 端) ===== */}
             <Content
               className="overflow-visible border-b shrink-0"
               style={{position: "relative", zIndex: 2}}
             >
-              {/* Search row: PC 两列 / 移动端单列 */}
-              <div className={`px-3 pt-2 pb-1 ${mobile ? "flex flex-col gap-2" : "grid grid-cols-2 gap-x-4"}`}>
+              {/* PC 端：搜索与筛选始终内联显示 */}
+              {!mobile && (
+              <div className={`px-3 pt-2 pb-1 grid grid-cols-2 gap-x-4`}>
                 {/* Col 1: Search input */}
                 <div className="flex flex-col gap-0.5">
                   <Input
@@ -2246,28 +2495,17 @@ export const Workspace = ({onNavigate: _onNavigate, mobile = false}: WorkspacePr
                     );
                   })()}
                 </div>
-              </div>
+              </div>)}
 
-              {mobile && (
-                <div className="px-3 pt-1 pb-1">
-                  <button
-                    onClick={() => setFiltersCollapsed(!filtersCollapsed)}
-                    className={`flex items-center gap-1 text-xs font-medium ${isDark ? "text-blue-300" : "text-blue-600"}`}
-                  >
-                    <span>{filtersCollapsed ? (locale === "zh" ? "展开筛选" : "Expand Filters") : (locale === "zh" ? "收起筛选" : "Collapse Filters")}</span>
-                    <span className={`transition-transform duration-200 ${filtersCollapsed ? "" : "rotate-180"}`}>▾</span>
-                  </button>
-                </div>
-              )}
-
-              {(!mobile || !filtersCollapsed) && (
+              {/* PC 端：搜索与筛选始终内联显示；移动端已走左侧抽屉，避免与抽屉同时渲染 */}
+              {!mobile && (
                 <>
                   <div className={`px-3 pt-1 pb-1 text-xs font-medium ${textMuted}`}>
                     {t("workspace.filterHeader")}
                   </div>
 
-                  {/* Filter dropdowns: PC 两列 / 移动端单列 */}
-                  <div className={`px-3 pb-1 ${mobile ? "flex flex-col gap-2" : "grid grid-cols-2 gap-x-4"}`}>
+                  {/* Filter dropdowns: PC 两列 */}
+                  <div className="px-3 pb-1 grid grid-cols-2 gap-x-4">
                     {/* Col 1, Row 1: 按课程组 */}
                     <div className="flex flex-col gap-0.5">
                       <span className={`text-xs ${textBody}`}>{t("workspace.filterGroup")}</span>
@@ -2327,12 +2565,23 @@ export const Workspace = ({onNavigate: _onNavigate, mobile = false}: WorkspacePr
             <div className="flex flex-col flex-1 min-h-0">
               {mobile ? (
                 <>
-                  {/* 移动端：简洁统计头 */}
+                  {/* 移动端：简洁统计头 + 打开抽屉按钮 + 活跃筛选提示 */}
                   <div
                     className={`flex items-center justify-between px-3 py-2 text-xs font-medium border-b shrink-0 ${bgHeader} ${borderCls} ${textMuted}`}
                   >
-                    <span>{t("workspace.catalog")}</span>
-                    <span>
+                    <button
+                      onClick={() => setFiltersCollapsed(false)}
+                      className={`flex items-center gap-1 rounded border px-2 py-1 text-[10px] transition-colors ${isDark ? "border-white/10 bg-white/5 text-white/70 hover:text-white" : "border-gray-200 bg-gray-50 text-gray-600 hover:text-gray-900"}`}
+                    >
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                      {t("workspace.expandSearchFilter")}
+                    </button>
+                    <span className="flex items-center gap-2">
+                      {activeFilterCount > 0 && (
+                        <span className={`rounded px-1.5 py-0.5 text-[10px] ${isDark ? "bg-blue-500/20 text-blue-300" : "bg-blue-500/10 text-blue-600"}`}>
+                          {activeFilterCount} {locale === "zh" ? "个筛选生效中" : "filters active"}
+                        </span>
+                      )}
                       {filteredCourses.length} {locale === "zh" ? "门" : "courses"}
                     </span>
                   </div>
@@ -2634,9 +2883,38 @@ export const Workspace = ({onNavigate: _onNavigate, mobile = false}: WorkspacePr
         <>
           {!drawerOpen && (
             <button
-              onClick={() => setDrawerOpen(true)}
-              className={`fixed right-4 z-40 flex items-center gap-1 rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-lg ${shakeBtn ? "oc-shake" : ""}`}
-              style={{bottom: "calc(env(safe-area-inset-bottom, 0px) + 80px)"}}
+              onClick={() => {
+                if (stagingBtnDragRef.current?.dragging) {
+                  stagingBtnDragRef.current = null;
+                  return;
+                }
+                setDrawerOpen(true);
+              }}
+              onTouchStart={(e) => {
+                const t = e.touches[0];
+                stagingBtnDragRef.current = {startY: t.clientY, startBottom: stagingBtnBottom, dragging: false};
+              }}
+              onTouchMove={(e) => {
+                const d = stagingBtnDragRef.current;
+                if (!d) return;
+                const dy = e.touches[0].clientY - d.startY;
+                if (Math.abs(dy) > 4) d.dragging = true;
+                if (!d.dragging) return;
+                const next = Math.max(56, Math.min(240, d.startBottom - dy));
+                setStagingBtnBottom(next);
+                try { window.localStorage.setItem("ofcourses-staging-btn-bottom", String(next)); } catch {}
+              }}
+              onTouchEnd={(e) => {
+                const d = stagingBtnDragRef.current;
+                if (!d) return;
+                if (d.dragging) {
+                  e.preventDefault();
+                  try { window.localStorage.setItem("ofcourses-staging-btn-bottom", String(stagingBtnBottom)); } catch {}
+                }
+                stagingBtnDragRef.current = null;
+              }}
+              className={`fixed right-4 z-40 flex items-center gap-1 rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-lg ${shakeBtn ? "oc-shake" : ""} after:content-[''] after:pointer-events-none after:absolute after:-bottom-1 after:left-1/2 after:h-1 after:w-5 after:-translate-x-1/2 after:rounded-full after:bg-white/40`}
+              style={{bottom: `calc(env(safe-area-inset-bottom, 0px) + ${stagingBtnBottom}px)`}}
             >
               {locale === "zh" ? "预选" : "Selected"}
               {selectedCourses.size > 0 && (

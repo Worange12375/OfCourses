@@ -57,7 +57,7 @@ const CLASS_ORDER: RelClass[] = ["Ⅰ类", "Ⅱ类", "Ⅲ类"];
 const trunc = (s: string, n: number) => (s.length > n ? s.slice(0, n) + "…" : s);
 
 export function CurriculumRelationMap({mobile}: {mobile?: boolean}) {
-  const {locale} = useLocale();
+  const {locale, t} = useLocale();
   const {theme} = useAppTheme();
   const isDark = theme === "dark";
   const zh = locale === "zh";
@@ -79,7 +79,7 @@ export function CurriculumRelationMap({mobile}: {mobile?: boolean}) {
   const [tx, setTx] = useState(0);
   const [ty, setTy] = useState(0);
   const [dragging, setDragging] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(!mobile); // PC 默认展开；移动端默认展开，可收起
+  const [sidebarOpen, setSidebarOpen] = useState(true); // PC 与移动端均默认展开，可收起
   const svgRef = useRef<SVGSVGElement>(null);
   // 实时引用，供原生 wheel 监听读取最新值
   const scaleRef = useRef(scale); scaleRef.current = scale;
@@ -87,6 +87,7 @@ export function CurriculumRelationMap({mobile}: {mobile?: boolean}) {
   const tyRef = useRef(ty); tyRef.current = ty;
   const movedRef = useRef(false); // 拖拽判定：True 时抑制节点点击
   const dragStart = useRef<{vx: number; vy: number; tx: number; ty: number} | null>(null);
+  const pinchRef = useRef<{startDist: number; startScale: number; cx: number; cy: number} | null>(null);
 
   // 持久化：仅存偏好与轻量选择，展开/聚焦态不污染其它视图的 oc_mindmap_v1
   useEffect(() => {
@@ -168,6 +169,37 @@ export function CurriculumRelationMap({mobile}: {mobile?: boolean}) {
     setTy(d.ty + (vy - d.vy));
   };
   const onUp = () => { dragStart.current = null; setDragging(false); };
+
+  // ---------- 双指缩放（pinch）----------
+  const onTouchStart = (e: React.TouchEvent) => {
+    if (e.touches.length === 2) {
+      const t1 = e.touches[0], t2 = e.touches[1];
+      const dist = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+      const mid = clientToVB((t1.clientX + t2.clientX) / 2, (t1.clientY + t2.clientY) / 2);
+      pinchRef.current = {startDist: dist, startScale: scaleRef.current, cx: mid.x, cy: mid.y};
+      dragStart.current = null; // 双指时停止拖拽
+      return;
+    }
+    onDown(e);
+  };
+  const onTouchMove = (e: React.TouchEvent) => {
+    if (e.touches.length === 2 && pinchRef.current) {
+      e.preventDefault();
+      const t1 = e.touches[0], t2 = e.touches[1];
+      const dist = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+      const ratio = dist / pinchRef.current.startDist;
+      zoomAround(pinchRef.current.cx, pinchRef.current.cy, pinchRef.current.startScale * ratio);
+      return;
+    }
+    onMove(e);
+  };
+  const onTouchEnd = (e: React.TouchEvent) => {
+    if (pinchRef.current) {
+      if (e.touches.length < 2) pinchRef.current = null;
+      return;
+    }
+    onUp();
+  };
 
   const palette: Record<RelClass, {stroke: string; fill: string; text: string; soft: string}> = isDark
     ? {
@@ -390,6 +422,20 @@ export function CurriculumRelationMap({mobile}: {mobile?: boolean}) {
     <div className="flex min-h-0 flex-1 w-full">
       {/* 左侧：入口 / 课组选择器 */}
       <div className={`flex flex-col border-r ${borderCls} ${panelBg} transition-all duration-300 ${mobile ? (sidebarOpen ? "w-60 shrink-0" : "w-0 shrink-0 overflow-hidden opacity-0") : "w-60 shrink-0"}`}>
+        {/* 侧边栏标题 + 移动端折叠按钮 */}
+        <div className={`flex items-center justify-between gap-2 border-b px-3 py-2 ${borderCls}`}>
+          <span className={`text-xs font-semibold ${isDark ? "text-white/85" : "text-gray-700"}`}>{t("workspace.relationFilters")}</span>
+          {mobile && (
+            <button
+              onClick={() => setSidebarOpen(false)}
+              className={`flex items-center gap-1 rounded border px-2 py-0.5 text-[10px] ${chipOff}`}
+              title={t("workspace.fold")}
+            >
+              <span>{t("workspace.fold")}</span>
+              <span className="text-xs leading-none">»</span>
+            </button>
+          )}
+        </div>
         {/* 模式切换 */}
         <div className="flex gap-1 p-2">
           {(["course", "group"] as const).map((m) => {
@@ -519,12 +565,12 @@ export function CurriculumRelationMap({mobile}: {mobile?: boolean}) {
 
       {/* 右侧：可缩放 / 平移的 SVG 网络 */}
       <div className="relative flex-1 min-w-0">
-        {mobile && (
+        {mobile && !sidebarOpen && (
           <button
-            onClick={() => setSidebarOpen(!sidebarOpen)}
+            onClick={() => setSidebarOpen(true)}
             className={`absolute top-2 left-2 z-10 rounded border px-2 py-1 text-[10px] ${chipOff}`}
           >
-            {sidebarOpen ? (zh ? "收起" : "Collapse") : (zh ? "展开" : "Expand")}
+            {zh ? "展开" : "Expand"}
           </button>
         )}
         {placeholder ?? (
@@ -533,14 +579,14 @@ export function CurriculumRelationMap({mobile}: {mobile?: boolean}) {
             viewBox={`0 0 ${W} ${H}`}
             className="w-full h-full select-none"
             preserveAspectRatio="xMidYMid meet"
-            style={{cursor: dragging ? "grabbing" : "grab"}}
+            style={{cursor: dragging ? "grabbing" : "grab", touchAction: "none"}}
             onMouseDown={onDown}
             onMouseMove={onMove}
             onMouseUp={onUp}
             onMouseLeave={onUp}
-            onTouchStart={onDown}
-            onTouchMove={onMove}
-            onTouchEnd={onUp}
+            onTouchStart={onTouchStart}
+            onTouchMove={onTouchMove}
+            onTouchEnd={onTouchEnd}
           >
             <g transform={`translate(${tx} ${ty}) scale(${scale})`}>
               {innerSVG}
@@ -549,8 +595,12 @@ export function CurriculumRelationMap({mobile}: {mobile?: boolean}) {
         )}
 
         {/* 缩放控件（仅在画布显示时） */}
+        {/* 移动端侧边栏展开时，缩放控件右移避免被侧边栏遮挡/压在侧边栏内容之上 */}
         {showZoom && (
-          <div className={`absolute bottom-3 right-3 flex items-center gap-1 rounded-lg border px-1.5 py-1 shadow-sm backdrop-blur ${borderCls} ${isDark ? "bg-[#16161f]/85" : "bg-white/85"}`}>
+          <div
+            className={`absolute bottom-3 flex items-center gap-1 rounded-lg border px-1.5 py-1 shadow-sm backdrop-blur ${borderCls} ${isDark ? "bg-[#16161f]/85" : "bg-white/85"}`}
+            style={mobile && sidebarOpen ? {right: "0.75rem", left: "calc(15rem + 0.75rem)"} : {right: "0.75rem"}}
+          >
             <button
               onClick={() => zoomByButton(1 / BTN_STEP)}
               className={`flex h-6 w-6 items-center justify-center rounded text-sm font-bold ${chipOff}`}

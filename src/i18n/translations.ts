@@ -116,8 +116,13 @@ export type TranslationKey =
     | "mobile.rememberChoice"
     | "mobile.curriculum.mindMap"
     | "mobile.curriculum.plan"
-    | "workspace.select"
-    | "mobile.tourUsePC";
+  | "workspace.select"
+  | "workspace.searchFilter"
+  | "workspace.expandSearchFilter"
+  | "workspace.filterSidebarHint"
+  | "workspace.collapseFilters"
+  | "workspace.relationFilters"
+  | "mobile.tourUsePC";
 
 type Translations = Record<Locale, Record<TranslationKey, string>>;
 
@@ -239,6 +244,11 @@ export const translations: Translations = {
         "mobile.curriculum.mindMap": "思维导图",
         "mobile.curriculum.plan": "培养方案",
         "workspace.select": "选课",
+        "workspace.searchFilter": "搜索与筛选",
+        "workspace.expandSearchFilter": "展开搜索与筛选",
+        "workspace.filterSidebarHint": "展开来搜索筛选，折叠来看课程目录",
+        "workspace.collapseFilters": "收起筛选",
+        "workspace.relationFilters": "关系图筛选",
         "mobile.tourUsePC": "功能引导建议在 PC 端查看",
     },
     en: {
@@ -358,6 +368,11 @@ export const translations: Translations = {
         "mobile.curriculum.mindMap": "Mind Map",
         "mobile.curriculum.plan": "Curriculum Plan",
         "workspace.select": "Select",
+        "workspace.searchFilter": "Search & Filter",
+        "workspace.expandSearchFilter": "Expand Search & Filter",
+        "workspace.filterSidebarHint": "Expand to search & filter · collapse to view the catalog",
+        "workspace.collapseFilters": "Collapse Filters",
+        "workspace.relationFilters": "Graph Filters",
         "mobile.tourUsePC": "Tutorial is best viewed on a PC",
     },
 };
