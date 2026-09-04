@@ -1,5 +1,6 @@
 import {useLocale} from "../i18n/LocaleContext";
 import {useAppTheme} from "../theme/ThemeContext";
+import {useMobileMode} from "../hooks/useMobileMode";
 import {HelpButton} from "../onboarding/HelpButton";
 import {type NavPage} from "./Navbar";
 import singleLogo from "../assets/OfCourses_singleLogo.ico";
@@ -108,6 +109,7 @@ export const MobileNavbar = ({currentPage, onNavigate}: MobileNavbarProps) => {
 export const MobileTopBar = ({onNavigate}: MobileTopBarProps) => {
   const {locale, setLocale} = useLocale();
   const {theme, toggleTheme} = useAppTheme();
+  const {chooseMode} = useMobileMode();
   const isDark = theme === "dark";
 
   return (
@@ -139,6 +141,17 @@ export const MobileTopBar = ({onNavigate}: MobileTopBarProps) => {
           {locale === "zh" ? "中" : "EN"}
         </button>
         <HelpButton />
+        <button
+          onClick={() => chooseMode("pc")}
+          title="切换到 PC 版"
+          className={`flex h-7 w-7 items-center justify-center rounded-full border text-[10px] font-bold transition-colors ${
+            isDark
+              ? "border-white/15 bg-white/10 text-white/80 hover:bg-white/20"
+              : "border-gray-200 bg-gray-100 text-gray-600 hover:bg-gray-200"
+          }`}
+        >
+          PC
+        </button>
         <button
           onClick={toggleTheme}
           className={`flex h-8 w-8 items-center justify-center rounded-full border-none transition-colors ${

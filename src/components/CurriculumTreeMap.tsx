@@ -83,13 +83,6 @@ export const CurriculumTreeMap = ({mobile}: {mobile?: boolean}) => {
     const [showCollapseConfirm, setShowCollapseConfirm] = useState(false);
     const expandSnapshot = useRef<Set<string> | null>(null);
 
-    const restoreSnapshot = useCallback(() => {
-        if (expandSnapshot.current) {
-            setExpanded(new Set(expandSnapshot.current));
-            expandSnapshot.current = null;
-        }
-    }, [setExpanded]);
-
     // 展开一组目标节点（全部框出），并定位当前游标节点
     const expandHits = useCallback(
         (hits: SearchHit[]) => {
@@ -116,7 +109,6 @@ export const CurriculumTreeMap = ({mobile}: {mobile?: boolean}) => {
             setSearchActiveId(null);
             if (resetCursor) setSearchCursor(0);
             if (!q.trim()) {
-                restoreSnapshot();
                 setSearchInfo("");
                 return;
             }
@@ -126,7 +118,7 @@ export const CurriculumTreeMap = ({mobile}: {mobile?: boolean}) => {
             }
             setSearchInfo(`找到 ${targets.length} 个目标文本，点击即可定位`);
         },
-        [searchIndex, restoreSnapshot],
+        [searchIndex],
     );
 
     // 选定一个文本目标 → 解析为全部同名节点并框出（可能有多个）
@@ -207,7 +199,7 @@ export const CurriculumTreeMap = ({mobile}: {mobile?: boolean}) => {
     }, [searchResults, expanded, nodes, countVisible, userMax, setExpanded]);
 
     const closeSearch = useCallback(() => {
-        restoreSnapshot();
+        // 仅关闭搜索浮窗与清除搜索高亮/游标，保持树状图 expanded 结构不变
         setSearchActiveId(null);
         setSearchResults([]);
         setSelectedTarget(null);
@@ -217,7 +209,7 @@ export const CurriculumTreeMap = ({mobile}: {mobile?: boolean}) => {
         setSearchInfo("");
         setConfirmExpand(null);
         setSearchOpen(false);
-    }, [restoreSnapshot]);
+    }, []);
 
     // 切换范围时，用当前关键词重新检索
     const onScopeChange = useCallback(
@@ -310,7 +302,8 @@ export const CurriculumTreeMap = ({mobile}: {mobile?: boolean}) => {
     const [ty, setTy] = useState(16);
     const [scale, setScale] = useState(1);
     const [keysEnabled, setKeysEnabled] = useState(false);
-    const dragging = useRef<{x: number; y: number; tx: number; ty: number} | null>(null);
+    const dragging = useRef<{x: number; y: number; tx: number; ty: number; moved?: boolean} | null>(null);
+    const touchMovedRef = useRef(false);
 
     const clampScale = (s: number) => Math.min(2.5, Math.max(0.3, s));
     const resetViewBox = useCallback(() => {
@@ -351,6 +344,31 @@ export const CurriculumTreeMap = ({mobile}: {mobile?: boolean}) => {
         setTy(dragging.current.ty + (e.clientY - dragging.current.y));
     };
     const onMouseUp = () => {
+        dragging.current = null;
+    };
+
+    // 触摸平移（移动端）：与鼠标拖拽逻辑一致，并防止误触节点
+    const onTouchStart = (e: React.TouchEvent) => {
+        const t = e.touches[0];
+        if (!t) return;
+        dragging.current = {x: t.clientX, y: t.clientY, tx, ty, moved: false};
+        touchMovedRef.current = false;
+    };
+    const onTouchMove = (e: React.TouchEvent) => {
+        if (!dragging.current) return;
+        const t = e.touches[0];
+        if (!t) return;
+        const dx = t.clientX - dragging.current.x;
+        const dy = t.clientY - dragging.current.y;
+        if (Math.abs(dx) > 6 || Math.abs(dy) > 6) {
+            dragging.current.moved = true;
+            touchMovedRef.current = true;
+        }
+        setTx(dragging.current.tx + dx);
+        setTy(dragging.current.ty + dy);
+        e.preventDefault(); // 阻止浏览器默认滚动/缩放
+    };
+    const onTouchEnd = () => {
         dragging.current = null;
     };
 
@@ -488,11 +506,14 @@ export const CurriculumTreeMap = ({mobile}: {mobile?: boolean}) => {
             <div
                 ref={containerRef}
                 className={`relative min-h-0 flex-1 overflow-hidden ${isDark ? "bg-[#0e0e14]" : "bg-gray-50"}`}
-                style={{cursor: dragging.current ? "grabbing" : "grab"}}
+                style={{cursor: dragging.current ? "grabbing" : "grab", touchAction: "none"}}
                 onMouseDown={onMouseDown}
                 onMouseMove={onMouseMove}
                 onMouseUp={onMouseUp}
                 onMouseLeave={onMouseUp}
+                onTouchStart={onTouchStart}
+                onTouchMove={onTouchMove}
+                onTouchEnd={onTouchEnd}
             >
                 <svg
                     width={contentW}
@@ -518,6 +539,7 @@ export const CurriculumTreeMap = ({mobile}: {mobile?: boolean}) => {
                             const isHi = searchHighlightSet.has(id);
                             const isActive = searchActiveId === id;
                             const onClick = () => {
+                                if (touchMovedRef.current) return; // 拖动画布后不误触节点
                                 if (isCourse) setSelected(id);
                                 else toggleExpand(id);
                             };
@@ -599,17 +621,19 @@ export const CurriculumTreeMap = ({mobile}: {mobile?: boolean}) => {
 
                 {/* 缩放控制 + 搜索入口（右下角） */}
                 <div className={`absolute bottom-3 right-3 flex flex-col items-center gap-1 ${isDark ? "text-white/80" : "text-gray-700"}`}>
-                    <button
-                        onClick={() => setKeysEnabled((v) => !v)}
-                        title={keysEnabled ? "方向键平移：已开启（点击关闭）" : "方向键平移：已关闭（点击开启）"}
-                        className={`h-7 w-7 rounded border text-[12px] transition-colors ${
-                            keysEnabled
-                                ? isDark
-                                    ? "bg-[#863bff] text-white border-[#863bff] shadow-[0_0_0_3px_rgba(134,59,255,0.45)]"
-                                    : "bg-[#863bff] text-white border-[#863bff] shadow-[0_0_0_3px_rgba(134,59,255,0.35)]"
-                                : `${borderCls} ${hoverBg} ${isDark ? "bg-[#1a1a22] text-white/80" : "bg-white text-gray-700"}`
-                        }`}
-                    >⌨</button>
+                    {!mobile && (
+                        <button
+                            onClick={() => setKeysEnabled((v) => !v)}
+                            title={keysEnabled ? "方向键平移：已开启（点击关闭）" : "方向键平移：已关闭（点击开启）"}
+                            className={`h-7 w-7 rounded border text-[12px] transition-colors ${
+                                keysEnabled
+                                    ? isDark
+                                        ? "bg-[#863bff] text-white border-[#863bff] shadow-[0_0_0_3px_rgba(134,59,255,0.45)]"
+                                        : "bg-[#863bff] text-white border-[#863bff] shadow-[0_0_0_3px_rgba(134,59,255,0.35)]"
+                                    : `${borderCls} ${hoverBg} ${isDark ? "bg-[#1a1a22] text-white/80" : "bg-white text-gray-700"}`
+                            }`}
+                        >⌨</button>
+                    )}
                     <button
                         onClick={() => setSearchOpen((o) => !o)}
                         title="搜索导图"
@@ -636,8 +660,11 @@ export const CurriculumTreeMap = ({mobile}: {mobile?: boolean}) => {
                     <div
                         ref={popupRef}
                         onMouseDown={(e) => e.stopPropagation()}
-                        className={`absolute z-40 w-[264px] rounded-lg border shadow-xl ${isDark ? "bg-[#1e1e2a] border-white/10" : "bg-white border-gray-200"}`}
-                        style={{left: popupPos?.x ?? 16, top: popupPos?.y ?? 16}}
+                        onTouchStart={(e) => e.stopPropagation()}
+                        onTouchMove={(e) => e.stopPropagation()}
+                        onTouchEnd={(e) => e.stopPropagation()}
+                        className={`absolute z-40 rounded-lg border shadow-xl ${isDark ? "bg-[#1e1e2a] border-white/10" : "bg-white border-gray-200"} ${mobile ? "left-2 top-2 w-1/2" : "w-[264px]"}`}
+                        style={mobile ? undefined : {left: popupPos?.x ?? 16, top: popupPos?.y ?? 16}}
                     >
                         <div
                             className={`flex items-center justify-between px-2.5 py-1.5 cursor-move rounded-t-lg ${isDark ? "bg-white/5" : "bg-gray-100"}`}
