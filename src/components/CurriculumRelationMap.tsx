@@ -56,7 +56,7 @@ function loadPersist(): Persist {
 const CLASS_ORDER: RelClass[] = ["Ⅰ类", "Ⅱ类", "Ⅲ类"];
 const trunc = (s: string, n: number) => (s.length > n ? s.slice(0, n) + "…" : s);
 
-export function CurriculumRelationMap() {
+export function CurriculumRelationMap({mobile}: {mobile?: boolean}) {
   const {locale} = useLocale();
   const {theme} = useAppTheme();
   const isDark = theme === "dark";
@@ -79,6 +79,7 @@ export function CurriculumRelationMap() {
   const [tx, setTx] = useState(0);
   const [ty, setTy] = useState(0);
   const [dragging, setDragging] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(!mobile); // PC 默认展开；移动端默认展开，可收起
   const svgRef = useRef<SVGSVGElement>(null);
   // 实时引用，供原生 wheel 监听读取最新值
   const scaleRef = useRef(scale); scaleRef.current = scale;
@@ -115,7 +116,7 @@ export function CurriculumRelationMap() {
   // 以 viewBox 中某点为锚缩放（保持该点屏幕位置不动）
   const zoomAround = (anchorX: number, anchorY: number, nextScale: number) => {
     const s1 = scaleRef.current;
-    const s2 = Math.min(MAX_SCALE, Math.max(MIN_SCALE, nextScale));
+    const s2 = Math.min(MAX_SCALE, Math.max(minScale, nextScale));
     if (s2 === s1) return;
     const t1x = txRef.current, t1y = tyRef.current;
     const ratio = s2 / s1;
@@ -144,17 +145,24 @@ export function CurriculumRelationMap() {
   const zoomByButton = (factor: number) => zoomAround(W / 2, H / 2, scaleRef.current * factor);
   const resetZoom = () => { setScale(1); setTx(0); setTy(0); };
 
-  // ---------- 拖拽平移 ----------
-  const onDown = (e: React.MouseEvent) => {
-    const {x: vx, y: vy} = clientToVB(e.clientX, e.clientY);
+  // ---------- 拖拽平移（鼠标 + 触摸） ----------
+  const getClient = (e: React.MouseEvent | React.TouchEvent) => {
+    if ("touches" in e) {
+      const t = e.touches[0] ?? e.changedTouches[0];
+      return {x: t.clientX, y: t.clientY};
+    }
+    return {x: (e as React.MouseEvent).clientX, y: (e as React.MouseEvent).clientY};
+  };
+  const onDown = (e: React.MouseEvent | React.TouchEvent) => {
+    const {x: vx, y: vy} = clientToVB(getClient(e).x, getClient(e).y);
     dragStart.current = {vx, vy, tx: txRef.current, ty: tyRef.current};
     movedRef.current = false;
     setDragging(true);
   };
-  const onMove = (e: React.MouseEvent) => {
+  const onMove = (e: React.MouseEvent | React.TouchEvent) => {
     const d = dragStart.current;
     if (!d) return;
-    const {x: vx, y: vy} = clientToVB(e.clientX, e.clientY);
+    const {x: vx, y: vy} = clientToVB(getClient(e).x, getClient(e).y);
     if (Math.hypot(vx - d.vx, vy - d.vy) > DRAG_THRESHOLD) movedRef.current = true;
     setTx(d.tx + (vx - d.vx));
     setTy(d.ty + (vy - d.vy));
@@ -222,8 +230,9 @@ export function CurriculumRelationMap() {
   };
 
   // ---------- 右侧 SVG 内容（不含 <svg> 外壳，统一由外层包裹以实现缩放） ----------
-  const W = 760;
-  const H = 540;
+  const W = mobile ? 360 : 760;
+  const H = mobile ? 320 : 540;
+  const minScale = mobile ? 0.5 : MIN_SCALE;
   let innerSVG: React.ReactNode = null;
   let placeholder: React.ReactNode = null;
 
@@ -380,7 +389,7 @@ export function CurriculumRelationMap() {
   return (
     <div className="flex min-h-0 flex-1 w-full">
       {/* 左侧：入口 / 课组选择器 */}
-      <div className={`flex w-60 shrink-0 flex-col border-r ${borderCls} ${panelBg}`}>
+      <div className={`flex flex-col border-r ${borderCls} ${panelBg} transition-all duration-300 ${mobile ? (sidebarOpen ? "w-60 shrink-0" : "w-0 shrink-0 overflow-hidden opacity-0") : "w-60 shrink-0"}`}>
         {/* 模式切换 */}
         <div className="flex gap-1 p-2">
           {(["course", "group"] as const).map((m) => {
@@ -510,6 +519,14 @@ export function CurriculumRelationMap() {
 
       {/* 右侧：可缩放 / 平移的 SVG 网络 */}
       <div className="relative flex-1 min-w-0">
+        {mobile && (
+          <button
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+            className={`absolute top-2 left-2 z-10 rounded border px-2 py-1 text-[10px] ${chipOff}`}
+          >
+            {sidebarOpen ? (zh ? "收起" : "Collapse") : (zh ? "展开" : "Expand")}
+          </button>
+        )}
         {placeholder ?? (
           <svg
             ref={svgRef}
@@ -521,6 +538,9 @@ export function CurriculumRelationMap() {
             onMouseMove={onMove}
             onMouseUp={onUp}
             onMouseLeave={onUp}
+            onTouchStart={onDown}
+            onTouchMove={onMove}
+            onTouchEnd={onUp}
           >
             <g transform={`translate(${tx} ${ty}) scale(${scale})`}>
               {innerSVG}

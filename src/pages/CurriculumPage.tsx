@@ -38,6 +38,10 @@ interface Tab {
   isImage?: boolean;
 }
 
+interface CurriculumPageProps {
+  mobile?: boolean;
+}
+
 const DEFAULT_TABS: Tab[] = [
   {id: "plan", label: "培养方案", content: planMd},
   {id: "teach", label: "教学计划", content: teachMd},
@@ -260,7 +264,7 @@ const SimpleMarkdown = ({
   return <>{rendered}</>;
 };
 
-export const CurriculumPage = () => {
+export const CurriculumPage = ({mobile}: CurriculumPageProps) => {
   const {locale} = useLocale();
   const {theme} = useAppTheme();
   const isDark = theme === "dark";
@@ -268,6 +272,7 @@ export const CurriculumPage = () => {
   const [leftWidth, setLeftWidth] = useState(40);
   const [mapView, setMapView] = useState<MapView>("list");
   const [showTutorial, setShowTutorial] = useState(false);
+  const [mobileTab, setMobileTab] = useState<"map" | "doc">("map");
   const isDragging = useRef(false);
   const [showFeishuLinks, setShowFeishuLinks] = useState(false);
 
@@ -360,238 +365,271 @@ export const CurriculumPage = () => {
     setCurrentMatchIdx(0);
   };
 
-  return (
-    <div className={`flex flex-1 min-h-0 flex-col ${isDark ? "bg-[#0e0e14]" : "bg-gray-50"}`}>
-      <div id="curriculum-split" className="flex flex-1 overflow-hidden">
-        {/* ===== LEFT: Mind Map placeholder ===== */}
-        <div
-          className="h-full flex flex-col overflow-hidden"
-          style={{width: `${leftWidth}%`}}
-        >
-          <div className={`flex h-full flex-col ${bgPanel} ${borderCls} border-r`}>
-            <div className={`flex items-center justify-between px-3 py-2 border-b shrink-0 ${borderCls}`}>
-              <span className={`text-xs font-medium ${textMuted}`}>
-                {locale === "zh" ? "培养方案导图" : "Curriculum Map"}
-              </span>
-              {/* 三视图切换器 */}
-              <div className={`flex rounded-lg border p-0.5 ${borderCls} ${isDark ? "bg-white/5" : "bg-gray-100"}`}>
-                {MAP_VIEWS.map((v) => {
-                  const active = mapView === v.id;
-                  const color = active
-                    ? (isDark ? "#c4a3ff" : "#863bff")
-                    : (isDark ? "rgba(255,255,255,0.5)" : "rgba(55,65,81,0.55)");
-                  return (
-                    <button
-                      key={v.id}
-                      onClick={() => setMapView(v.id)}
-                      title={locale === "zh" ? v.labelZh : v.labelEn}
-                      className={`flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium transition-colors ${
-                        active
-                          ? (isDark ? "bg-white/10 text-white" : "bg-white text-[#863bff] shadow-sm")
-                          : (isDark ? "text-white/55 hover:text-white/85" : "text-gray-500 hover:text-gray-800")
-                      }`}
-                    >
-                      <MapIcon svg={v.icon} color={color} size={14} />
-                      <span>{locale === "zh" ? v.labelZh : v.labelEn}</span>
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* 导图教程入口 */}
-              <button
-                onClick={() => setShowTutorial(true)}
-                title={locale === "zh" ? "查看使用说明" : "How to use"}
-                className={`ml-1 flex h-7 w-7 items-center justify-center rounded-lg border text-xs font-semibold transition-colors ${
-                  isDark
-                    ? "border-white/10 text-white/70 hover:bg-white/10 hover:text-white"
-                    : "border-gray-200 text-gray-500 hover:bg-gray-100 hover:text-gray-800"
-                }`}
-              >
-                ?
-              </button>
-            </div>
-            {mapView === "list" && <CurriculumMindMap />}
-            {mapView === "tree" && <CurriculumTreeMap />}
-            {mapView === "graph" && <CurriculumRelationMap />}
-          </div>
-        </div>
-
-        {/* ===== Draggable divider ===== */}
-        <div
-          className={`w-1 cursor-col-resize shrink-0 relative transition-colors ${
-            isDark ? "hover:bg-blue-500/30 bg-white/5" : "hover:bg-blue-400/40 bg-gray-200"
-          }`}
-          onMouseDown={handleMouseDown}
-        >
-          <div className={`absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-0.5 h-8 rounded-full ${
-            isDark ? "bg-white/20" : "bg-gray-300"
-          }`} />
-        </div>
-
-        {/* ===== RIGHT: Tabbed document viewer ===== */}
-        <div
-          className="h-full flex flex-col overflow-hidden"
-          style={{width: `${100 - leftWidth}%`}}
-        >
-          {/* Search bar (persistent, top of document area) */}
-          <div className={`flex items-center gap-2 px-3 py-2 border-b shrink-0 ${borderCls} ${bgPanel}`}>
-            <input
-              value={searchTerm}
-              onChange={(e) => {
-                setSearchTerm(e.target.value);
-                setCurrentMatchIdx(0);
-              }}
-              placeholder={locale === "zh" ? "在文档中搜索…" : "Search documents…"}
-              className={`flex-1 rounded-md border px-2 py-1 text-xs outline-none ${
-                borderCls
-              } ${isDark ? "bg-white/5 text-white/90 placeholder-white/30" : "bg-white text-gray-800 placeholder-gray-400"}`}
-            />
-            {searchTerm.trim() && (
-              <>
-                <span className={`text-[10px] whitespace-nowrap ${textMuted}`}>
-                  {currentCount === 0 ? "0/0" : `${Math.min(currentMatchIdx + 1, currentCount)}/${currentCount}`}
-                </span>
-                <button onClick={jumpNearest} disabled={currentCount === 0} className={searchBtnCls}>
-                  {locale === "zh" ? "最近" : "Nearest"}
-                </button>
-                <button onClick={prevMatch} disabled={currentCount === 0} className={searchBtnCls}>
-                  {locale === "zh" ? "上一个" : "Prev"}
-                </button>
-                <button onClick={nextMatch} disabled={currentCount === 0} className={searchBtnCls}>
-                  {locale === "zh" ? "下一个" : "Next"}
-                </button>
-              </>
-            )}
-          </div>
-
-          {/* Hint: other docs also have matches */}
-          {searchTerm.trim() && otherMatches.length > 0 && (
-            <div className={`flex flex-wrap items-center gap-2 px-3 py-1 text-[10px] border-b ${borderCls} ${bgPanel} ${textMuted}`}>
-              <span>{locale === "zh" ? "其他文档也有匹配：" : "Also in:"}</span>
-              {otherMatches.map((t) => (
+  const mapPanel = (
+    <div
+      className="h-full flex flex-col overflow-hidden"
+      style={mobile ? undefined : {width: `${leftWidth}%`}}
+    >
+      <div className={`flex h-full flex-col ${bgPanel} ${borderCls} ${mobile ? "" : "border-r"}`}>
+        <div className={`flex items-center justify-between px-3 py-2 border-b shrink-0 ${borderCls}`}>
+          <span className={`text-xs font-medium ${textMuted}`}>
+            {locale === "zh" ? "培养方案导图" : "Curriculum Map"}
+          </span>
+          {/* 三视图切换器 */}
+          <div className={`flex rounded-lg border p-0.5 ${borderCls} ${isDark ? "bg-white/5" : "bg-gray-100"}`}>
+            {MAP_VIEWS.map((v) => {
+              const active = mapView === v.id;
+              const color = active
+                ? (isDark ? "#c4a3ff" : "#863bff")
+                : (isDark ? "rgba(255,255,255,0.5)" : "rgba(55,65,81,0.55)");
+              return (
                 <button
-                  key={t.id}
-                  onClick={() => switchTab(t.id)}
-                  className={`rounded px-2 py-0.5 border ${borderCls} ${
-                    isDark ? "bg-white/5 hover:bg-white/10 text-white/80" : "bg-gray-100 hover:bg-gray-200 text-gray-700"
+                  key={v.id}
+                  onClick={() => setMapView(v.id)}
+                  title={locale === "zh" ? v.labelZh : v.labelEn}
+                  className={`flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium transition-colors ${
+                    active
+                      ? (isDark ? "bg-white/10 text-white" : "bg-white text-[#863bff] shadow-sm")
+                      : (isDark ? "text-white/55 hover:text-white/85" : "text-gray-500 hover:text-gray-800")
                   }`}
                 >
-                  {t.label} ({matchCounts[t.id]})
+                  <MapIcon svg={v.icon} color={color} size={14} />
+                  <span>{locale === "zh" ? v.labelZh : v.labelEn}</span>
                 </button>
-              ))}
+              );
+            })}
+          </div>
+
+          {/* 导图教程入口 */}
+          <button
+            onClick={() => setShowTutorial(true)}
+            title={locale === "zh" ? "查看使用说明" : "How to use"}
+            className={`ml-1 flex h-7 w-7 items-center justify-center rounded-lg border text-xs font-semibold transition-colors ${
+              isDark
+                ? "border-white/10 text-white/70 hover:bg-white/10 hover:text-white"
+                : "border-gray-200 text-gray-500 hover:bg-gray-100 hover:text-gray-800"
+            }`}
+          >
+            ?
+          </button>
+        </div>
+        {mapView === "list" && <CurriculumMindMap mobile={mobile} />}
+        {mapView === "tree" && <CurriculumTreeMap mobile={mobile} />}
+        {mapView === "graph" && <CurriculumRelationMap mobile={mobile} />}
+      </div>
+    </div>
+  );
+
+  const docPanel = (
+    <div
+      className="h-full flex flex-col overflow-hidden"
+      style={mobile ? undefined : {width: `${100 - leftWidth}%`}}
+    >
+      {/* Search bar (persistent, top of document area) */}
+      <div className={`flex items-center gap-2 px-3 py-2 border-b shrink-0 ${borderCls} ${bgPanel}`}>
+        <input
+          value={searchTerm}
+          onChange={(e) => {
+            setSearchTerm(e.target.value);
+            setCurrentMatchIdx(0);
+          }}
+          placeholder={locale === "zh" ? "在文档中搜索…" : "Search documents…"}
+          className={`flex-1 rounded-md border px-2 py-1 text-xs outline-none ${
+            borderCls
+          } ${isDark ? "bg-white/5 text-white/90 placeholder-white/30" : "bg-white text-gray-800 placeholder-gray-400"}`}
+        />
+        {searchTerm.trim() && (
+          <>
+            <span className={`text-[10px] whitespace-nowrap ${textMuted}`}>
+              {currentCount === 0 ? "0/0" : `${Math.min(currentMatchIdx + 1, currentCount)}/${currentCount}`}
+            </span>
+            <button onClick={jumpNearest} disabled={currentCount === 0} className={searchBtnCls}>
+              {locale === "zh" ? "最近" : "Nearest"}
+            </button>
+            <button onClick={prevMatch} disabled={currentCount === 0} className={searchBtnCls}>
+              {locale === "zh" ? "上一个" : "Prev"}
+            </button>
+            <button onClick={nextMatch} disabled={currentCount === 0} className={searchBtnCls}>
+              {locale === "zh" ? "下一个" : "Next"}
+            </button>
+          </>
+        )}
+      </div>
+
+      {/* Hint: other docs also have matches */}
+      {searchTerm.trim() && otherMatches.length > 0 && (
+        <div className={`flex flex-wrap items-center gap-2 px-3 py-1 text-[10px] border-b ${borderCls} ${bgPanel} ${textMuted}`}>
+          <span>{locale === "zh" ? "其他文档也有匹配：" : "Also in:"}</span>
+          {otherMatches.map((t) => (
+            <button
+              key={t.id}
+              onClick={() => switchTab(t.id)}
+              className={`rounded px-2 py-0.5 border ${borderCls} ${
+                isDark ? "bg-white/5 hover:bg-white/10 text-white/80" : "bg-gray-100 hover:bg-gray-200 text-gray-700"
+              }`}
+            >
+              {t.label} ({matchCounts[t.id]})
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div className={`flex items-center border-b shrink-0 ${borderCls} ${bgPanel}`}>
+        <div className="flex items-center overflow-x-auto flex-1 px-1">
+          {DEFAULT_TABS.map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => switchTab(tab.id)}
+              className={`cursor-pointer border-none px-3 py-2 text-xs font-medium transition-colors whitespace-nowrap ${
+                activeTab === tab.id
+                  ? `${tabActiveBg} ${tabActiveText}`
+                  : `${textMuted} hover:${isDark ? "bg-white/5" : "bg-gray-100"}`
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+          <button onClick={() => setShowFeishuLinks(true)} className={`cursor-pointer border-none px-2 py-2 text-xs font-medium transition-colors ${
+            isDark ? "text-white/30 hover:text-white/60" : "text-gray-400 hover:text-gray-600"
+          }`}>
+            +
+          </button>
+          {showFeishuLinks && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center" style={{background: "rgba(0,0,0,0.4)"}} onClick={() => setShowFeishuLinks(false)}>
+              <div className={`w-80 rounded-xl shadow-2xl border px-5 py-4 ${isDark ? "bg-[#1e1e2a] border-white/10" : "bg-white border-gray-200"}`} onClick={(e) => e.stopPropagation()}>
+                <div className={`text-sm font-semibold mb-3 ${textDark}`}>
+                  {locale === "zh" ? "飞书云文档链接" : "Feishu Cloud Docs"}
+                </div>
+                <div className="flex flex-col gap-2 text-xs">
+                  <a href="https://rcnys7k0b04o.feishu.cn/docx/D3bxddmpkoX92NxDpSscuOZrnRg" target="_blank" rel="noopener noreferrer"
+                     className={`block rounded px-3 py-2 transition-colors ${
+                       isDark ? "bg-blue-500/10 text-blue-300 hover:bg-blue-500/20" : "bg-blue-50 text-blue-600 hover:bg-blue-100"
+                     }`}>
+                    {locale === "zh" ? "📄 培养方案" : "📄 Curriculum Plan"}
+                  </a>
+                  <a href="https://rcnys7k0b04o.feishu.cn/docx/B4LWdkTx6oxhqfxe8WWccrTVndd" target="_blank" rel="noopener noreferrer"
+                     className={`block rounded px-3 py-2 transition-colors ${
+                       isDark ? "bg-blue-500/10 text-blue-300 hover:bg-blue-500/20" : "bg-blue-50 text-blue-600 hover:bg-blue-100"
+                     }`}>
+                    {locale === "zh" ? "📄 教学计划" : "📄 Teaching Plan"}
+                  </a>
+                  <a href="https://rcnys7k0b04o.feishu.cn/docx/EKC0d5ciXolXj9xQrh4cCSf7n6J" target="_blank" rel="noopener noreferrer"
+                     className={`block rounded px-3 py-2 transition-colors ${
+                       isDark ? "bg-blue-500/10 text-blue-300 hover:bg-blue-500/20" : "bg-blue-50 text-blue-600 hover:bg-blue-100"
+                     }`}>
+                    {locale === "zh" ? "📄 交叉培养指南" : "📄 Cross-Disciplinary Guide"}
+                  </a>
+                </div>
+                <div className={`text-[10px] mt-3 text-center ${textMuted}`}>
+                  {locale === "zh" ? "更多内容正在开发中，敬请期待！" : "More content coming soon!"}
+                </div>
+              </div>
             </div>
           )}
-
-          <div className={`flex items-center border-b shrink-0 ${borderCls} ${bgPanel}`}>
-            <div className="flex items-center overflow-x-auto flex-1 px-1">
-              {DEFAULT_TABS.map((tab) => (
-                <button
-                  key={tab.id}
-                  onClick={() => switchTab(tab.id)}
-                  className={`cursor-pointer border-none px-3 py-2 text-xs font-medium transition-colors whitespace-nowrap ${
-                    activeTab === tab.id
-                      ? `${tabActiveBg} ${tabActiveText}`
-                      : `${textMuted} hover:${isDark ? "bg-white/5" : "bg-gray-100"}`
-                  }`}
-                >
-                  {tab.label}
-                </button>
-              ))}
-              <button onClick={() => setShowFeishuLinks(true)} className={`cursor-pointer border-none px-2 py-2 text-xs font-medium transition-colors ${
-                isDark ? "text-white/30 hover:text-white/60" : "text-gray-400 hover:text-gray-600"
-              }`}>
-                +
-              </button>
-              {showFeishuLinks && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center" style={{background: "rgba(0,0,0,0.4)"}} onClick={() => setShowFeishuLinks(false)}>
-                  <div className={`w-80 rounded-xl shadow-2xl border px-5 py-4 ${isDark ? "bg-[#1e1e2a] border-white/10" : "bg-white border-gray-200"}`} onClick={(e) => e.stopPropagation()}>
-                    <div className={`text-sm font-semibold mb-3 ${textDark}`}>
-                      {locale === "zh" ? "飞书云文档链接" : "Feishu Cloud Docs"}
-                    </div>
-                    <div className="flex flex-col gap-2 text-xs">
-                      <a href="https://rcnys7k0b04o.feishu.cn/docx/D3bxddmpkoX92NxDpSscuOZrnRg" target="_blank" rel="noopener noreferrer"
-                         className={`block rounded px-3 py-2 transition-colors ${
-                           isDark ? "bg-blue-500/10 text-blue-300 hover:bg-blue-500/20" : "bg-blue-50 text-blue-600 hover:bg-blue-100"
-                         }`}>
-                        {locale === "zh" ? "📄 培养方案" : "📄 Curriculum Plan"}
-                      </a>
-                      <a href="https://rcnys7k0b04o.feishu.cn/docx/B4LWdkTx6oxhqfxe8WWccrTVndd" target="_blank" rel="noopener noreferrer"
-                         className={`block rounded px-3 py-2 transition-colors ${
-                           isDark ? "bg-blue-500/10 text-blue-300 hover:bg-blue-500/20" : "bg-blue-50 text-blue-600 hover:bg-blue-100"
-                         }`}>
-                        {locale === "zh" ? "📄 教学计划" : "📄 Teaching Plan"}
-                      </a>
-                      <a href="https://rcnys7k0b04o.feishu.cn/docx/EKC0d5ciXolXj9xQrh4cCSf7n6J" target="_blank" rel="noopener noreferrer"
-                         className={`block rounded px-3 py-2 transition-colors ${
-                           isDark ? "bg-blue-500/10 text-blue-300 hover:bg-blue-500/20" : "bg-blue-50 text-blue-600 hover:bg-blue-100"
-                         }`}>
-                        {locale === "zh" ? "📄 交叉培养指南" : "📄 Cross-Disciplinary Guide"}
-                      </a>
-                    </div>
-                    <div className={`text-[10px] mt-3 text-center ${textMuted}`}>
-                      {locale === "zh" ? "更多内容正在开发中，敬请期待！" : "More content coming soon!"}
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div className={`flex-1 flex flex-col min-h-0 overflow-hidden ${bgPanel}`}>
-            {/* Each tab has its own scrollable container with independent scroll position */}
-            {DEFAULT_TABS.map((tab) => (
-              <div
-                key={tab.id}
-                id={`tab-content-${tab.id}`}
-                className={`flex-1 overflow-auto px-4 py-3 ${tab.id === activeTab ? "block" : "hidden"}`}
-              >
-                {tab.id === "intro" ? (
-                  <div className="flex flex-col items-center gap-4 pb-8">
-                    <div className={`text-xs text-center mb-2 ${textMuted}`}>
-                      {locale === "zh"
-                        ? `笃实书院培养方案解读（共${introImages.length}页）`
-                        : `Curriculum Interpretation (${introImages.length} pages)`}
-                    </div>
-                    {introImages.length === 0 ? (
-                      <div className={`text-xs ${textMuted}`}>
-                        {locale === "zh" ? "图片加载中..." : "Loading images..."}
-                      </div>
-                    ) : (
-                      introImages.map(({num, src}) => (
-                        <div key={num} className="w-full max-w-3xl">
-                          <div className={`text-[10px] mb-1 ${textMuted}`}>
-                            {locale === "zh" ? `第${num}页` : `Page ${num}`}
-                          </div>
-                          <img
-                            src={src}
-                            alt={`培养方案解读第${num}页`}
-                            className="w-full h-auto rounded-lg border"
-                            style={{borderColor: isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)"}}
-                            loading="lazy"
-                          />
-                        </div>
-                      ))
-                    )}
-                  </div>
-                ) : tab.content ? (
-                  <SimpleMarkdown
-                    text={tab.content}
-                    isDark={isDark}
-                    searchTerm={searchTerm}
-                    activeMatchIdx={tab.id === activeTab ? currentMatchIdx : -1}
-                    activeMatchRef={tab.id === activeTab ? activeMatchRef : undefined}
-                  />
-                ) : (
-                  <div className={`flex h-full items-center justify-center text-xs ${textMuted}`}>
-                    {locale === "zh" ? "文档加载中..." : "Loading document..."}
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
         </div>
       </div>
+
+      <div className={`flex-1 flex flex-col min-h-0 overflow-hidden ${bgPanel}`}>
+        {/* Each tab has its own scrollable container with independent scroll position */}
+        {DEFAULT_TABS.map((tab) => (
+          <div
+            key={tab.id}
+            id={`tab-content-${tab.id}`}
+            className={`flex-1 overflow-auto px-4 py-3 ${tab.id === activeTab ? "block" : "hidden"}`}
+          >
+            {tab.id === "intro" ? (
+              <div className="flex flex-col items-center gap-4 pb-8">
+                <div className={`text-xs text-center mb-2 ${textMuted}`}>
+                  {locale === "zh"
+                    ? `笃实书院培养方案解读（共${introImages.length}页）`
+                    : `Curriculum Interpretation (${introImages.length} pages)`}
+                </div>
+                {introImages.length === 0 ? (
+                  <div className={`text-xs ${textMuted}`}>
+                    {locale === "zh" ? "图片加载中..." : "Loading images..."}
+                  </div>
+                ) : (
+                  introImages.map(({num, src}) => (
+                    <div key={num} className="w-full max-w-3xl">
+                      <div className={`text-[10px] mb-1 ${textMuted}`}>
+                        {locale === "zh" ? `第${num}页` : `Page ${num}`}
+                      </div>
+                      <img
+                        src={src}
+                        alt={`培养方案解读第${num}页`}
+                        className="w-full h-auto rounded-lg border"
+                        style={{borderColor: isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)"}}
+                        loading="lazy"
+                      />
+                    </div>
+                  ))
+                )}
+              </div>
+            ) : tab.content ? (
+              <SimpleMarkdown
+                text={tab.content}
+                isDark={isDark}
+                searchTerm={searchTerm}
+                activeMatchIdx={tab.id === activeTab ? currentMatchIdx : -1}
+                activeMatchRef={tab.id === activeTab ? activeMatchRef : undefined}
+              />
+            ) : (
+              <div className={`flex h-full items-center justify-center text-xs ${textMuted}`}>
+                {locale === "zh" ? "文档加载中..." : "Loading document..."}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
+  return (
+    <div className={`flex flex-1 min-h-0 flex-col ${isDark ? "bg-[#0e0e14]" : "bg-gray-50"}`}>
+      {mobile ? (
+        <div className="flex flex-1 flex-col min-h-0 overflow-hidden">
+          <div className="flex-1 min-h-0 overflow-hidden">
+            {mobileTab === "map" ? mapPanel : docPanel}
+          </div>
+          <nav className={`shrink-0 flex border-t ${isDark ? "border-white/10 bg-[#16161f]" : "border-gray-200 bg-white"}`}>
+            <button
+              onClick={() => setMobileTab("map")}
+              className={`flex-1 py-3 text-sm font-medium ${
+                mobileTab === "map"
+                  ? (isDark ? "text-blue-300" : "text-blue-600")
+                  : (isDark ? "text-white/50" : "text-gray-500")
+              }`}
+            >
+              {locale === "zh" ? "导图" : "Map"}
+            </button>
+            <button
+              onClick={() => setMobileTab("doc")}
+              className={`flex-1 py-3 text-sm font-medium ${
+                mobileTab === "doc"
+                  ? (isDark ? "text-blue-300" : "text-blue-600")
+                  : (isDark ? "text-white/50" : "text-gray-500")
+              }`}
+            >
+              {locale === "zh" ? "方案" : "Docs"}
+            </button>
+          </nav>
+        </div>
+      ) : (
+        <div id="curriculum-split" className="flex flex-1 overflow-hidden">
+          {mapPanel}
+          <div
+            className={`w-1 cursor-col-resize shrink-0 relative transition-colors ${
+              isDark ? "hover:bg-blue-500/30 bg-white/5" : "hover:bg-blue-400/40 bg-gray-200"
+            }`}
+            onMouseDown={handleMouseDown}
+          >
+            <div className={`absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-0.5 h-8 rounded-full ${
+              isDark ? "bg-white/20" : "bg-gray-300"
+            }`} />
+          </div>
+          {docPanel}
+        </div>
+      )}
 
       {showTutorial && <CurriculumMapTutorial onClose={() => setShowTutorial(false)} />}
     </div>

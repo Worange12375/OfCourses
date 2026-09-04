@@ -10,9 +10,10 @@ const NAV_H = 56; // 顶部导航栏高度（h-14 = 56px）
 
 export const TourOverlay = () => {
     const {tourActive, stepIndex, next, prev, finish, navigateTo} = useOnboarding();
-    const {locale} = useLocale();
+    const {locale, t} = useLocale();
     const {theme} = useAppTheme();
     const isDark = theme === "dark";
+    const accent = isDark ? "#7c5cff" : "#863bff";
 
     // displayIndex 门控：文字与位置在同一帧翻转，避免“先改文字、后移位置”的间隔
     const [displayIndex, setDisplayIndex] = useState(-1);
@@ -40,6 +41,35 @@ export const TourOverlay = () => {
 
     if (!tourActive) return null;
 
+    // 移动端：功能引导弹窗尺寸/定位难以适配，直接提示在 PC 端查看
+    const isMobileViewport = typeof window !== "undefined" && window.innerWidth < 640;
+    if (isMobileViewport) {
+        return (
+            <div
+                className="fixed inset-0 z-[10000] flex items-center justify-center p-6"
+                style={{background: "rgba(0,0,0,0.55)"}}
+                role="dialog"
+                aria-modal="true"
+            >
+                <div className={`max-w-xs rounded-xl border p-5 shadow-2xl ${
+                    isDark ? "border-white/10 bg-[#1c1c28] text-white/90" : "border-gray-200 bg-white text-gray-800"
+                }`}>
+                    <div className="mb-2 text-sm font-semibold">{locale === "zh" ? "功能引导" : "Tutorial"}</div>
+                    <div className="mb-4 text-xs leading-relaxed opacity-80">
+                        {t("mobile.tourUsePC")}
+                    </div>
+                    <button
+                        onClick={finish}
+                        className="w-full rounded px-3 py-2 text-xs font-medium text-white"
+                        style={{background: accent}}
+                    >
+                        {locale === "zh" ? "知道了" : "Got it"}
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
     const step = TOUR_STEPS[displayIndex] ?? target;
     const isLast = stepIndex === TOUR_STEPS.length - 1;
 
@@ -61,8 +91,6 @@ export const TourOverlay = () => {
         top = window.innerHeight / 2 - 110;
         left = window.innerWidth / 2 - CARD_W / 2;
     }
-
-    const accent = isDark ? "#7c5cff" : "#863bff";
 
     return (
         <div className="fixed inset-0 z-[10000]" role="dialog" aria-modal="true">

@@ -6,11 +6,11 @@ import type {SearchScope, SearchHit, SearchTarget} from "./mindmapShared";
 import {SearchScopeSelect} from "./SearchScopeSelect";
 
 /* ============ 布局常量 ============ */
-const NODE_W = 196;
-const NODE_H = 30;
-const H_GAP = 72; // 层间水平间距
-const V_GAP = 10; // 节点间垂直间距
-const ROOT_V_GAP = 28; // 森林中各根节点树之间的垂直间距
+const BASE_NODE_W = 196;
+const BASE_NODE_H = 30;
+const BASE_H_GAP = 72; // 层间水平间距
+const BASE_V_GAP = 10; // 节点间垂直间距
+const BASE_ROOT_V_GAP = 28; // 森林中各根节点树之间的垂直间距
 
 interface Pos {
     x: number;
@@ -29,9 +29,19 @@ function fitText(text: string, maxWidth: number, fontSize: number): string {
     return text;
 }
 
-export const CurriculumTreeMap = () => {
+export const CurriculumTreeMap = ({mobile}: {mobile?: boolean}) => {
     const {theme} = useAppTheme();
     const isDark = theme === "dark";
+
+    // 移动端缩小节点尺寸，避免三层层级超出屏幕
+    const mNodeW = mobile ? 130 : BASE_NODE_W;
+    const mNodeH = mobile ? 24 : BASE_NODE_H;
+    const mHGap = mobile ? 32 : BASE_H_GAP;
+    const mVGap = mobile ? 7 : BASE_V_GAP;
+    const mRootVGap = mobile ? 16 : BASE_ROOT_V_GAP;
+    const fontSize = mobile ? 9 : 10;
+    const labelFontSize = mobile ? 10 : 11;
+
     const {
         nodes,
         forestRoots,
@@ -266,31 +276,31 @@ export const CurriculumTreeMap = () => {
         const layout = (id: string, depth: number): number => {
             const n = nodes.get(id);
             if (!n) return cursorY;
-            const x = depth * (NODE_W + H_GAP);
+            const x = depth * (mNodeW + mHGap);
             const isOpen = expanded.has(id);
             const hasChildren = n.childIds.length > 0;
             if (!hasChildren || !isOpen) {
                 pos.set(id, {x, y: cursorY});
-                cursorY += NODE_H + V_GAP;
-                return cursorY - (NODE_H + V_GAP) / 2;
+                cursorY += mNodeH + mVGap;
+                return cursorY - (mNodeH + mVGap) / 2;
             }
             const childCenters: number[] = [];
             for (const cid of n.childIds) childCenters.push(layout(cid, depth + 1));
             const cy = (childCenters[0] + childCenters[childCenters.length - 1]) / 2;
-            pos.set(id, {x, y: cy - NODE_H / 2});
+            pos.set(id, {x, y: cy - mNodeH / 2});
             return cy;
         };
 
         for (const rootId of forestRoots) {
             layout(rootId, 0);
-            cursorY += ROOT_V_GAP;
+            cursorY += mRootVGap;
         }
 
         const maxX = [...pos.values()].reduce((m, p) => Math.max(m, p.x), 0);
         return {
             positions: pos,
-            contentW: maxX + NODE_W + 32,
-            contentH: Math.max(cursorY - ROOT_V_GAP, NODE_H),
+            contentW: maxX + mNodeW + 32,
+            contentH: Math.max(cursorY - mRootVGap, mNodeH),
         };
     }, [nodes, forestRoots, expanded]);
 
@@ -377,8 +387,8 @@ export const CurriculumTreeMap = () => {
         const W = cont.clientWidth;
         const H = cont.clientHeight;
         if (!W || !H) return;
-        const cx = p.x + NODE_W / 2;
-        const cy = p.y + NODE_H / 2;
+        const cx = p.x + mNodeW / 2;
+        const cy = p.y + mNodeH / 2;
         const s = scaleRef.current;
         setTx(W * 0.75 - cx * s);
         setTy(H * 0.667 - cy * s);
@@ -428,13 +438,13 @@ export const CurriculumTreeMap = () => {
         if (!n) return;
         // 仅当该节点处于展开状态才向下画边（折叠的根/内部节点均不画）
         if (!expanded.has(id) || n.childIds.length === 0) return;
-        const px = p.x + NODE_W;
-        const py = p.y + NODE_H / 2;
+        const px = p.x + mNodeW;
+        const py = p.y + mNodeH / 2;
         for (const cid of n.childIds) {
             const cp = positions.get(cid);
             if (!cp) continue;
             const cx = cp.x;
-            const cy = cp.y + NODE_H / 2;
+            const cy = cp.y + mNodeH / 2;
             const midX = (px + cx) / 2;
             edges.push(`M${px},${py} C${midX},${py} ${midX},${cy} ${cx},${cy}`);
         }
@@ -515,16 +525,16 @@ export const CurriculumTreeMap = () => {
                             // 文字布局：左侧箭头(8)；pin 在节点框内右下角；课程学分在右侧中部
                             const showPin = (n.level === "class" || n.level === "module" || n.level === "basis" || n.level === "group");
                             const textStart = hasChildren ? 22 : 12;
-                            const textEnd = (isCourse && n.sub) || isGroup ? NODE_W - 42 : NODE_W - 12;
+                            const textEnd = (isCourse && n.sub) || isGroup ? mNodeW - 42 : mNodeW - 12;
                             const maxTextW = Math.max(60, textEnd - textStart);
-                            const displayLabel = fitText(n.label, maxTextW, 11);
+                            const displayLabel = fitText(n.label, maxTextW, labelFontSize);
 
                             return (
                                 <g key={id} transform={`translate(${p.x},${p.y})`} style={{cursor: "pointer"}} onClick={onClick}>
                                     <title>{n.label}{n.sub ? ` · ${n.sub}` : ""}</title>
                                     <rect
-                                        width={NODE_W}
-                                        height={NODE_H}
+                                        width={mNodeW}
+                                        height={mNodeH}
                                         rx={isHi ? 8 : 6}
                                         fill={isHi ? (isActive ? (isDark ? "rgba(134,59,255,0.24)" : "rgba(134,59,255,0.14)") : (isDark ? "rgba(251,191,36,0.20)" : "rgba(217,119,6,0.12)")) : c.fill}
                                         stroke={isHi ? (isActive ? "#863bff" : (isDark ? "#fbbf24" : "#d97706")) : c.stroke}
@@ -533,15 +543,15 @@ export const CurriculumTreeMap = () => {
                                     />
                                     {/* 展开箭头 */}
                                     {hasChildren && (
-                                        <text x={8} y={NODE_H / 2 + 4} fontSize={10} fill={c.text} style={{userSelect: "none"}}>
+                                        <text x={8} y={mNodeH / 2 + 4} fontSize={fontSize} fill={c.text} style={{userSelect: "none"}}>
                                             {isOpen ? "▾" : "▸"}
                                         </text>
                                     )}
                                     {/* 名称 */}
                                     <text
                                         x={textStart}
-                                        y={NODE_H / 2 + 4}
-                                        fontSize={11}
+                                        y={mNodeH / 2 + 4}
+                                        fontSize={labelFontSize}
                                         fill={c.text}
                                         style={{userSelect: "none"}}
                                         fontWeight={isRoot || n.level === "class" || n.level === "module" || n.level === "basis" ? 600 : 400}
@@ -551,9 +561,9 @@ export const CurriculumTreeMap = () => {
                                     {/* 右侧学分标注：课程 = 本课学分；课组 = 组内课程总学分（与学位评定同口径） */}
                                     {((isCourse && n.sub) || isGroup) && (
                                         <text
-                                            x={NODE_W - 8}
-                                            y={NODE_H / 2 + 4}
-                                            fontSize={9}
+                                            x={mNodeW - 8}
+                                            y={mNodeH / 2 + 4}
+                                            fontSize={mobile ? 8 : 9}
                                             fill={c.text}
                                             opacity={isGroup ? 0.85 : 0.7}
                                             textAnchor="end"
@@ -566,9 +576,9 @@ export const CurriculumTreeMap = () => {
                                     {/* 固定按钮：置于节点框内右上角 */}
                                     {showPin && (
                                         <text
-                                            x={NODE_W - 6}
-                                            y={11}
-                                            fontSize={10}
+                                            x={mNodeW - 6}
+                                            y={mobile ? 9 : 11}
+                                            fontSize={fontSize}
                                             textAnchor="end"
                                             fill={isPin ? (isDark ? "#fcd34d" : "#d97706") : c.text}
                                             opacity={isPin ? 1 : 0.55}

@@ -5,6 +5,7 @@ import Select, {type SelectItem} from "@jetbrains/ring-ui-built/components/selec
 import {useLocale} from "../i18n/LocaleContext";
 import {useAppTheme} from "../theme/ThemeContext";
 import {useCourseGroups} from "../hooks/useCurriculumData";
+import {VoteWidget} from "../components/VoteWidget";
 import structuredData from "@/data/structured_data.json";
 
 type HistoryData = Record<string, string[]>;
@@ -47,7 +48,11 @@ const PCT_EPSILON = 0.01;              // 浮点相等判定阈值
 const TANXIAN_COURSE_ID = "30310084";  // 弹性力学课号
 const ALL_MODULE_IDS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]; // 全模块编号
 
-export const ToolsPage = () => {
+interface ToolsPageProps {
+  mobile?: boolean;
+}
+
+export const ToolsPage = ({mobile}: ToolsPageProps) => {
   const {locale} = useLocale();
   const {theme} = useAppTheme();
   const isDark = theme === "dark";
@@ -558,12 +563,12 @@ export const ToolsPage = () => {
   };
 
   return (
-    <div className={`flex flex-1 flex-row h-full ${isDark ? "bg-[#0e0e14]" : "bg-gray-50"}`}>
+    <div className={`flex flex-1 ${mobile ? "flex-col h-full" : "flex-row h-full"} ${isDark ? "bg-[#0e0e14]" : "bg-gray-50"}`}>
       {/* ===== Sidebar ===== */}
-      <div className={`flex flex-col w-36 shrink-0 border-r p-2 gap-1 ${borderCls} ${isDark ? "bg-[#14141e]" : "bg-white"}`}>
+      <div className={`${mobile ? "flex flex-row border-b p-2 gap-1 overflow-x-auto" : "flex flex-col w-36 shrink-0 border-r p-2 gap-1"} ${borderCls} ${isDark ? "bg-[#14141e]" : "bg-white"}`}>
         <button
           onClick={() => setToolPage("degree")}
-          className={`cursor-pointer rounded border-none px-3 py-2 text-xs font-medium text-left transition-colors ${
+          className={`cursor-pointer rounded border-none px-3 py-2 text-xs font-medium ${mobile ? "flex-1 text-center whitespace-nowrap" : "text-left"} transition-colors ${
             toolPage === "degree"
               ? isDark ? "bg-blue-500/20 text-blue-300" : "bg-blue-100 text-blue-600"
               : isDark ? "text-white/60 hover:bg-white/5" : "text-gray-600 hover:bg-gray-100"
@@ -571,7 +576,7 @@ export const ToolsPage = () => {
         >{locale === "zh" ? "学位评定" : "Degree Eval."}</button>
         <button
           onClick={() => setToolPage("ai")}
-          className={`cursor-pointer rounded border-none px-3 py-2 text-xs font-medium text-left transition-colors ${
+          className={`cursor-pointer rounded border-none px-3 py-2 text-xs font-medium ${mobile ? "flex-1 text-center whitespace-nowrap" : "text-left"} transition-colors ${
             toolPage === "ai"
               ? isDark ? "bg-blue-500/20 text-blue-300" : "bg-blue-100 text-blue-600"
               : isDark ? "text-white/60 hover:bg-white/5" : "text-gray-600 hover:bg-gray-100"
@@ -579,7 +584,7 @@ export const ToolsPage = () => {
         >{locale === "zh" ? "AI推荐助手" : "AI Assistant"}</button>
         <button
           onClick={() => setToolPage("review")}
-          className={`cursor-pointer rounded border-none px-3 py-2 text-xs font-medium text-left transition-colors ${
+          className={`cursor-pointer rounded border-none px-3 py-2 text-xs font-medium ${mobile ? "flex-1 text-center whitespace-nowrap" : "text-left"} transition-colors ${
             toolPage === "review"
               ? isDark ? "bg-blue-500/20 text-blue-300" : "bg-blue-100 text-blue-600"
               : isDark ? "text-white/60 hover:bg-white/5" : "text-gray-600 hover:bg-gray-100"
@@ -587,7 +592,7 @@ export const ToolsPage = () => {
         >{locale === "zh" ? "课程评价" : "Reviews"}</button>
       </div>
       {/* ===== Content ===== */}
-      <div className={`flex-1 flex flex-col gap-3 p-3 overflow-auto`}>
+      <div className={`flex-1 flex flex-col gap-3 p-3 ${mobile ? "overflow-y-auto oc-mobile-pb-nav" : "overflow-auto"}`}>
       {toolPage === "degree" && <>
       <Island className={`${bgCard}`}>
         <Header border>
@@ -923,8 +928,18 @@ export const ToolsPage = () => {
             </span>
           </Header>
           <Content>
-            <div className={`px-4 py-3 text-xs ${textMuted}`}>
-              {locale === "zh" ? "此功能正在开发中，敬请期待。" : "Coming soon."}
+            <div className="flex flex-col gap-4 px-4 py-3">
+              <p className={`text-xs leading-relaxed ${textBody}`}>
+                {locale === "zh"
+                  ? "我们计划为大家提供一个网页端的对话式 AI 助手：它会结合你已修读的课程与培养方案要求，智能推荐适合你的后续课程。届时我们会综合技术难度、维护成本与数据安全等因素，决定是否内置一个免费可用的模型；同时也计划支持你自行接入自己的 API。"
+                  : "We plan to offer a web-based conversational AI assistant: based on the courses you have already taken and your program requirements, it will recommend suitable next courses. We will weigh technical complexity, maintenance cost, and data security when deciding whether to bundle a free built-in model — and we also plan to let you plug in your own API."}
+              </p>
+              <div className={`rounded-lg border p-3 ${borderCls} ${isDark ? "bg-white/[0.02]" : "bg-gray-50"}`}>
+                <div className={`mb-2 text-xs font-semibold ${textDark}`}>
+                  {locale === "zh" ? "你对这个设计打几分？" : "How would you rate this plan?"}
+                </div>
+                <VoteWidget topic="ai" />
+              </div>
             </div>
           </Content>
       </Island>
@@ -938,8 +953,18 @@ export const ToolsPage = () => {
             </span>
           </Header>
           <Content>
-            <div className={`px-4 py-3 text-xs ${textMuted}`}>
-              {locale === "zh" ? "此功能正在开发中，敬请期待。" : "Coming soon."}
+            <div className="flex flex-col gap-4 px-4 py-3">
+              <p className={`text-xs leading-relaxed ${textBody}`}>
+                {locale === "zh"
+                  ? "我们计划为网站引入账号系统。届时你可以在这里分享自己的选课体验与推荐老师，也能查阅其他同学的真实评价，帮助后来的同学少走弯路。"
+                  : "We plan to introduce user accounts. You will be able to share your course experience and recommended instructors, and read honest reviews from other students — helping those who come after you avoid detours."}
+              </p>
+              <div className={`rounded-lg border p-3 ${borderCls} ${isDark ? "bg-white/[0.02]" : "bg-gray-50"}`}>
+                <div className={`mb-2 text-xs font-semibold ${textDark}`}>
+                  {locale === "zh" ? "你对这个设计打几分？" : "How would you rate this plan?"}
+                </div>
+                <VoteWidget topic="review" />
+              </div>
             </div>
           </Content>
         </Island>

@@ -3,7 +3,7 @@ import Button from "@jetbrains/ring-ui-built/components/button/button";
 import Input from "@jetbrains/ring-ui-built/components/input/input";
 import Island, {Content, Header} from "@jetbrains/ring-ui-built/components/island/island";
 import Select, {type SelectItem} from "@jetbrains/ring-ui-built/components/select/select";
-import {Navbar, type NavPage} from "../components/Navbar";
+import {type NavPage} from "../components/Navbar";
 import {useLocale} from "../i18n/LocaleContext";
 import {useAppTheme} from "../theme/ThemeContext";
 import {useSemester} from "../hooks/SemesterContext";
@@ -32,6 +32,8 @@ const geLabelFor = (k: string, locale: string) =>
 
 interface WorkspaceProps {
   onNavigate?: (page: NavPage) => void;
+  /** 移动端模式：底部两段 Tab（目录/历史）+ 预选抽屉 */
+  mobile?: boolean;
 }
 
 interface FilterState {
@@ -75,6 +77,31 @@ const abbreviateSemester = (sem: string): string =>
     .replace("·春季", "春")
     .replace("·夏季", "夏");
 
+interface NativeSelectProps {
+  value: string;
+  options: {key: string; label: string; disabled?: boolean}[];
+  onChange: (key: string) => void;
+  className?: string;
+  dark?: boolean;
+  borderCls?: string;
+  textMuted?: string;
+}
+
+const NativeSelect = ({value, options, onChange, className, dark, borderCls, textMuted}: NativeSelectProps) => (
+  <div className={`relative ${className ?? ""}`}>
+    <select
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className={`w-full appearance-none rounded-md border px-2.5 py-1.5 pr-8 text-xs outline-none ${borderCls ?? ""} ${dark ? "bg-[#1e1e2a] text-white/90" : "bg-white text-gray-800"}`}
+    >
+      {options.map((o) => (
+        <option key={o.key} value={o.key} disabled={o.disabled}>{o.label}</option>
+      ))}
+    </select>
+    <span className={`pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-xs ${textMuted ?? ""}`}>▼</span>
+  </div>
+);
+
 /** Module ID → 类 label */
 const moduleTypeLabel = (modId: number): string =>
   modId <= 3 ? "I" : modId <= 8 ? "II" : "III";
@@ -83,11 +110,11 @@ const moduleTypeLabel = (modId: number): string =>
 const formatModuleOption = (modId: number, name: string, locale: string): string =>
   locale === "zh" ? `模块${modId}：${name}` : `Module ${modId}: ${name}`;
 
-export const Workspace = ({onNavigate}: WorkspaceProps) => {
+export const Workspace = ({onNavigate: _onNavigate, mobile = false}: WorkspaceProps) => {
   const {t, locale} = useLocale();
   const {theme} = useAppTheme();
   const isDark = theme === "dark";
-  const {semester: currentSemester} = useSemester();
+  const {semester: currentSemester, setSemester, allSemesters} = useSemester();
   const {tName, tModule, tSemester, tGroup} = useTName();
 
   const [leftExpanded, setLeftExpanded] = useState(false);
@@ -95,6 +122,8 @@ export const Workspace = ({onNavigate}: WorkspaceProps) => {
   const [filters, setFilters] = useState<FilterState>({
     group: "all", semester: "all", module: "all", abGroup: "all",
   });
+  // 移动端：筛选区默认折叠，有活跃筛选时自动展开
+  const [filtersCollapsed, setFiltersCollapsed] = useState(true);
   const [selectedCourses, setSelectedCourses] = useState<Set<string>>(new Set());
   const [detailCourse, setDetailCourse] = useState<Course | null>(null);
   const [savedHistory, setSavedHistory] = useState<Record<string, string[]>>(() => {
@@ -114,6 +143,21 @@ export const Workspace = ({onNavigate}: WorkspaceProps) => {
   /** 统计变量接口：通识-艺术/社科/人文/科学/SRT 五类的总学分数，供后续功能使用 */
   const [customStats, setCustomStats] = useState<Record<string, number>>({ "通识-艺术": 0, "通识-社科": 0, "通识-人文": 0, "通识-科学": 0, "SRT": 0 });
   const [showImportModal, setShowImportModal] = useState(false);
+  // 移动端：目录/历史 两段 Tab + 预选抽屉
+  const [mobileTab, setMobileTab] = useState<"catalog" | "history">("catalog");
+  // 加入课程时给预选按钮的抖动反馈
+  const [shakeBtn, setShakeBtn] = useState(false);
+  const prevSelectedCountRef = useRef(selectedCourses.size);
+  useEffect(() => {
+    if (selectedCourses.size > prevSelectedCountRef.current) {
+      setShakeBtn(true);
+      const t = window.setTimeout(() => setShakeBtn(false), 420);
+      prevSelectedCountRef.current = selectedCourses.size;
+      return () => window.clearTimeout(t);
+    }
+    prevSelectedCountRef.current = selectedCourses.size;
+  }, [selectedCourses.size]);
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const [importPreview, setImportPreview] = useState<string | null>(null);
   const [pendingImport, setPendingImport] = useState<{
     history: Record<string, string[]>;
@@ -1036,6 +1080,11 @@ export const Workspace = ({onNavigate}: WorkspaceProps) => {
     filters.module !== "all" ||
     searchText.trim().length > 0;
 
+  // 移动端有活跃筛选时自动展开筛选区
+  useEffect(() => {
+    if (mobile) setFiltersCollapsed(!hasActiveFilters);
+  }, [mobile, hasActiveFilters]);
+
   // --- Filtered Courses ---
   // 第二外国语系列检索别名：输入这些词时命中所有"第二外国语"课程
   const FOREIGN_ALIASES = ["二外","日语","俄语","德语","西班牙语","法语","韩语","韩国语","意大利语","葡萄牙语","阿拉伯语","希腊语","波斯语"];
@@ -1153,25 +1202,46 @@ export const Workspace = ({onNavigate}: WorkspaceProps) => {
 
   return (
     <div className={`flex h-full flex-col ${isDark ? "bg-[#0e0e14]" : "bg-gray-50"}`}>
-      <Navbar currentPage="workspace" onNavigate={onNavigate ?? (() => {})} />
-      <main data-tour="workspace" className="flex flex-1 gap-3 p-3 overflow-hidden">
+      <main
+        data-tour="workspace"
+        className={mobile ? "relative flex flex-1 flex-col overflow-hidden" : "flex flex-1 gap-3 p-3 overflow-hidden"}
+      >
+        {/* 移动端顶部学期选择条 */}
+        {mobile && (
+          <div className={`shrink-0 flex items-center justify-between gap-2 border-b px-3 py-2 ${isDark ? "border-white/10 bg-[#121218]" : "border-gray-200 bg-white"}`}>
+            <span className={`text-xs ${textMuted}`}>{t("nav.currentSemester")}</span>
+            <div className="min-w-0 flex-1">
+              <NativeSelect
+                value={currentSemester}
+                options={allSemesters.map((s) => ({key: s, label: tSemester(s)}))}
+                onChange={(key) => setSemester(key as typeof currentSemester)}
+                dark={isDark}
+                borderCls={borderCls}
+                textMuted={textMuted}
+              />
+            </div>
+          </div>
+        )}
+
         {/* ========== LEFT: History ========== */}
         <section
-          className="h-full flex flex-col overflow-hidden transition-all duration-300"
-          style={{flex: leftExpanded ? "5" : "3"}}
+          className={`h-full flex flex-col overflow-hidden transition-all duration-300 ${
+            mobile ? (mobileTab === "history" ? "w-full" : "hidden") : ""
+          }`}
+          style={mobile ? undefined : {flex: leftExpanded ? "5" : "3"}}
         >
           <Island className={`flex h-full flex-col ${bgCard}`}>
             <Header border>
               <div className="flex w-full flex-col">
-                <div className="flex w-full items-center gap-4">
+                <div className={`flex w-full items-center gap-4 ${mobile ? "flex-wrap" : ""}`}>
                   <span className={`text-sm font-semibold text-nowrap ${textDark}`}>{t("workspace.history")}</span>
-                  <div className="ml-auto flex items-center gap-1">
-                    <Button onClick={handleExport}>{t("workspace.exportBtn")}</Button>
+                  <div className={`ml-auto flex items-center gap-1 ${mobile ? "flex-wrap justify-end" : ""}`}>
+                    <Button onClick={handleExport} className={mobile ? "text-[10px] px-2 py-1" : ""}>{t("workspace.exportBtn")}</Button>
                     <span data-tour="history">
-                    <Button onClick={() => setShowImportModal(true)}>{t("workspace.importBtn")}</Button>
+                      <Button onClick={() => setShowImportModal(true)} className={mobile ? "text-[10px] px-2 py-1" : ""}>{t("workspace.importBtn")}</Button>
                     </span>
-                    <Button onClick={() => setClearConfirm(true)}>{locale === "zh" ? "清除" : "Clear"}</Button>
-                    <Button onClick={() => setLeftExpanded(!leftExpanded)}>
+                    <Button onClick={() => setClearConfirm(true)} className={mobile ? "text-[10px] px-2 py-1" : ""}>{locale === "zh" ? "清除" : "Clear"}</Button>
+                    <Button onClick={() => setLeftExpanded(!leftExpanded)} className={mobile ? "text-[10px] px-2 py-1" : ""}>
                       {leftExpanded ? t("workspace.fold") : t("workspace.unfold")}
                     </Button>
                   </div>
@@ -1251,6 +1321,7 @@ export const Workspace = ({onNavigate}: WorkspaceProps) => {
                                   e.stopPropagation();
                                   setStagingSemester(sem);
                                   setSelectedCourses(new Set(savedIds));
+                                  if (mobile) setDrawerOpen(true);
                                 }}
                                 className={`flex h-5 w-5 cursor-pointer items-center justify-center rounded border-none text-[10px] transition-colors ${
                                   isDark
@@ -1484,7 +1555,16 @@ export const Workspace = ({onNavigate}: WorkspaceProps) => {
         </section>
 
         {/* ========== MIDDLE: Staging / Pre-selection (1/5) ========== */}
-        <section className="h-full flex flex-col overflow-hidden" style={{flex: "2"}}>
+        {mobile && (
+          <div
+            className={`fixed inset-0 z-40 bg-black/50 transition-opacity duration-300 ${drawerOpen ? "opacity-100" : "opacity-0 pointer-events-none"}`}
+            onClick={() => setDrawerOpen(false)}
+          />
+        )}
+        <section
+          className={`h-full flex flex-col overflow-hidden ${mobile ? `fixed inset-x-0 bottom-0 z-50 max-h-[85vh] rounded-t-2xl ${isDark ? "bg-[#16161f]" : "bg-white"} transition-transform duration-300 ease-out ${drawerOpen ? "translate-y-0" : "translate-y-full pointer-events-none"}` : ""}`}
+          style={{flex: "2"}}
+        >
           <Island className={`flex h-full flex-col ${bgCard}`}>
             <Header border>
               <span className={`text-sm font-semibold ${textDark}`}>{t("workspace.stagingCourse")}</span>
@@ -1494,18 +1574,16 @@ export const Workspace = ({onNavigate}: WorkspaceProps) => {
               {allStagingOptions.length > 0 && (
                 <div className={`flex items-center gap-1.5 px-3 pt-2 pb-1 text-xs shrink-0 ${textBody}`}>
                   <span className="whitespace-nowrap">{t("workspace.stagingSemester")}</span>
-                  <Select
-                    data={allStagingOptions.map((s) => ({
+                  <NativeSelect
+                    value={stagingSemester}
+                    options={allStagingOptions.map((s) => ({
                       key: s,
                       label: locale === "zh" ? abbreviateSemester(s) : tSemester(s),
                     }))}
-                    selected={{
-                      key: stagingSemester,
-                      label: locale === "zh" ? abbreviateSemester(stagingSemester) : tSemester(stagingSemester),
-                    }}
-                    onSelect={(opt) => opt && setStagingSemester(opt.key as string)}
-                    label=""
-                    filter
+                    onChange={(key) => setStagingSemester(key)}
+                    dark={isDark}
+                    borderCls={borderCls}
+                    textMuted={textMuted}
                   />
                 </div>
               )}
@@ -2017,7 +2095,12 @@ export const Workspace = ({onNavigate}: WorkspaceProps) => {
           )}
 
           {/* ========== RIGHT: Catalog ========== */}
-        <section className="h-full flex flex-col overflow-hidden" style={{flex: leftExpanded ? "3" : "5"}}>
+        <section
+          className={`h-full flex flex-col overflow-hidden ${
+            mobile ? (mobileTab === "catalog" ? "w-full" : "hidden") : ""
+          }`}
+          style={mobile ? undefined : {flex: leftExpanded ? "3" : "5"}}
+        >
           <Island className={`flex h-full flex-col ${bgCard}`}>
             <Header border>
               <span className={`text-sm font-semibold ${textDark}`}>{t("workspace.catalog")}</span>
@@ -2028,8 +2111,8 @@ export const Workspace = ({onNavigate}: WorkspaceProps) => {
               className="overflow-visible border-b shrink-0"
               style={{position: "relative", zIndex: 2}}
             >
-              {/* Search row: 2-column grid aligning with filters below */}
-              <div className="grid grid-cols-2 gap-x-4 px-3 pt-2 pb-1">
+              {/* Search row: PC 两列 / 移动端单列 */}
+              <div className={`px-3 pt-2 pb-1 ${mobile ? "flex flex-col gap-2" : "grid grid-cols-2 gap-x-4"}`}>
                 {/* Col 1: Search input */}
                 <div className="flex flex-col gap-0.5">
                   <Input
@@ -2165,167 +2248,283 @@ export const Workspace = ({onNavigate}: WorkspaceProps) => {
                 </div>
               </div>
 
-              <div className={`px-3 pt-1 pb-1 text-xs font-medium ${textMuted}`}>
-                {t("workspace.filterHeader")}
-              </div>
+              {mobile && (
+                <div className="px-3 pt-1 pb-1">
+                  <button
+                    onClick={() => setFiltersCollapsed(!filtersCollapsed)}
+                    className={`flex items-center gap-1 text-xs font-medium ${isDark ? "text-blue-300" : "text-blue-600"}`}
+                  >
+                    <span>{filtersCollapsed ? (locale === "zh" ? "展开筛选" : "Expand Filters") : (locale === "zh" ? "收起筛选" : "Collapse Filters")}</span>
+                    <span className={`transition-transform duration-200 ${filtersCollapsed ? "" : "rotate-180"}`}>▾</span>
+                  </button>
+                </div>
+              )}
 
-              {/* 2-column grid for filter dropdowns */}
-              <div className="grid grid-cols-2 gap-x-4 px-3 pb-1">
-                {/* Col 1, Row 1: 按课程组 */}
-                <div className="flex flex-col gap-0.5">
-                  <span className={`text-xs ${textBody}`}>{t("workspace.filterGroup")}</span>
-                  <Select
-                    data={groupOptions}
-                    selected={groupOptions.find((o) => o.key === filters.group) ?? groupOptions[0]}
-                    onSelect={(opt) => opt && setFilters((f) => ({...f, group: opt.key as string}))}
-                    label=""
-                    filter
-                  />
-                </div>
-                {/* Col 2, Row 1: 按推荐学期 */}
-                <div className="flex flex-col gap-0.5">
-                  <span className={`text-xs ${textBody}`}>{t("workspace.filterSemester")}</span>
-                  <Select
-                    data={semesterOptions}
-                    selected={semesterOptions.find((o) => o.key === filters.semester) ?? semesterOptions[0]}
-                    onSelect={(opt) => opt && setFilters((f) => ({...f, semester: opt.key as string}))}
-                    label=""
-                    filter
-                  />
-                </div>
-                {/* Col 1, Row 2: 按模块 */}
-                <div className="flex flex-col gap-0.5">
-                  <span className={`text-xs ${textBody}`}>{t("workspace.filterModule")}</span>
-                  <Select
-                    data={moduleOptions}
-                    selected={moduleOptions.find((o) => o.key === filters.module) ?? moduleOptions[0]}
-                    onSelect={(opt) => opt && setFilters((f) => ({...f, module: opt.key as string, abGroup: "all"}))}
-                    label=""
-                    filter
-                  />
-                </div>
-                {/* Col 2, Row 2: 课组 — always visible, disabled unless module selected */}
-                <div className="flex flex-col gap-0.5">
-                  <span className={`text-xs ${textBody}`}>{t("workspace.filterABGroup")}</span>
-                  <Select
-                    data={abOptions}
-                    selected={abOptions.find((o) => o.key === filters.abGroup) ?? abOptions[0]}
-                    onSelect={(opt) => opt && moduleEnabled && setFilters((f) => ({...f, abGroup: opt.key as string}))}
-                    label=""
-                    disabled={!moduleEnabled}
-                  />
-                </div>
-              </div>
+              {(!mobile || !filtersCollapsed) && (
+                <>
+                  <div className={`px-3 pt-1 pb-1 text-xs font-medium ${textMuted}`}>
+                    {t("workspace.filterHeader")}
+                  </div>
 
-              {hasActiveFilters && (
-                <div className="px-3 pb-2 pt-1">
-                  <Button onClick={clearFilters}>{t("workspace.filterClear")}</Button>
-                </div>
+                  {/* Filter dropdowns: PC 两列 / 移动端单列 */}
+                  <div className={`px-3 pb-1 ${mobile ? "flex flex-col gap-2" : "grid grid-cols-2 gap-x-4"}`}>
+                    {/* Col 1, Row 1: 按课程组 */}
+                    <div className="flex flex-col gap-0.5">
+                      <span className={`text-xs ${textBody}`}>{t("workspace.filterGroup")}</span>
+                      <Select
+                        data={groupOptions}
+                        selected={groupOptions.find((o) => o.key === filters.group) ?? groupOptions[0]}
+                        onSelect={(opt) => opt && setFilters((f) => ({...f, group: opt.key as string}))}
+                        label=""
+                        filter
+                      />
+                    </div>
+                    {/* Col 2, Row 1: 按推荐学期 */}
+                    <div className="flex flex-col gap-0.5">
+                      <span className={`text-xs ${textBody}`}>{t("workspace.filterSemester")}</span>
+                      <Select
+                        data={semesterOptions}
+                        selected={semesterOptions.find((o) => o.key === filters.semester) ?? semesterOptions[0]}
+                        onSelect={(opt) => opt && setFilters((f) => ({...f, semester: opt.key as string}))}
+                        label=""
+                        filter
+                      />
+                    </div>
+                    {/* Col 1, Row 2: 按模块 */}
+                    <div className="flex flex-col gap-0.5">
+                      <span className={`text-xs ${textBody}`}>{t("workspace.filterModule")}</span>
+                      <Select
+                        data={moduleOptions}
+                        selected={moduleOptions.find((o) => o.key === filters.module) ?? moduleOptions[0]}
+                        onSelect={(opt) => opt && setFilters((f) => ({...f, module: opt.key as string, abGroup: "all"}))}
+                        label=""
+                        filter
+                      />
+                    </div>
+                    {/* Col 2, Row 2: 课组 — always visible, disabled unless module selected */}
+                    <div className="flex flex-col gap-0.5">
+                      <span className={`text-xs ${textBody}`}>{t("workspace.filterABGroup")}</span>
+                      <Select
+                        data={abOptions}
+                        selected={abOptions.find((o) => o.key === filters.abGroup) ?? abOptions[0]}
+                        onSelect={(opt) => opt && moduleEnabled && setFilters((f) => ({...f, abGroup: opt.key as string}))}
+                        label=""
+                        disabled={!moduleEnabled}
+                      />
+                    </div>
+                  </div>
+
+                  {hasActiveFilters && (
+                    <div className="px-3 pb-2 pt-1">
+                      <Button onClick={clearFilters}>{t("workspace.filterClear")}</Button>
+                    </div>
+                  )}
+                </>
               )}
             </Content>
 
             {/* ===== Course list ===== */}
             <div className="flex flex-col flex-1 min-h-0">
-              {/* Frozen header (static row outside scroll area) */}
-              <div
-                className={`flex items-center gap-2 px-3 py-2 text-xs font-medium border-b shrink-0 ${bgHeader} ${borderCls} ${textMuted}`}
-              >
-                <span className="w-7 shrink-0" />
-                <span className="w-20 shrink-0 truncate">{t("workspace.colCode")}</span>
-                <span className="flex-1 min-w-0 truncate">{t("workspace.colName")}</span>
-                <span className="w-10 shrink-0 text-right">{t("workspace.colCredits")}</span>
-                <span className="w-36 shrink-0 text-right">{t("workspace.colCategory")}</span>
-                <span className="w-16 shrink-0 text-right">{t("workspace.colSemester")}</span>
-              </div>
+              {mobile ? (
+                <>
+                  {/* 移动端：简洁统计头 */}
+                  <div
+                    className={`flex items-center justify-between px-3 py-2 text-xs font-medium border-b shrink-0 ${bgHeader} ${borderCls} ${textMuted}`}
+                  >
+                    <span>{t("workspace.catalog")}</span>
+                    <span>
+                      {filteredCourses.length} {locale === "zh" ? "门" : "courses"}
+                    </span>
+                  </div>
 
-              {/* Scrollable rows */}
-              <div className="flex-1 overflow-auto">
-                {filteredCourses.map((c) => {
-                  const categories = getCourseCategories(c.course_id);
-                  const sems = courseSemesterMap.get(c.course_id) ?? [];
-                  const semDisplay =
-                    sems.length > 0
-                      ? sems.map((s) => (locale === "zh" ? abbreviateSemester(s) : tSemester(s))).join(", ")
-                      : "—";
-                  const isSelected = selectedCourses.has(c.course_id);
-                  // Check if course is in history (already taken)
-                  const isInHistory = Object.values(savedHistory).some((ids) => ids.includes(c.course_id));
+                  {/* 移动端：卡片式课程列表 */}
+                  <div className="flex-1 overflow-auto">
+                    {filteredCourses.map((c) => {
+                      const categories = getCourseCategories(c.course_id);
+                      const sems = courseSemesterMap.get(c.course_id) ?? [];
+                      const semDisplay =
+                        sems.length > 0
+                          ? sems.map((s) => (locale === "zh" ? abbreviateSemester(s) : tSemester(s))).join(", ")
+                          : "—";
+                      const isSelected = selectedCourses.has(c.course_id);
+                      const isInHistory = Object.values(savedHistory).some((ids) => ids.includes(c.course_id));
 
-                  return (
-                    <div
-                      key={c.course_id}
-                      className={`flex items-start gap-2 px-3 py-1.5 text-xs border-b ${borderLight} ${hoverBg} ${textBody}`}
-                    >
-                      {/* +/- button: green✓ for staged, yellow✓ for history, + for none */}
-                      {isInHistory ? (
-                        <button
-                          onClick={() => {
-                            let foundSem = "";
-                            for (const [sem, ids] of Object.entries(savedHistory)) {
-                              if (ids.includes(c.course_id)) { foundSem = sem; break; }
-                            }
-                            const semLabel = foundSem ? (locale === "zh" ? abbreviateSemester(foundSem) : tSemester(foundSem)) : "";
-                            setChoiceConflict({
-                              courseId: c.course_id,
-                              courseName: tName(c.course_id, c.name),
-                              setName: locale === "zh" ? "历史已选课程" : "Already Taken",
-                              conflictId: c.course_id,
-                              conflictName: locale === "zh"
-                                ? `该课程已在${semLabel}的历史记录中。如需特殊原因重复选择，请点击"仍然选课"`
-                                : `This course is already in ${semLabel} history. Click "Select Anyway" to proceed.`,
-                            });
-                          }}
-                          className={`mt-0.5 flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded border-none text-sm font-bold transition-colors ${
-                            isDark
-                              ? "bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30"
-                              : "bg-yellow-500/15 text-yellow-600 hover:bg-yellow-500/25"
-                          }`}
-                          title={locale === "zh" ? "已在历史记录中，点击重新选课" : "Already in history, click to re-select"}
-                        >✓</button>
-                      ) : (
-                      <button
-                        onClick={() => toggleSelected(c.course_id)}
-                        className={`mt-0.5 flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded border-none text-sm font-bold transition-colors ${
-                          isSelected
-                            ? isDark
-                              ? "bg-green-500/20 text-green-400 hover:bg-green-500/30"
-                              : "bg-green-500/15 text-green-600 hover:bg-green-500/25"
-                            : isDark
-                              ? "bg-white/10 text-white/60 hover:bg-white/20 hover:text-white/85"
-                              : "bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-600"
-                        }`}
-                        title={isSelected ? (locale === "zh" ? "从预选移除" : "Remove") : (locale === "zh" ? "添加到预选" : "Add")}
-                      >
-                        {isSelected ? "✓" : "+"}
-                      </button>
-                      )}
-                      {/* Course ID */}
-                      <span className={`w-20 shrink-0 truncate font-mono pt-0.5 ${textMuted}`} title={c.course_id}>
-                        {c.course_id.startsWith("NEW") ? "新开课" : c.course_id}
-                      </span>
-                      {/* Course name — click for detail */}
-                      <span
-                        className="flex-1 min-w-0 truncate whitespace-nowrap pt-0.5 cursor-pointer"
-                        title={tName(c.course_id, c.name)}
-                        onClick={() => setDetailCourse(c)}
-                      >
-                        {tName(c.course_id, c.name)}
-                      </span>
-                      <span className={`w-10 shrink-0 text-right pt-0.5 ${textMuted}`}>{c.credits}</span>
-                      <span className="w-36 shrink-0 text-right pt-0.5 break-words leading-tight" style={{wordBreak: "break-word"}}>
-                        {categories.length > 0 ? categories.join(", ") : "—"}
-                      </span>
-                      <span className="w-16 shrink-0 text-right pt-0.5 leading-tight" style={{wordBreak: "keep-all"}}>
-                        {semDisplay}
-                      </span>
-                    </div>
-                  );
-                })}
+                      return (
+                        <div
+                          key={c.course_id}
+                          className={`flex items-start gap-3 px-3 py-2.5 border-b ${borderLight} ${hoverBg} ${textBody}`}
+                        >
+                          {isInHistory ? (
+                            <button
+                              onClick={() => {
+                                let foundSem = "";
+                                for (const [sem, ids] of Object.entries(savedHistory)) {
+                                  if (ids.includes(c.course_id)) { foundSem = sem; break; }
+                                }
+                                const semLabel = foundSem ? (locale === "zh" ? abbreviateSemester(foundSem) : tSemester(foundSem)) : "";
+                                setChoiceConflict({
+                                  courseId: c.course_id,
+                                  courseName: tName(c.course_id, c.name),
+                                  setName: locale === "zh" ? "历史已选课程" : "Already Taken",
+                                  conflictId: c.course_id,
+                                  conflictName: locale === "zh"
+                                    ? `该课程已在${semLabel}的历史记录中。如需特殊原因重复选择，请点击"仍然选课"`
+                                    : `This course is already in ${semLabel} history. Click "Select Anyway" to proceed.`,
+                                });
+                              }}
+                              className={`mt-0.5 flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded border-none text-sm font-bold transition-colors ${
+                                isDark
+                                  ? "bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30"
+                                  : "bg-yellow-500/15 text-yellow-600 hover:bg-yellow-500/25"
+                              }`}
+                              title={locale === "zh" ? "已在历史记录中，点击重新选课" : "Already in history, click to re-select"}
+                            >✓</button>
+                          ) : (
+                            <button
+                              onClick={() => toggleSelected(c.course_id)}
+                              className={`mt-0.5 flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded border-none text-sm font-bold transition-colors ${
+                                isSelected
+                                  ? isDark
+                                    ? "bg-green-500/20 text-green-400 hover:bg-green-500/30"
+                                    : "bg-green-500/15 text-green-600 hover:bg-green-500/25"
+                                  : isDark
+                                    ? "bg-white/10 text-white/60 hover:bg-white/20 hover:text-white/85"
+                                    : "bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-600"
+                              }`}
+                              title={isSelected ? (locale === "zh" ? "从预选移除" : "Remove") : (locale === "zh" ? "添加到预选" : "Add")}
+                            >
+                              {isSelected ? "✓" : "+"}
+                            </button>
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <div
+                              className="text-sm font-medium truncate cursor-pointer"
+                              title={tName(c.course_id, c.name)}
+                              onClick={() => setDetailCourse(c)}
+                            >
+                              {tName(c.course_id, c.name)}
+                            </div>
+                            <div className={`flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-1 text-[11px] ${textMuted}`}>
+                              <span className="font-mono">
+                                {c.course_id.startsWith("NEW") ? "新开课" : c.course_id}
+                              </span>
+                              <span>{c.credits} {locale === "zh" ? "学分" : "cr"}</span>
+                              <span>{semDisplay}</span>
+                            </div>
+                            {categories.length > 0 && (
+                              <div className="mt-1 text-[11px] leading-tight break-words" style={{wordBreak: "break-word"}}>
+                                {categories.join(", ")}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
 
-                {filteredCourses.length === 0 && (
-                  <div className={`p-6 text-center text-sm ${textMuted}`}>{t("workspace.noMatch")}</div>
-                )}
-              </div>
+                    {filteredCourses.length === 0 && (
+                      <div className={`p-6 text-center text-sm ${textMuted}`}>{t("workspace.noMatch")}</div>
+                    )}
+                  </div>
+                </>
+              ) : (
+                <>
+                  {/* PC 端：冻结表头表格 */}
+                  <div
+                    className={`flex items-center gap-2 px-3 py-2 text-xs font-medium border-b shrink-0 ${bgHeader} ${borderCls} ${textMuted}`}
+                  >
+                    <span className="w-7 shrink-0" />
+                    <span className="w-20 shrink-0 truncate">{t("workspace.colCode")}</span>
+                    <span className="flex-1 min-w-0 truncate">{t("workspace.colName")}</span>
+                    <span className="w-10 shrink-0 text-right">{t("workspace.colCredits")}</span>
+                    <span className="w-36 shrink-0 text-right">{t("workspace.colCategory")}</span>
+                    <span className="w-16 shrink-0 text-right">{t("workspace.colSemester")}</span>
+                  </div>
+
+                  <div className="flex-1 overflow-auto">
+                    {filteredCourses.map((c) => {
+                      const categories = getCourseCategories(c.course_id);
+                      const sems = courseSemesterMap.get(c.course_id) ?? [];
+                      const semDisplay =
+                        sems.length > 0
+                          ? sems.map((s) => (locale === "zh" ? abbreviateSemester(s) : tSemester(s))).join(", ")
+                          : "—";
+                      const isSelected = selectedCourses.has(c.course_id);
+                      const isInHistory = Object.values(savedHistory).some((ids) => ids.includes(c.course_id));
+
+                      return (
+                        <div
+                          key={c.course_id}
+                          className={`flex items-start gap-2 px-3 py-1.5 text-xs border-b ${borderLight} ${hoverBg} ${textBody}`}
+                        >
+                          {isInHistory ? (
+                            <button
+                              onClick={() => {
+                                let foundSem = "";
+                                for (const [sem, ids] of Object.entries(savedHistory)) {
+                                  if (ids.includes(c.course_id)) { foundSem = sem; break; }
+                                }
+                                const semLabel = foundSem ? (locale === "zh" ? abbreviateSemester(foundSem) : tSemester(foundSem)) : "";
+                                setChoiceConflict({
+                                  courseId: c.course_id,
+                                  courseName: tName(c.course_id, c.name),
+                                  setName: locale === "zh" ? "历史已选课程" : "Already Taken",
+                                  conflictId: c.course_id,
+                                  conflictName: locale === "zh"
+                                    ? `该课程已在${semLabel}的历史记录中。如需特殊原因重复选择，请点击"仍然选课"`
+                                    : `This course is already in ${semLabel} history. Click "Select Anyway" to proceed.`,
+                                });
+                              }}
+                              className={`mt-0.5 flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded border-none text-sm font-bold transition-colors ${
+                                isDark
+                                  ? "bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30"
+                                  : "bg-yellow-500/15 text-yellow-600 hover:bg-yellow-500/25"
+                              }`}
+                              title={locale === "zh" ? "已在历史记录中，点击重新选课" : "Already in history, click to re-select"}
+                            >✓</button>
+                          ) : (
+                            <button
+                              onClick={() => toggleSelected(c.course_id)}
+                              className={`mt-0.5 flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded border-none text-sm font-bold transition-colors ${
+                                isSelected
+                                  ? isDark
+                                    ? "bg-green-500/20 text-green-400 hover:bg-green-500/30"
+                                    : "bg-green-500/15 text-green-600 hover:bg-green-500/25"
+                                  : isDark
+                                    ? "bg-white/10 text-white/60 hover:bg-white/20 hover:text-white/85"
+                                    : "bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-600"
+                              }`}
+                              title={isSelected ? (locale === "zh" ? "从预选移除" : "Remove") : (locale === "zh" ? "添加到预选" : "Add")}
+                            >
+                              {isSelected ? "✓" : "+"}
+                            </button>
+                          )}
+                          <span className={`w-20 shrink-0 truncate font-mono pt-0.5 ${textMuted}`} title={c.course_id}>
+                            {c.course_id.startsWith("NEW") ? "新开课" : c.course_id}
+                          </span>
+                          <span
+                            className="flex-1 min-w-0 truncate whitespace-nowrap pt-0.5 cursor-pointer"
+                            title={tName(c.course_id, c.name)}
+                            onClick={() => setDetailCourse(c)}
+                          >
+                            {tName(c.course_id, c.name)}
+                          </span>
+                          <span className={`w-10 shrink-0 text-right pt-0.5 ${textMuted}`}>{c.credits}</span>
+                          <span className="w-36 shrink-0 text-right pt-0.5 break-words leading-tight" style={{wordBreak: "break-word"}}>
+                            {categories.length > 0 ? categories.join(", ") : "—"}
+                          </span>
+                          <span className="w-16 shrink-0 text-right pt-0.5 leading-tight" style={{wordBreak: "keep-all"}}>
+                            {semDisplay}
+                          </span>
+                        </div>
+                      );
+                    })}
+
+                    {filteredCourses.length === 0 && (
+                      <div className={`p-6 text-center text-sm ${textMuted}`}>{t("workspace.noMatch")}</div>
+                    )}
+                  </div>
+                </>
+              )}
 
               {/* ===== Result count bar ===== */}
               <div className={`flex items-center gap-2 px-3 py-1.5 text-xs border-t shrink-0 ${bgHeader} ${borderCls} ${textMuted}`}>
@@ -2429,6 +2628,38 @@ export const Workspace = ({onNavigate}: WorkspaceProps) => {
           </Island>
         </section>
       </main>
+
+      {/* 移动端：底部两段 Tab + 预选抽屉按钮 */}
+      {mobile && (
+        <>
+          {!drawerOpen && (
+            <button
+              onClick={() => setDrawerOpen(true)}
+              className={`fixed right-4 z-40 flex items-center gap-1 rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-lg ${shakeBtn ? "oc-shake" : ""}`}
+              style={{bottom: "calc(env(safe-area-inset-bottom, 0px) + 80px)"}}
+            >
+              {locale === "zh" ? "预选" : "Selected"}
+              {selectedCourses.size > 0 && (
+                <span className="ml-1 rounded-full bg-white/25 px-1.5 text-xs">{selectedCourses.size}</span>
+              )}
+            </button>
+          )}
+          <nav className={`shrink-0 flex border-t ${isDark ? "border-white/10 bg-[#16161f]" : "border-gray-200 bg-white"}`}>
+            <button
+              onClick={() => setMobileTab("catalog")}
+              className={`flex-1 py-3 text-sm font-medium ${mobileTab === "catalog" ? (isDark ? "text-blue-300" : "text-blue-600") : (isDark ? "text-white/50" : "text-gray-500")}`}
+            >
+              {t("workspace.select")}
+            </button>
+            <button
+              onClick={() => setMobileTab("history")}
+              className={`flex-1 py-3 text-sm font-medium ${mobileTab === "history" ? (isDark ? "text-blue-300" : "text-blue-600") : (isDark ? "text-white/50" : "text-gray-500")}`}
+            >
+              {locale === "zh" ? "历史" : "History"}
+            </button>
+          </nav>
+        </>
+      )}
     </div>
   );
 };

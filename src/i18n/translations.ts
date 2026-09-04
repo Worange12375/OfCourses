@@ -102,7 +102,22 @@ export type TranslationKey =
     | "workspace.warningCreditOver"
     | "workspace.warningCreditUnder"
     | "workspace.peRequired"
-    | "workspace.noDeleteEmpty";
+    | "workspace.noDeleteEmpty"
+    | "mobile.settings"
+    | "mobile.theme"
+    | "mobile.dark"
+    | "mobile.light"
+    | "mobile.language"
+    | "mobile.viewMode"
+    | "mobile.promptTitle"
+    | "mobile.promptDesc"
+    | "mobile.pcMode"
+    | "mobile.mobileMode"
+    | "mobile.rememberChoice"
+    | "mobile.curriculum.mindMap"
+    | "mobile.curriculum.plan"
+    | "workspace.select"
+    | "mobile.tourUsePC";
 
 type Translations = Record<Locale, Record<TranslationKey, string>>;
 
@@ -210,6 +225,21 @@ export const translations: Translations = {
         "workspace.noDeleteEmpty": "暂无数据可删除",
         "about.title": "关于我们",
         "about.description": "OfCourses —— 你的智能选课规划助手。",
+        "mobile.settings": "设置",
+        "mobile.theme": "主题",
+        "mobile.dark": "深色",
+        "mobile.light": "浅色",
+        "mobile.language": "语言",
+        "mobile.viewMode": "显示模式",
+        "mobile.promptTitle": "本网站建议在 PC 端使用以获得最佳体验",
+        "mobile.promptDesc": "移动端模式已对界面进行简化适配，复杂功能仍建议在电脑上操作。",
+        "mobile.pcMode": "使用 PC 模式",
+        "mobile.mobileMode": "使用移动端模式",
+        "mobile.rememberChoice": "记住我的选择",
+        "mobile.curriculum.mindMap": "思维导图",
+        "mobile.curriculum.plan": "培养方案",
+        "workspace.select": "选课",
+        "mobile.tourUsePC": "功能引导建议在 PC 端查看",
     },
     en: {
         "nav.home": "Home",
@@ -314,5 +344,20 @@ export const translations: Translations = {
         "workspace.noDeleteEmpty": "No data to delete",
         "about.title": "About Us",
         "about.description": "OfCourses — Your smart course planning assistant.",
+        "mobile.settings": "Settings",
+        "mobile.theme": "Theme",
+        "mobile.dark": "Dark",
+        "mobile.light": "Light",
+        "mobile.language": "Language",
+        "mobile.viewMode": "View Mode",
+        "mobile.promptTitle": "This site works best on a PC",
+        "mobile.promptDesc": "Mobile mode simplifies the interface; complex features are still recommended on desktop.",
+        "mobile.pcMode": "Use PC Mode",
+        "mobile.mobileMode": "Use Mobile Mode",
+        "mobile.rememberChoice": "Remember my choice",
+        "mobile.curriculum.mindMap": "Mind Map",
+        "mobile.curriculum.plan": "Curriculum Plan",
+        "workspace.select": "Select",
+        "mobile.tourUsePC": "Tutorial is best viewed on a PC",
     },
 };

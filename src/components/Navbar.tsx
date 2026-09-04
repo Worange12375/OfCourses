@@ -4,6 +4,7 @@ import Select from "@jetbrains/ring-ui-built/components/select/select";
 import {useLocale} from "../i18n/LocaleContext";
 import {useAppTheme} from "../theme/ThemeContext";
 import {useSemester} from "../hooks/SemesterContext";
+import {useMobileMode} from "../hooks/useMobileMode";
 import {useTName} from "../hooks/useCurriculumData";
 import {HelpButton} from "../onboarding/HelpButton";
 import singleLogo from "../assets/OfCourses_singleLogo.ico";
@@ -28,8 +29,12 @@ export const Navbar = ({currentPage, onNavigate}: NavbarProps) => {
     const {locale, setLocale, t} = useLocale();
     const {theme, toggleTheme} = useAppTheme();
     const {semester, setSemester, allSemesters} = useSemester();
+    const {isMobileDevice, mobileMode, forcedMode, chooseMode} = useMobileMode();
     const {tSemester} = useTName();
     const isDark = theme === "dark";
+
+    // 移动端由 MobileTopBar + MobileNavbar 接管，桌面 Navbar 不渲染
+    if (mobileMode === "mobile") return null;
 
     const semesterOptions = allSemesters.map((s) => ({
         key: s,
@@ -169,6 +174,21 @@ export const Navbar = ({currentPage, onNavigate}: NavbarProps) => {
                             locale === "zh" ? "left-1" : "right-1"
                         }`} />
                     </button>
+                    {(isMobileDevice || forcedMode) && (
+                        <button
+                            onClick={() => chooseMode("mobile")}
+                            className={
+                                `flex h-7 cursor-pointer items-center rounded-full border-none px-2 text-xs transition-colors duration-300 ${
+                                    isDark
+                                        ? "bg-white/15 text-white/80 hover:bg-white/25"
+                                        : "bg-gray-200 text-gray-600 hover:bg-gray-300"
+                                }`
+                            }
+                            title="切换到移动端模式"
+                        >
+                            手机
+                        </button>
+                    )}
                     <HelpButton />
             </div>
         </nav>

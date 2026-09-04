@@ -82,7 +82,7 @@ function loadPersist(): Persist {
     }
 }
 
-export const CurriculumMindMap = () => {
+export const CurriculumMindMap = ({mobile}: {mobile?: boolean}) => {
     const {theme} = useAppTheme();
     const isDark = theme === "dark";
 
@@ -523,7 +523,7 @@ export const CurriculumMindMap = () => {
                 className={`group flex items-center gap-1.5 rounded-md px-1.5 py-1 cursor-pointer select-none ${hoverBg} ${
                     isCourse && selected === id ? (isDark ? "bg-white/10" : "bg-gray-100") : ""
                 } ${isHi ? (isActive ? (isDark ? "bg-[#863bff]/25 ring-2 ring-[#863bff]" : "bg-[#863bff]/10 ring-2 ring-[#863bff]") : (isDark ? "bg-yellow-400/20 ring-1 ring-yellow-400" : "bg-yellow-100 ring-1 ring-yellow-400")) : ""}`}
-                style={{paddingLeft: `${depth * 14 + 6}px`}}
+                style={{paddingLeft: `${depth * (mobile ? 10 : 14) + 6}px`}}
                 onClick={() => {
                     if (isCustom) return;
                     if (isCourse) setSelected(id);
@@ -542,7 +542,7 @@ export const CurriculumMindMap = () => {
                     {isCourse ? "•" : n.level === "group" ? "▣" : n.level === "basis" ? "❖" : "▢"}
                 </span>
                 {/* 名称 */}
-                <span className={`text-[12px] truncate ${isCourse ? (isDark ? "text-white/80" : "text-gray-700") : "font-medium " + textNormal}`}>
+                <span className={`truncate ${isCourse ? (isDark ? "text-white/80" : "text-gray-700") : "font-medium " + textNormal} ${mobile ? "text-[11px]" : "text-[12px]"}`}>
                     {n.label}
                 </span>
                 {/* 类标签 */}
@@ -575,7 +575,7 @@ export const CurriculumMindMap = () => {
             <div key={id}>
                 {row}
                 {hasChildren && isOpen && (
-                    <div className={`ml-3 border-l ${guideLine}`} style={{paddingLeft: 0}}>
+                    <div className={`border-l ${guideLine} ${mobile ? "ml-2" : "ml-3"}`} style={{paddingLeft: 0}}>
                         {n.childIds.map((cid) => renderNode(cid, depth + 1))}
                     </div>
                 )}
@@ -590,7 +590,7 @@ export const CurriculumMindMap = () => {
         <div className="flex min-h-0 flex-1 flex-col">
             {/* 搜索条（列表上侧常驻） */}
             <div className={`shrink-0 border-b ${borderCls} px-3 py-2 space-y-2`}>
-                <div className="flex gap-1.5">
+                <div className={`gap-1.5 ${mobile ? "flex flex-col" : "flex"}`}>
                     <SearchScopeSelect value={searchScope} onChange={onScopeChange} isDark={isDark} />
                     <input
                         value={searchQuery}
@@ -617,7 +617,7 @@ export const CurriculumMindMap = () => {
                     </div>
                 )}
                 {selectedTarget && searchResults.length > 0 && (
-                    <div className={`flex items-center justify-between text-[10px] ${textMuted}`}>
+                    <div className={`flex items-center justify-between text-[10px] ${textMuted} ${mobile ? "flex-wrap gap-y-1" : ""}`}>
                         <span>第 {searchCursor + 1} / {searchResults.length} 处</span>
                         <div className="flex gap-1">
                             <button onClick={gotoPrev} className={listSearchBtnCls}>上一个</button>

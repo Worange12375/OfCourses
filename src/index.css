@@ -1,8 +1,77 @@
 @import "tailwindcss";
 @import '@jetbrains/ring-ui-built/components/style.css';
+
 html, body, #root {
     height: 100%;
+    width: 100%;
     margin: 0;
+    padding: 0;
+}
+
+/* 默认 / PC 模式：最小视口 1280×720。当浏览器窗口更小时，页面不再压缩，
+   而是显示局部并可滚动。这对 PC 小窗口和移动端「PC 模式」生效。 */
+html {
+    overflow: auto;
+}
+body {
+    overflow: auto;
+}
+#root {
+    min-width: 1280px;
+    min-height: 720px;
+}
+
+/* 移动端模式：页面真正占满手机屏幕，不再套用 PC 最小视口，也不出现横向滚动条。
+   类要加到 <html> 上，因此选择器必须是 html.oc-mobile ... */
+html.oc-mobile {
+    overflow: hidden;
+    touch-action: pan-y;
+}
+html.oc-mobile body {
+    width: 100%;
+    height: 100%;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+}
+html.oc-mobile #root {
+    width: 100%;
+    height: 100%;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+}
+
+/* 兜底：当屏幕宽度 <= 768px 且未显式选择 PC 模式时，也解除最小宽度限制 */
+@media (max-width: 768px) {
+    html:not(.oc-pc) #root {
+        min-width: 0;
+        min-height: 0;
+    }
+}
+
+/* 移动端通用内容区：垂直弹性布局，占满屏幕，底部留出导航栏高度 */
+html.oc-mobile .oc-mobile-content {
+    width: 100%;
+    height: 100%;
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+}
+
+/* 移动端底部导航栏占位 */
+html.oc-mobile .oc-mobile-pb-nav {
+    padding-bottom: calc(64px + env(safe-area-inset-bottom));
+}
+
+/* 移动端底部导航栏（由 AppShell 放在 flex 列底部，无需 fixed） */
+.oc-mobile-bottom-nav {
+    height: calc(56px + env(safe-area-inset-bottom));
+    padding-bottom: env(safe-area-inset-bottom);
+    display: flex;
+    align-items: center;
+    justify-content: space-around;
+    flex-shrink: 0;
 }
 
 /* Ring UI 弹层（Select/List）通过 portal 渲染到 body，脱离 RingThemeProvider 包裹层，
@@ -26,4 +95,18 @@ html, body, #root {
    导致弹层被压在导航栏之下。这里单独抬升其层级，使其显示在导航栏之上。 */
 .oc-nav-select-popup {
     z-index: 100 !important;
+}
+
+/* 预选按钮加入课程时的抖动反馈 */
+@keyframes oc-shake {
+    0%, 100% { transform: translateX(0); }
+    15% { transform: translateX(-4px) rotate(-3deg); }
+    30% { transform: translateX(3px) rotate(2deg); }
+    45% { transform: translateX(-3px) rotate(-2deg); }
+    60% { transform: translateX(2px) rotate(1deg); }
+    75% { transform: translateX(-1px) rotate(-1deg); }
+}
+
+.oc-shake {
+    animation: oc-shake 0.4s ease-in-out both;
 }
