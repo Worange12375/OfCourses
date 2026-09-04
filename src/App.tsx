@@ -13,6 +13,7 @@ import {CurriculumPage} from "./pages/CurriculumPage";
 import {ToolsPage} from "./pages/ToolsPage";
 import {AboutPage} from "./pages/AboutPage";
 import {OnboardingProvider, useOnboarding, TourOverlay, HelpPanel} from "./onboarding";
+import {reportVisit} from "./utils/visitorId";
 
 const AppShell = () => {
     const [page, setPage] = useState<NavPage>("home");
@@ -25,6 +26,11 @@ const AppShell = () => {
     useEffect(() => {
         registerNavigate(setPage);
     }, [registerNavigate, setPage]);
+
+    // 站点访问统计上报：匿名标识，随页面切换计一次 PV，服务端按 vid 去重得 UV
+    useEffect(() => {
+        reportVisit(page, isMobile);
+    }, [page, isMobile]);
 
     const baseBg = isDark ? "bg-[#0e0e14]" : "bg-gray-50";
 

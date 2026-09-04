@@ -24,3 +24,5 @@ dist-ssr
 *.sw?
 /supabase
 .workbuddy/
+__pycache__/
+server/vote/main.py.online

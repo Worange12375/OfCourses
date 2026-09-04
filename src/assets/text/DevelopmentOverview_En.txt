@@ -4,7 +4,7 @@ Wu Tiancheng (Dushi 41)     Campus Email: wutc24@mails.tsinghua.edu.cn
 About the Website:
     This website is built to help students of Dushi Academy (笃实书院) plan their course selections with greater ease. The idea for the project grew out of the "Dushi Think Tank" (笃实智囊团) initiative launched in autumn 2025.
     The site is still under active development, so imperfections and errors are to be expected — we sincerely welcome your feedback.
-    For more background, please refer to our public account article: https://mp.weixin.qq.com/s/F8C_A46i7PYeFnHJCvaRdg
+    For more background, please refer to our public account article: https://mp.weixin.qq.com/s/1NaZNrRB8M2MuhrgbaV3pw
 
 A Note from the Developer:
     Every course-selection season, I see students weighing one course against another among the many on offer, unable to decide — and I know that tangle of hesitation and anxiety all too well. Especially once sophomore year arrives and the specialized courses come one after another, many fall into confusion about where their future lies. Back then I quietly wished: if only there were a practical tool to help everyone sort out their academic planning clearly, how good that would be…

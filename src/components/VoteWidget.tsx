@@ -22,6 +22,8 @@ export const VoteWidget = ({topic}: {topic: VoteTopic}) => {
   const zh = locale === "zh";
 
   const [stats, setStats] = useState<Stats | null>(null);
+  // 统计拉取失败（后端不可用/被限流/已熔断）：与"确实还没人投票"区分，避免误导为 0 票
+  const [statsFailed, setStatsFailed] = useState(false);
   const [phase, setPhase] = useState<Phase>("loading");
   const [hover, setHover] = useState<number | null>(null);
   const [myScore, setMyScore] = useState<number | null>(null);
@@ -35,11 +37,13 @@ export const VoteWidget = ({topic}: {topic: VoteTopic}) => {
       .then((d: Stats) => {
         if (!alive) return;
         setStats(d);
+        setStatsFailed(false);
         setPhase("idle");
       })
       .catch(() => {
         if (!alive) return;
-        setPhase("idle"); // 后端不可用时静默降级，不阻塞页面
+        setStatsFailed(true);
+        setPhase("idle"); // 后端不可用时降级，但不再伪装成"还没有人投票"
       });
     return () => {
       alive = false;
@@ -58,11 +62,34 @@ export const VoteWidget = ({topic}: {topic: VoteTopic}) => {
           body: JSON.stringify({topic, score, voter_id: getVoterId()}),
         });
         const data = await res.json().catch(() => ({}));
-        if (!res.ok) {
-          // 已投过票：后端返回 409，前端锁定并给出提示
+
+        // 409 = 真的投过票：锁定按钮，如实告知
+        if (res.status === 409) {
           setPhase("done");
           setMyScore(typeof data.score === "number" ? data.score : score);
           setMsg(zh ? "你已经投过票了，感谢支持！" : "You have already voted. Thanks for the support!");
+          return;
+        }
+        // 503 = 后端已熔断：功能临时关闭，不锁定，允许稍后重试
+        if (res.status === 503) {
+          setPhase("error");
+          setMsg(
+            zh
+              ? "投票功能临时维护中，请稍后再来"
+              : "Voting is temporarily under maintenance"
+          );
+          return;
+        }
+        // 429 = 被限流：票并未写入，绝不能显示"已投过"，且不锁定，保留重试机会
+        if (res.status === 429) {
+          setPhase("error");
+          setMsg(zh ? "当前访问较集中，请稍后再试" : "Server is busy, please try again shortly");
+          return;
+        }
+        // 其余错误：不锁定，如实提示失败
+        if (!res.ok) {
+          setPhase("error");
+          setMsg(zh ? "提交失败，请稍后再试。" : "Submission failed. Please try again later.");
           return;
         }
         setMyScore(score);
@@ -133,8 +160,11 @@ export const VoteWidget = ({topic}: {topic: VoteTopic}) => {
               : `${stats.count} vote(s) so far`}
           </span>
         )}
-        {phase !== "loading" && (!stats || stats.count === 0) && !msg && (
+        {phase !== "loading" && !statsFailed && (!stats || stats.count === 0) && !msg && (
           <span>{zh ? "还没有人投票，来做第一个吧" : "No votes yet — be the first"}</span>
+        )}
+        {phase !== "loading" && statsFailed && !msg && (
+          <span>{zh ? "统计暂时无法加载" : "Stats unavailable"}</span>
         )}
         {msg && <span>{msg}</span>}
       </div>

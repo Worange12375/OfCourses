@@ -9,7 +9,11 @@ WorkingDirectory=/opt/ofcourses-vote
 Environment=VOTE_DB_PATH=/var/lib/ofcourses-vote/votes.db
 Environment=VOTE_IP_SALT=REPLACE_WITH_RANDOM_SALT
 Environment=VOTE_ADMIN_TOKEN=REPLACE_WITH_RANDOM_ADMIN_TOKEN
-Environment=VOTE_RATE_LIMIT=20
+Environment=VOTE_SCT_KEY=REPLACE_WITH_SERVERCHAN_SENDKEY
+Environment=VOTE_STATS_RATE=600
+Environment=VOTE_SUBMIT_IP_RATE=100
+Environment=VOTE_SUBMIT_VOTER_RATE=5
+Environment=VOTE_TRACK_RATE=300
 ExecStart=/opt/ofcourses-vote/venv/bin/uvicorn main:app --host 127.0.0.1 --port 8002 --workers 1
 Restart=always
 RestartSec=3
