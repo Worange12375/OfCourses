@@ -8,6 +8,10 @@ export type Course = {
   is_new: boolean | null;
   module_type: string | null;
   name: string;
+  /** 修读属性（培养方案第五项）：required 必修 / restricted 限选 / elective 任选 / prof_required 专业必修 */
+  course_attr?: string | null;
+  /** 专业必修的适用专业说明（course_attr = prof_required 时存在） */
+  prof_note?: string | null;
 };
 
 export type Module = {

@@ -19,6 +19,7 @@ export type TranslationKey =
     | "workspace.allProperties"
     | "workspace.totalSelected"
     | "workspace.fold"
+  | "workspace.collapseSidebar"
     | "workspace.unfold"
     | "workspace.prev"
     | "workspace.next"
@@ -121,7 +122,53 @@ export type TranslationKey =
   | "workspace.expandSearchFilter"
   | "workspace.filterSidebarHint"
   | "workspace.collapseFilters"
+  | "workspace.doneFilters"
   | "workspace.relationFilters"
+  | "mindmap.searchPlaceholder"
+  | "mindmap.searchPopup"
+  | "mindmap.noMatches"
+  | "mindmap.foundTargets"
+  | "mindmap.targetNoExpand"
+  | "mindmap.matchCount"
+  | "mindmap.position"
+  | "mindmap.expandedAll"
+  | "mindmap.limitNotExpanded"
+  | "mindmap.sameNameCount"
+  | "mindmap.oneMatch"
+  | "mindmap.prev"
+  | "mindmap.next"
+  | "mindmap.expandMatchesBtn"
+  | "mindmap.editSearch"
+  | "mindmap.clearSearch"
+  | "mindmap.otherScopeHint"
+  | "mindmap.limitShort"
+  | "mindmap.shownShort"
+  | "mindmap.expandTray"
+  | "mindmap.collapseTray"
+  | "mindmap.visibleLimit"
+  | "mindmap.purpleTick"
+  | "mindmap.shownCourses"
+  | "mindmap.pinnedSuffix"
+  | "mindmap.expandAll"
+  | "mindmap.collapseAll"
+  | "mindmap.reset"
+  | "mindmap.pinOff"
+  | "mindmap.pinOn"
+  | "mindmap.creditUnit"
+  | "mindmap.creditMissing"
+  | "mindmap.appearsInGroups"
+  | "mindmap.collapseDesc"
+  | "mindmap.collapsePinned"
+  | "mindmap.collapseSoft"
+  | "mindmap.cancel"
+  | "mindmap.expandMatchesTitle"
+  | "mindmap.expandMatchesDesc"
+  | "mindmap.raiseLimitTo"
+  | "mindmap.expandWithin"
+  | "mindmap.keysOn"
+  | "mindmap.keysOff"
+  | "mindmap.resetView"
+  | "mindmap.scopeFallback"
   | "mobile.tourUsePC";
 
 type Translations = Record<Locale, Record<TranslationKey, string>>;
@@ -148,6 +195,7 @@ export const translations: Translations = {
         "workspace.allProperties": "全部属性",
         "workspace.totalSelected": "已选总数",
         "workspace.fold": "折叠",
+        "workspace.collapseSidebar": "收起《",
         "workspace.unfold": "展开",
         "workspace.prev": "上一页",
         "workspace.next": "下一页",
@@ -248,8 +296,54 @@ export const translations: Translations = {
         "workspace.expandSearchFilter": "展开搜索与筛选",
         "workspace.filterSidebarHint": "展开来搜索筛选，折叠来看课程目录",
         "workspace.collapseFilters": "收起筛选",
+        "workspace.doneFilters": "完成",
         "workspace.relationFilters": "关系图筛选",
-        "mobile.tourUsePC": "功能引导建议在 PC 端查看",
+        "mindmap.searchPlaceholder": "输入关键词，查找课程/模块/课组…",
+        "mindmap.searchPopup": "搜索导图",
+        "mindmap.noMatches": "无匹配目标",
+        "mindmap.foundTargets": "找到 {n} 个目标文本，点击即可定位",
+        "mindmap.targetNoExpand": "该目标无可展开节点",
+        "mindmap.matchCount": "共 {n} 处同名匹配",
+        "mindmap.position": "第 {i} / {n} 处",
+        "mindmap.expandedAll": "已展开全部 {n} 个匹配结果",
+        "mindmap.limitNotExpanded": "受上限（{max}）约束，还有 {n} 个匹配结果未展开",
+        "mindmap.sameNameCount": "共 {n} 处同名",
+        "mindmap.oneMatch": "1 处匹配",
+        "mindmap.prev": "上一个",
+        "mindmap.next": "下一个",
+        "mindmap.expandMatchesBtn": "展开全部匹配",
+        "mindmap.editSearch": "点击修改搜索",
+        "mindmap.clearSearch": "清除搜索",
+        "mindmap.otherScopeHint": "在「{scope}」中还发现了 {n} 项结果，点击切换查看 →",
+        "mindmap.limitShort": "上限 {max}",
+        "mindmap.shownShort": "已显示 {shown}/{max}",
+        "mindmap.expandTray": "展开 ▾",
+        "mindmap.collapseTray": "收起 ▴",
+        "mindmap.visibleLimit": "同时可见课程上限",
+        "mindmap.purpleTick": "紫色刻度 = {n}：设为此值可恰好只展开培养方案全部课程",
+        "mindmap.shownCourses": "已显示课程 {shown} / {max}",
+        "mindmap.pinnedSuffix": "已固定 {n}",
+        "mindmap.expandAll": "展开全部",
+        "mindmap.collapseAll": "收起全部",
+        "mindmap.reset": "重置",
+        "mindmap.pinOff": "取消固定",
+        "mindmap.pinOn": "固定（常驻展开，不被回收）",
+        "mindmap.creditUnit": "学分",
+        "mindmap.creditMissing": "学分未标注",
+        "mindmap.appearsInGroups": "出现于 {n} 个课组",
+        "mindmap.collapseDesc": "你已固定 {n} 个节点。收起时是否一并收起这些固定节点？",
+        "mindmap.collapsePinned": "一并收起固定（{n}）",
+        "mindmap.collapseSoft": "仅收起未固定",
+        "mindmap.cancel": "取消",
+        "mindmap.expandMatchesTitle": "展开全部匹配",
+        "mindmap.expandMatchesDesc": "全部展开共需显示 {needed} 门课程，超出当前上限 {max}。是否临时扩大上限以展开全部？",
+        "mindmap.raiseLimitTo": "扩大上限至 {n}",
+        "mindmap.expandWithin": "仅展开上限内（{max}）",
+        "mindmap.keysOn": "方向键平移：已开启（点击关闭）",
+        "mindmap.keysOff": "方向键平移：已关闭（点击开启）",
+        "mindmap.resetView": "复位视图",
+        "mindmap.scopeFallback": "范围",
+        "mobile.tourUsePC": "功能引导步骤较多，建议在 PC 端查看完整教程。另外，部分手机浏览器可能会出现组件颜色缺失；若遇到此情况，请尝试在 PC 端使用、更换浏览器或开启暗色模式。你也可以前往「关于我们」页的问题反馈区提供机型和浏览器信息，帮助我们改进兼容性。",
     },
     en: {
         "nav.home": "Home",
@@ -272,6 +366,7 @@ export const translations: Translations = {
         "workspace.allProperties": "All properties",
         "workspace.totalSelected": "Total selected",
         "workspace.fold": "Fold",
+        "workspace.collapseSidebar": "Collapse «",
         "workspace.unfold": "Unfold",
         "workspace.prev": "Prev",
         "workspace.next": "Next",
@@ -372,7 +467,53 @@ export const translations: Translations = {
         "workspace.expandSearchFilter": "Expand Search & Filter",
         "workspace.filterSidebarHint": "Expand to search & filter · collapse to view the catalog",
         "workspace.collapseFilters": "Collapse Filters",
+        "workspace.doneFilters": "Done",
         "workspace.relationFilters": "Graph Filters",
-        "mobile.tourUsePC": "Tutorial is best viewed on a PC",
+        "mindmap.searchPlaceholder": "Search courses, modules or groups…",
+        "mindmap.searchPopup": "Search Map",
+        "mindmap.noMatches": "No matches",
+        "mindmap.foundTargets": "{n} matching targets found, click to locate",
+        "mindmap.targetNoExpand": "This target has no expandable nodes",
+        "mindmap.matchCount": "{n} matches in total",
+        "mindmap.position": "Match {i} / {n}",
+        "mindmap.expandedAll": "Expanded all {n} matches",
+        "mindmap.limitNotExpanded": "Limit ({max}) reached — {n} matches not expanded",
+        "mindmap.sameNameCount": "{n} matches",
+        "mindmap.oneMatch": "1 match",
+        "mindmap.prev": "Prev",
+        "mindmap.next": "Next",
+        "mindmap.expandMatchesBtn": "Expand all matches",
+        "mindmap.editSearch": "Click to edit search",
+        "mindmap.clearSearch": "Clear search",
+        "mindmap.otherScopeHint": "{n} more results in \"{scope}\" — click to view →",
+        "mindmap.limitShort": "Limit {max}",
+        "mindmap.shownShort": "Shown {shown}/{max}",
+        "mindmap.expandTray": "Expand ▾",
+        "mindmap.collapseTray": "Collapse ▴",
+        "mindmap.visibleLimit": "Visible course limit",
+        "mindmap.purpleTick": "Purple tick = {n}: set exactly this value to expand all main-scheme courses",
+        "mindmap.shownCourses": "Courses shown {shown} / {max}",
+        "mindmap.pinnedSuffix": "{n} pinned",
+        "mindmap.expandAll": "Expand all",
+        "mindmap.collapseAll": "Collapse all",
+        "mindmap.reset": "Reset",
+        "mindmap.pinOff": "Unpin",
+        "mindmap.pinOn": "Pin (keep expanded)",
+        "mindmap.creditUnit": "cr",
+        "mindmap.creditMissing": "Credits not labeled",
+        "mindmap.appearsInGroups": "Appears in {n} groups",
+        "mindmap.collapseDesc": "You have {n} pinned nodes. Collapse them as well?",
+        "mindmap.collapsePinned": "Collapse pinned too ({n})",
+        "mindmap.collapseSoft": "Collapse unpinned only",
+        "mindmap.cancel": "Cancel",
+        "mindmap.expandMatchesTitle": "Expand all matches",
+        "mindmap.expandMatchesDesc": "Expanding all requires {needed} visible courses, above the current limit {max}. Temporarily raise the limit to expand all?",
+        "mindmap.raiseLimitTo": "Raise limit to {n}",
+        "mindmap.expandWithin": "Expand within limit ({max})",
+        "mindmap.keysOn": "Arrow-key panning: on (click to disable)",
+        "mindmap.keysOff": "Arrow-key panning: off (click to enable)",
+        "mindmap.resetView": "Reset view",
+        "mindmap.scopeFallback": "Scope",
+        "mobile.tourUsePC": "This tutorial is best viewed on a PC. Some mobile browsers may also fail to render component colors; if so, try using a PC, switching browsers, or enabling dark mode. You may also provide your device/browser info in the Feedback section on the About page to help us improve compatibility.",
     },
 };

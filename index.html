@@ -1,9 +1,13 @@
 <!doctype html>
-<html lang="en">
+<!-- translate="no" + notranslate：站点自带完整中英双语，禁用浏览器翻译改写 DOM
+     （翻译插件会把文本节点包进 <font>，与 React 的 DOM 复用冲突，切换语言时会引发
+     "Failed to execute 'removeChild'" 崩溃 → 全树卸载黑屏） -->
+<html lang="zh-CN" translate="no">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" href="/favicon.ico" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="google" content="notranslate" />
     <title>OfCourses</title>
   </head>
   <body>

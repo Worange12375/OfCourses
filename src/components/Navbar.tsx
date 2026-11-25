@@ -1,14 +1,10 @@
-import Avatar from "@jetbrains/ring-ui-built/components/avatar/avatar";
-import {Size} from "@jetbrains/ring-ui-built/components/avatar/avatar-size";
-import Select from "@jetbrains/ring-ui-built/components/select/select";
 import {useLocale} from "../i18n/LocaleContext";
 import {useAppTheme} from "../theme/ThemeContext";
-import {useSemester} from "../hooks/SemesterContext";
 import {useMobileMode} from "../hooks/useMobileMode";
-import {useTName} from "../hooks/useCurriculumData";
 import {HelpButton} from "../onboarding/HelpButton";
+import {SiteMail} from "./SiteMail";
+import {AccountButton} from "../account/AccountButton";
 import singleLogo from "../assets/OfCourses_singleLogo.ico";
-import duShi from "../assets/DuShi.png";
 
 export type NavPage = "home" | "curriculum" | "workspace" | "tools" | "about";
 
@@ -28,18 +24,11 @@ const navLinks: {page: NavPage; labelKey: string; tour?: string}[] = [
 export const Navbar = ({currentPage, onNavigate}: NavbarProps) => {
     const {locale, setLocale, t} = useLocale();
     const {theme, toggleTheme} = useAppTheme();
-    const {semester, setSemester, allSemesters} = useSemester();
     const {isMobileDevice, mobileMode, forcedMode, chooseMode} = useMobileMode();
-    const {tSemester} = useTName();
     const isDark = theme === "dark";
 
     // 移动端由 MobileTopBar + MobileNavbar 接管，桌面 Navbar 不渲染
     if (mobileMode === "mobile") return null;
-
-    const semesterOptions = allSemesters.map((s) => ({
-        key: s,
-        label: tSemester(s),
-    }));
 
     return (
         <nav
@@ -51,16 +40,19 @@ export const Navbar = ({currentPage, onNavigate}: NavbarProps) => {
                 }`
             }
         >
-            {/* Logo + brand */}
-            <button
-                className="flex cursor-pointer items-center gap-2.5 border-none bg-transparent"
-                onClick={() => onNavigate("home")}
-            >
-                <img src={singleLogo} alt="Logo" className="h-8 w-8 rounded-lg" />
-                <span className={`text-base font-semibold ${isDark ? "text-white/90" : "text-gray-800"}`}>
-                    OfCourses
-                </span>
-            </button>
+            {/* Logo + brand + site mail */}
+            <div className="flex items-center gap-3">
+                <button
+                    className="flex cursor-pointer items-center gap-2.5 border-none bg-transparent"
+                    onClick={() => onNavigate("home")}
+                >
+                    <img src={singleLogo} alt="Logo" className="h-8 w-8 rounded-lg" />
+                    <span className={`text-base font-semibold ${isDark ? "text-white/90" : "text-gray-800"}`}>
+                        OfCourses
+                    </span>
+                </button>
+                <SiteMail />
+            </div>
 
             {/* Nav links */}
             <div className="flex items-center gap-1">
@@ -86,34 +78,12 @@ export const Navbar = ({currentPage, onNavigate}: NavbarProps) => {
                 ))}
             </div>
 
-            {/* Semester selector + User + Theme + Language */}
+            {/* Account + Theme + Language（当前学期已自动化，显示位置移至工作台课程目录栏标题右侧） */}
             <div className="flex items-center gap-3">
-                {/* Semester dropdown */}
-                {currentPage === "workspace" && (
-                    <div className="flex items-center gap-2">
-                        <span className={`whitespace-nowrap text-xs ${isDark ? "text-white/60" : "text-gray-500"}`}>
-                            {t("nav.currentSemester")}
-                        </span>
-                        <div className="min-w-40" data-tour="semester">
-                            <Select
-                                data={semesterOptions}
-                                selected={{key: semester, label: tSemester(semester)}}
-                                onSelect={(option) => {
-                                    if (option) setSemester(option.key as typeof semester);
-                                }}
-                                filter
-                                popupClassName="oc-nav-select-popup"
-                            />
-                        </div>
-                    </div>
-                )}
 
-                {/* User */}
+                {/* Account（登录/注册 或 用户菜单） */}
                 <div className="flex items-center gap-2">
-                    <Avatar size={Size.Size28} url={duShi} />
-                    <span className={`text-sm ${isDark ? "text-white/75" : "text-gray-500"}`}>
-                        {t("nav.defaultUser")}
-                    </span>
+                    <AccountButton />
                 </div>
 
                 {/* Theme toggle: sun/moon */}
@@ -184,9 +154,9 @@ export const Navbar = ({currentPage, onNavigate}: NavbarProps) => {
                                         : "bg-gray-200 text-gray-600 hover:bg-gray-300"
                                 }`
                             }
-                            title="切换到移动端模式"
+                            title={locale === "zh" ? "切换到移动端模式" : "Switch to mobile view"}
                         >
-                            手机
+                            {locale === "zh" ? "手机" : "Mobile"}
                         </button>
                     )}
                     <HelpButton />

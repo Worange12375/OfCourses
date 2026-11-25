@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "tsc -b && vite build && node scripts/downgrade-colors.mjs",
     "lint": "eslint ."
   },
   "dependencies": {
@@ -30,5 +30,13 @@
     "typescript": "~6.0.2",
     "typescript-eslint": "^8.58.2",
     "vite": "^8.0.10"
-  }
+  },
+  "browserslist": [
+    "defaults",
+    "Android >= 8",
+    "iOS >= 12",
+    "Chrome >= 90",
+    "Safari >= 13",
+    "not dead"
+  ]
 }

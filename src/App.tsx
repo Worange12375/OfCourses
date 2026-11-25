@@ -1,4 +1,4 @@
-import {useEffect, useState} from "react";
+import {useCallback, useEffect, useState} from "react";
 import Theme, {ThemeProvider as RingThemeProvider} from "@jetbrains/ring-ui-built/components/global/theme";
 import {LocaleProvider} from "./i18n/LocaleContext";
 import {AppThemeProvider, useAppTheme} from "./theme/ThemeContext";
@@ -14,12 +14,28 @@ import {ToolsPage} from "./pages/ToolsPage";
 import {AboutPage} from "./pages/AboutPage";
 import {OnboardingProvider, useOnboarding, TourOverlay, HelpPanel} from "./onboarding";
 import {reportVisit} from "./utils/visitorId";
+import {AccountProvider, useAccount} from "./account/AccountContext";
+import {AuthModal} from "./account/AuthModal";
+import {useSchemeData} from "./data/schemeStore";
 
 const AppShell = () => {
-    const [page, setPage] = useState<NavPage>("home");
+    // 当前页面持久化（sessionStorage）：年级切换等整页刷新后仍停留在原页面（如培养方案页）
+    const [page, setPageRaw] = useState<NavPage>(() => {
+        try {
+            const saved = sessionStorage.getItem("oc_page_restore");
+            return saved && ["home", "workspace", "curriculum", "tools", "about"].includes(saved) ? (saved as NavPage) : "home";
+        } catch { return "home"; }
+    });
+    const setPage = useCallback((p: NavPage) => {
+        setPageRaw(p);
+        try { sessionStorage.setItem("oc_page_restore", p); } catch { /* 隐私模式忽略 */ }
+    }, []);
     const {theme} = useAppTheme();
     const {registerNavigate} = useOnboarding();
     const {mobileMode, forcedMode} = useMobileMode();
+    const {workspaceVersion} = useAccount();
+    // 年级变化时同步培养方案数据仓库（schemeStore 单例；所有 getSchemeData() 读取点随之切换）
+    useSchemeData();
     const isMobile = mobileMode === "mobile" || forcedMode === "mobile";
     const isDark = theme === "dark";
 
@@ -53,7 +69,8 @@ const AppShell = () => {
                     <HomePage onNavigate={setPage} mobile={isMobile} />
                 </div>
                 <div className={pageWrapClass(page === "workspace")}>
-                    <Workspace onNavigate={setPage} mobile={isMobile} />
+                    {/* key 变化 = 云端方案应用后仅重挂载工作台（读取新 localStorage），页面不跳转 */}
+                    <Workspace key={workspaceVersion} onNavigate={setPage} mobile={isMobile} />
                 </div>
                 <div className={pageWrapClass(page === "curriculum")}>
                     <CurriculumPage mobile={isMobile} />
@@ -72,6 +89,9 @@ const AppShell = () => {
             {/* Onboarding UI (tour overlay + help panel) */}
             <TourOverlay />
             <HelpPanel />
+
+            {/* 账号系统：登录/注册弹窗（全局唯一，由 Navbar/工作台云同步面板触发） */}
+            <AuthModal />
         </div>
     );
 };
@@ -81,14 +101,17 @@ const AppInner = () => {
     return (
         <RingThemeProvider theme={theme === "dark" ? Theme.DARK : Theme.LIGHT} className="h-full">
             <LocaleProvider>
-                <SemesterProvider>
-                    <MobileModeProvider>
-                        <OnboardingProvider>
-                            <MobilePrompt />
-                            <AppShell />
-                        </OnboardingProvider>
-                    </MobileModeProvider>
-                </SemesterProvider>
+                {/* AccountProvider 需在 SemesterProvider 之外：学期自动判定依赖账号的年级信息 */}
+                <AccountProvider>
+                    <SemesterProvider>
+                        <MobileModeProvider>
+                            <OnboardingProvider>
+                                <MobilePrompt />
+                                <AppShell />
+                            </OnboardingProvider>
+                        </MobileModeProvider>
+                    </SemesterProvider>
+                </AccountProvider>
             </LocaleProvider>
         </RingThemeProvider>
     );

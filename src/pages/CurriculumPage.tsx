@@ -5,9 +5,15 @@ import {CurriculumMindMap} from "../components/CurriculumMindMap";
 import {CurriculumTreeMap} from "../components/CurriculumTreeMap";
 import {CurriculumRelationMap} from "../components/CurriculumRelationMap";
 import {CurriculumMapTutorial} from "../components/CurriculumMapTutorial";
-import planMd from "@/assets/doc/培养方案.md?raw";
-import teachMd from "@/assets/doc/教学计划.md?raw";
 import crossMd from "@/assets/doc/交叉培养指南.md?raw";
+// 三版本培养方案/教学计划文档（按当前用户年级加载；2024 沿用人工整理版，2025/2026 由 Word 自动转换）
+const yearDocs = import.meta.glob("/src/assets/doc/{2024,2025,2026}/培养方案.md", {eager: true, query: "?raw", import: "default"}) as Record<string, string>;
+const yearTeachDocs = import.meta.glob("/src/assets/doc/{2024,2025,2026}/教学计划.md", {eager: true, query: "?raw", import: "default"}) as Record<string, string>;
+const docForYear = (map: Record<string, string>, year: string, fallback?: string): string => {
+    const hit = Object.entries(map).find(([k]) => k.includes(`/${year}/`));
+    return hit?.[1] ?? fallback ?? "";
+};
+import {useSchemeData} from "../data/schemeStore";
 import listIcon from "@/assets/map-icons/list.svg?raw";
 import treeIcon from "@/assets/map-icons/tree.svg?raw";
 import graphIcon from "@/assets/map-icons/graph.svg?raw";
@@ -34,6 +40,7 @@ const MAP_VIEWS: {id: MapView; labelZh: string; labelEn: string; icon: string}[]
 interface Tab {
   id: string;
   label: string;
+  labelEn: string;
   content: string;
   isImage?: boolean;
 }
@@ -42,11 +49,11 @@ interface CurriculumPageProps {
   mobile?: boolean;
 }
 
-const DEFAULT_TABS: Tab[] = [
-  {id: "plan", label: "培养方案", content: planMd},
-  {id: "teach", label: "教学计划", content: teachMd},
-  {id: "cross", label: "交叉培养指南", content: crossMd},
-  {id: "intro", label: "培养方案解读", content: "", isImage: true},
+const buildTabs = (schemeYear: string): Tab[] => [
+  {id: "plan", label: "培养方案", labelEn: "Curriculum", content: docForYear(yearDocs, schemeYear)},
+  {id: "teach", label: "教学计划", labelEn: "Teaching Plan", content: docForYear(yearTeachDocs, schemeYear)},
+  {id: "cross", label: "交叉培养指南", labelEn: "Cross Guide", content: crossMd},
+  {id: "intro", label: "培养方案解读", labelEn: "Interpretation", content: "", isImage: true},
 ];
 
 /** Strip markdown artifacts so search matches what the user actually sees */
@@ -267,6 +274,9 @@ const SimpleMarkdown = ({
 export const CurriculumPage = ({mobile}: CurriculumPageProps) => {
   const {locale} = useLocale();
   const {theme} = useAppTheme();
+  // 当前年级的培养方案版本（未登录回落 2024）；文档 tabs 与之联动
+  const {schemeYear} = useSchemeData();
+  const TABS = useMemo(() => buildTabs(schemeYear), [schemeYear]);
   const isDark = theme === "dark";
   const [activeTab, setActiveTab] = useState("plan");
   const [leftWidth, setLeftWidth] = useState(40);
@@ -283,7 +293,7 @@ export const CurriculumPage = ({mobile}: CurriculumPageProps) => {
   const scrollNonceRef = useRef(0);
   const [scrollNonce, setScrollNonce] = useState(0);
 
-  const textTabs = DEFAULT_TABS.filter((t) => !t.isImage && t.content);
+  const textTabs = TABS.filter((t) => !t.isImage && t.content);
   const matchCounts = useMemo(() => {
     const m: Record<string, number> = {};
     textTabs.forEach((t) => {
@@ -413,9 +423,9 @@ export const CurriculumPage = ({mobile}: CurriculumPageProps) => {
             ?
           </button>
         </div>
-        {mapView === "list" && <CurriculumMindMap mobile={mobile} />}
-        {mapView === "tree" && <CurriculumTreeMap mobile={mobile} />}
-        {mapView === "graph" && <CurriculumRelationMap mobile={mobile} />}
+        {mapView === "list" && <CurriculumMindMap key={schemeYear} mobile={mobile} />}
+        {mapView === "tree" && <CurriculumTreeMap key={schemeYear} mobile={mobile} />}
+        {mapView === "graph" && <CurriculumRelationMap key={schemeYear} mobile={mobile} />}
       </div>
     </div>
   );
@@ -468,7 +478,7 @@ export const CurriculumPage = ({mobile}: CurriculumPageProps) => {
                 isDark ? "bg-white/5 hover:bg-white/10 text-white/80" : "bg-gray-100 hover:bg-gray-200 text-gray-700"
               }`}
             >
-              {t.label} ({matchCounts[t.id]})
+              {locale === "zh" ? t.label : t.labelEn} ({matchCounts[t.id]})
             </button>
           ))}
         </div>
@@ -476,7 +486,7 @@ export const CurriculumPage = ({mobile}: CurriculumPageProps) => {
 
       <div className={`flex items-center border-b shrink-0 ${borderCls} ${bgPanel}`}>
         <div className="flex items-center overflow-x-auto flex-1 px-1">
-          {DEFAULT_TABS.map((tab) => (
+          {TABS.map((tab) => (
             <button
               key={tab.id}
               onClick={() => switchTab(tab.id)}
@@ -486,7 +496,7 @@ export const CurriculumPage = ({mobile}: CurriculumPageProps) => {
                   : `${textMuted} hover:${isDark ? "bg-white/5" : "bg-gray-100"}`
               }`}
             >
-              {tab.label}
+              {locale === "zh" ? tab.label : tab.labelEn}
             </button>
           ))}
           <button onClick={() => setShowFeishuLinks(true)} className={`cursor-pointer border-none px-2 py-2 text-xs font-medium transition-colors ${
@@ -498,20 +508,14 @@ export const CurriculumPage = ({mobile}: CurriculumPageProps) => {
             <div className="fixed inset-0 z-50 flex items-center justify-center" style={{background: "rgba(0,0,0,0.4)"}} onClick={() => setShowFeishuLinks(false)}>
               <div className={`w-80 rounded-xl shadow-2xl border px-5 py-4 ${isDark ? "bg-[#1e1e2a] border-white/10" : "bg-white border-gray-200"}`} onClick={(e) => e.stopPropagation()}>
                 <div className={`text-sm font-semibold mb-3 ${textDark}`}>
-                  {locale === "zh" ? "飞书云文档链接" : "Feishu Cloud Docs"}
+                  {locale === "zh" ? "文档链接" : "Documents"}
                 </div>
                 <div className="flex flex-col gap-2 text-xs">
-                  <a href="https://rcnys7k0b04o.feishu.cn/docx/D3bxddmpkoX92NxDpSscuOZrnRg" target="_blank" rel="noopener noreferrer"
+                  <a href="https://cloud.tsinghua.edu.cn/d/f79958a3677843ffabd5/" target="_blank" rel="noopener noreferrer"
                      className={`block rounded px-3 py-2 transition-colors ${
                        isDark ? "bg-blue-500/10 text-blue-300 hover:bg-blue-500/20" : "bg-blue-50 text-blue-600 hover:bg-blue-100"
                      }`}>
-                    {locale === "zh" ? "📄 培养方案" : "📄 Curriculum Plan"}
-                  </a>
-                  <a href="https://rcnys7k0b04o.feishu.cn/docx/B4LWdkTx6oxhqfxe8WWccrTVndd" target="_blank" rel="noopener noreferrer"
-                     className={`block rounded px-3 py-2 transition-colors ${
-                       isDark ? "bg-blue-500/10 text-blue-300 hover:bg-blue-500/20" : "bg-blue-50 text-blue-600 hover:bg-blue-100"
-                     }`}>
-                    {locale === "zh" ? "📄 教学计划" : "📄 Teaching Plan"}
+                    {locale === "zh" ? "📄 最新版培养方案云盘链接" : "📄 Latest Curriculum Plan (Cloud)"}
                   </a>
                   <a href="https://rcnys7k0b04o.feishu.cn/docx/EKC0d5ciXolXj9xQrh4cCSf7n6J" target="_blank" rel="noopener noreferrer"
                      className={`block rounded px-3 py-2 transition-colors ${
@@ -531,7 +535,7 @@ export const CurriculumPage = ({mobile}: CurriculumPageProps) => {
 
       <div className={`flex-1 flex flex-col min-h-0 overflow-hidden ${bgPanel}`}>
         {/* Each tab has its own scrollable container with independent scroll position */}
-        {DEFAULT_TABS.map((tab) => (
+        {TABS.map((tab) => (
           <div
             key={tab.id}
             id={`tab-content-${tab.id}`}

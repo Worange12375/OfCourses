@@ -3,6 +3,7 @@ import {useLocale} from "../i18n/LocaleContext";
 import {useAppTheme} from "../theme/ThemeContext";
 import {useMobileMode} from "../hooks/useMobileMode";
 import {HelpButton} from "../onboarding/HelpButton";
+import {SiteMail} from "./SiteMail";
 import singleLogo from "../assets/OfCourses_singleLogo.ico";
 import type {NavPage} from "./Navbar";
 
@@ -40,6 +41,7 @@ export const MobileTopBar = ({currentPage}: MobileTopBarProps) => {
                     <span className="text-base font-semibold">{t(pageTitles[currentPage])}</span>
                 </div>
                 <div className="flex items-center gap-2">
+                    <SiteMail variant="mobile" />
                     <HelpButton />
                     <button
                         onClick={() => setMenuOpen(true)}

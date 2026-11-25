@@ -1,0 +1,2138 @@
+[
+ {
+  "course_id": "00310072",
+  "name": "航空概论",
+  "credits": 2,
+  "attr": "restricted",
+  "prof_note": null,
+  "semesters": [],
+  "groups": [
+   "模块1 课组1B"
+  ]
+ },
+ {
+  "course_id": "00310212",
+  "name": "航天概论",
+  "credits": 2,
+  "attr": "restricted",
+  "prof_note": null,
+  "semesters": [],
+  "groups": [
+   "模块1 课组1B"
+  ]
+ },
+ {
+  "course_id": "00740302",
+  "name": "计算机程序设计进阶",
+  "credits": 2,
+  "attr": "required",
+  "prof_note": null,
+  "semesters": [
+   "大二·秋季"
+  ],
+  "groups": [
+   "信智基础"
+  ]
+ },
+ {
+  "course_id": "04790012",
+  "name": "系统思维与系统工程探究",
+  "credits": 2,
+  "attr": "required",
+  "prof_note": null,
+  "semesters": [
+   "大一·秋季"
+  ],
+  "groups": [
+   "书院通识课"
+  ]
+ },
+ {
+  "course_id": "10220053",
+  "name": "电工电子技术基础",
+  "credits": 3,
+  "attr": "required",
+  "prof_note": null,
+  "semesters": [
+   "大二·春季"
+  ],
+  "groups": [
+   "机电基础"
+  ]
+ },
+ {
+  "course_id": "10420803",
+  "name": "概率论与数理统计",
+  "credits": 3,
+  "attr": "required",
+  "prof_note": null,
+  "semesters": [
+   "大二·秋季"
+  ],
+  "groups": [
+   "数学基础"
+  ]
+ },
+ {
+  "course_id": "10421055",
+  "name": "微积分A(1)",
+  "credits": 5,
+  "attr": "required",
+  "prof_note": null,
+  "semesters": [
+   "大一·秋季"
+  ],
+  "groups": [
+   "数学基础"
+  ]
+ },
+ {
+  "course_id": "10421065",
+  "name": "微积分A(2)",
+  "credits": 5,
+  "attr": "required",
+  "prof_note": null,
+  "semesters": [
+   "大一·春季"
+  ],
+  "groups": [
+   "数学基础"
+  ]
+ },
+ {
+  "course_id": "10421324",
+  "name": "线性代数",
+  "credits": 4,
+  "attr": "required",
+  "prof_note": null,
+  "semesters": [
+   "大一·秋季"
+  ],
+  "groups": [
+   "数学基础"
+  ]
+ },
+ {
+  "course_id": "10421342",
+  "name": "偏微分方程引论",
+  "credits": 2,
+  "attr": "restricted",
+  "prof_note": null,
+  "semesters": [
+   "大二·春季"
+  ],
+  "groups": [
+   "模块9 课组9B"
+  ]
+ },
+ {
+  "course_id": "10421403",
+  "name": "科学与工程计算基础",
+  "credits": 3,
+  "attr": "required",
+  "prof_note": null,
+  "semesters": [
+   "大二·春季"
+  ],
+  "groups": [
+   "数学基础"
+  ]
+ },
+ {
+  "course_id": "10430484",
+  "name": "大学物理B(1)",
+  "credits": 4,
+  "attr": "required",
+  "prof_note": null,
+  "semesters": [
+   "大一·春季"
+  ],
+  "groups": [
+   "物理基础"
+  ]
+ },
+ {
+  "course_id": "10430494",
+  "name": "大学物理B(2)",
+  "credits": 4,
+  "attr": "required",
+  "prof_note": null,
+  "semesters": [
+   "大二·秋季"
+  ],
+  "groups": [
+   "物理基础"
+  ]
+ },
+ {
+  "course_id": "10431282",
+  "name": "物理实验A(笃实)",
+  "credits": 2,
+  "attr": "required",
+  "prof_note": null,
+  "semesters": [
+   "大二·春季"
+  ],
+  "groups": [
+   "物理基础"
+  ]
+ },
+ {
+  "course_id": "10610193",
+  "name": "中国近现代史纲要",
+  "credits": 3,
+  "attr": "required",
+  "prof_note": null,
+  "semesters": [
+   "大一·春季"
+  ],
+  "groups": []
+ },
+ {
+  "course_id": "10680022",
+  "name": "习近平新时代中国特色社会主义思想概论",
+  "credits": 2,
+  "attr": "required",
+  "prof_note": null,
+  "semesters": [
+   "大二·春季"
+  ],
+  "groups": []
+ },
+ {
+  "course_id": "10680053",
+  "name": "思想道德与法治",
+  "credits": 3,
+  "attr": "required",
+  "prof_note": null,
+  "semesters": [
+   "大一·秋季"
+  ],
+  "groups": []
+ },
+ {
+  "course_id": "10680073",
+  "name": "马克思主义基本原理",
+  "credits": 3,
+  "attr": "required",
+  "prof_note": null,
+  "semesters": [
+   "大二·秋季"
+  ],
+  "groups": []
+ },
+ {
+  "course_id": "10680092",
+  "name": "思政实践",
+  "credits": 2,
+  "attr": "required",
+  "prof_note": null,
+  "semesters": [
+   "大一·夏季"
+  ],
+  "groups": []
+ },
+ {
+  "course_id": "10680101",
+  "name": "形势与政策(1)-秋",
+  "credits": 1,
+  "attr": "required",
+  "prof_note": null,
+  "semesters": [
+   "大一·秋季"
+  ],
+  "groups": []
+ },
+ {
+  "course_id": "10680111",
+  "name": "形势与政策（2）-秋",
+  "credits": 1,
+  "attr": "required",
+  "prof_note": null,
+  "semesters": [],
+  "groups": []
+ },
+ {
+  "course_id": "10680121",
+  "name": "形势与政策（1）-春",
+  "credits": 1,
+  "attr": "required",
+  "prof_note": null,
+  "semesters": [],
+  "groups": []
+ },
+ {
+  "course_id": "10680131",
+  "name": "形势与政策（2）-春",
+  "credits": 1,
+  "attr": "required",
+  "prof_note": null,
+  "semesters": [
+   "大一·春季"
+  ],
+  "groups": []
+ },
+ {
+  "course_id": "10680142",
+  "name": "毛泽东思想和中国特色社会主义理论体系概论",
+  "credits": 2,
+  "attr": "required",
+  "prof_note": null,
+  "semesters": [
+   "大二·春季"
+  ],
+  "groups": []
+ },
+ {
+  "course_id": "10691342",
+  "name": "写作与沟通",
+  "credits": 2,
+  "attr": "required",
+  "prof_note": null,
+  "semesters": [
+   "大一·春季"
+  ],
+  "groups": []
+ },
+ {
+  "course_id": "10720011",
+  "name": "体育(1)",
+  "credits": 1,
+  "attr": "required",
+  "prof_note": null,
+  "semesters": [
+   "大一·秋季"
+  ],
+  "groups": []
+ },
+ {
+  "course_id": "10720021",
+  "name": "体育(2)",
+  "credits": 1,
+  "attr": "required",
+  "prof_note": null,
+  "semesters": [
+   "大一·春季"
+  ],
+  "groups": []
+ },
+ {
+  "course_id": "10720031",
+  "name": "体育(3)",
+  "credits": 1,
+  "attr": "required",
+  "prof_note": null,
+  "semesters": [
+   "大二·秋季"
+  ],
+  "groups": []
+ },
+ {
+  "course_id": "10720041",
+  "name": "体育(4)",
+  "credits": 1,
+  "attr": "required",
+  "prof_note": null,
+  "semesters": [
+   "大二·春季"
+  ],
+  "groups": []
+ },
+ {
+  "course_id": "10720110",
+  "name": "体育专项(1)",
+  "credits": 0,
+  "attr": "restricted",
+  "prof_note": null,
+  "semesters": [
+   "大三·秋季"
+  ],
+  "groups": []
+ },
+ {
+  "course_id": "10720120",
+  "name": "体育专项(2)",
+  "credits": 0,
+  "attr": "restricted",
+  "prof_note": null,
+  "semesters": [
+   "大三·春季"
+  ],
+  "groups": []
+ },
+ {
+  "course_id": "10720130",
+  "name": "体育专项(3)",
+  "credits": 0,
+  "attr": "elective",
+  "prof_note": null,
+  "semesters": [
+   "大四·秋季"
+  ],
+  "groups": []
+ },
+ {
+  "course_id": "10720140",
+  "name": "体育专项(4)",
+  "credits": 0,
+  "attr": "elective",
+  "prof_note": null,
+  "semesters": [
+   "大四·春季"
+  ],
+  "groups": []
+ },
+ {
+  "course_id": "12090052",
+  "name": "军事理论",
+  "credits": 2,
+  "attr": "required",
+  "prof_note": null,
+  "semesters": [
+   "大一·开学前（军训）"
+  ],
+  "groups": []
+ },
+ {
+  "course_id": "12090062",
+  "name": "军事技能",
+  "credits": 2,
+  "attr": "required",
+  "prof_note": null,
+  "semesters": [
+   "大一·开学前（军训）"
+  ],
+  "groups": []
+ },
+ {
+  "course_id": "12530023",
+  "name": "国际新生集训",
+  "credits": 3,
+  "attr": "elective",
+  "prof_note": null,
+  "semesters": [
+   "大一·开学前（军训）"
+  ],
+  "groups": []
+ },
+ {
+  "course_id": "12530033",
+  "name": "台湾新生集训",
+  "credits": 3,
+  "attr": "elective",
+  "prof_note": null,
+  "semesters": [
+   "大一·开学前（军训）"
+  ],
+  "groups": []
+ },
+ {
+  "course_id": "14201002",
+  "name": "英语(1)",
+  "credits": 2,
+  "attr": "required",
+  "prof_note": null,
+  "semesters": [
+   "大一·秋季"
+  ],
+  "groups": []
+ },
+ {
+  "course_id": "14201012",
+  "name": "英语(2)",
+  "credits": 2,
+  "attr": "required",
+  "prof_note": null,
+  "semesters": [
+   "大一·春季"
+  ],
+  "groups": []
+ },
+ {
+  "course_id": "14201022",
+  "name": "英语(3)",
+  "credits": 2,
+  "attr": "restricted",
+  "prof_note": null,
+  "semesters": [
+   "大二·秋季"
+  ],
+  "groups": []
+ },
+ {
+  "course_id": "14201032",
+  "name": "英语(4)",
+  "credits": 2,
+  "attr": "restricted",
+  "prof_note": null,
+  "semesters": [
+   "大二·春季"
+  ],
+  "groups": []
+ },
+ {
+  "course_id": "14202002",
+  "name": "初级汉语阅读与写作(1)",
+  "credits": 2,
+  "attr": "elective",
+  "prof_note": null,
+  "semesters": [],
+  "groups": []
+ },
+ {
+  "course_id": "14202012",
+  "name": "初级汉语阅读与写作(2)",
+  "credits": 2,
+  "attr": "elective",
+  "prof_note": null,
+  "semesters": [],
+  "groups": []
+ },
+ {
+  "course_id": "14202022",
+  "name": "高级汉语阅读与写作(1)",
+  "credits": 2,
+  "attr": "elective",
+  "prof_note": null,
+  "semesters": [],
+  "groups": []
+ },
+ {
+  "course_id": "14202032",
+  "name": "高级汉语阅读与写作(2)",
+  "credits": 2,
+  "attr": "elective",
+  "prof_note": null,
+  "semesters": [],
+  "groups": []
+ },
+ {
+  "course_id": "14920032",
+  "name": "数值分析基础",
+  "credits": 2,
+  "attr": "required",
+  "prof_note": null,
+  "semesters": [
+   "大二·春季"
+  ],
+  "groups": [
+   "数学基础"
+  ]
+ },
+ {
+  "course_id": "14920054",
+  "name": "优化理论与算法",
+  "credits": 4,
+  "attr": "restricted",
+  "prof_note": null,
+  "semesters": [
+   "大三·春季"
+  ],
+  "groups": [
+   "模块4 课组4A",
+   "模块5 课组5B",
+   "模块7 课组7B"
+  ]
+ },
+ {
+  "course_id": "20120273",
+  "name": "工程图学",
+  "credits": 3,
+  "attr": "required",
+  "prof_note": null,
+  "semesters": [
+   "大一·春季"
+  ],
+  "groups": [
+   "机电基础"
+  ]
+ },
+ {
+  "course_id": "20160013",
+  "name": "运筹学（应用随机模型）",
+  "credits": 3,
+  "attr": "prof_required",
+  "prof_note": "工业工程专业必修（10A）",
+  "semesters": [
+   "大二·春季"
+  ],
+  "groups": [
+   "模块9 课组9B",
+   "模块10 课组10A",
+   "模块12 课组12A",
+   "模块13 课组13A"
+  ]
+ },
+ {
+  "course_id": "20160023",
+  "name": "数据结构与算法分析",
+  "credits": 3,
+  "attr": "required",
+  "prof_note": null,
+  "semesters": [
+   "大二·秋季"
+  ],
+  "groups": [
+   "信智基础"
+  ]
+ },
+ {
+  "course_id": "20250253",
+  "name": "电子技术基础（笃实）",
+  "credits": 3,
+  "attr": "required",
+  "prof_note": null,
+  "semesters": [
+   "大二·春季"
+  ],
+  "groups": [
+   "机电基础"
+  ]
+ },
+ {
+  "course_id": "20310334",
+  "name": "理论力学",
+  "credits": 4,
+  "attr": "required",
+  "prof_note": null,
+  "semesters": [
+   "大二·秋季"
+  ],
+  "groups": [
+   "力学基础（基础加强）"
+  ]
+ },
+ {
+  "course_id": "20310474",
+  "name": "材料力学（英）",
+  "credits": 4,
+  "attr": "restricted",
+  "prof_note": null,
+  "semesters": [
+   "大二·春季"
+  ],
+  "groups": [
+   "力学基础（基础加强）"
+  ]
+ },
+ {
+  "course_id": "20310504",
+  "name": "理论力学（英）",
+  "credits": 4,
+  "attr": "required",
+  "prof_note": null,
+  "semesters": [
+   "大二·秋季"
+  ],
+  "groups": [
+   "力学基础（基础加强）"
+  ]
+ },
+ {
+  "course_id": "20310584",
+  "name": "材料力学",
+  "credits": 4,
+  "attr": "restricted",
+  "prof_note": null,
+  "semesters": [
+   "大二·春季"
+  ],
+  "groups": [
+   "力学基础（基础加强）"
+  ]
+ },
+ {
+  "course_id": "20310633",
+  "name": "动力学基础",
+  "credits": 3,
+  "attr": "required",
+  "prof_note": null,
+  "semesters": [
+   "大二·秋季"
+  ],
+  "groups": [
+   "力学基础（基础加强）"
+  ]
+ },
+ {
+  "course_id": "20310643",
+  "name": "固体力学基础",
+  "credits": 3,
+  "attr": "restricted",
+  "prof_note": null,
+  "semesters": [
+   "大二·春季"
+  ],
+  "groups": [
+   "力学基础（基础加强）"
+  ]
+ },
+ {
+  "course_id": "21510222",
+  "name": "设计与制造工程训练",
+  "credits": 2,
+  "attr": "required",
+  "prof_note": null,
+  "semesters": [
+   "大一·夏季"
+  ],
+  "groups": [
+   "进阶式实践"
+  ]
+ },
+ {
+  "course_id": "24100013",
+  "name": "离散数学（2）",
+  "credits": 3,
+  "attr": "restricted",
+  "prof_note": null,
+  "semesters": [
+   "大二·春季"
+  ],
+  "groups": [
+   "模块5 课组5B",
+   "模块6 课组6B",
+   "模块7 课组7A"
+  ]
+ },
+ {
+  "course_id": "24100023",
+  "name": "离散数学(1)",
+  "credits": 3,
+  "attr": "required",
+  "prof_note": null,
+  "semesters": [
+   "大二·秋季"
+  ],
+  "groups": [
+   "计算基础（基础加强）"
+  ]
+ },
+ {
+  "course_id": "24100033",
+  "name": "人工智能基础",
+  "credits": 3,
+  "attr": "required",
+  "prof_note": null,
+  "semesters": [
+   "大二·春季"
+  ],
+  "groups": [
+   "信智基础"
+  ]
+ },
+ {
+  "course_id": "30160023",
+  "name": "运筹学（1）（确定性方法）",
+  "credits": 3,
+  "attr": "required",
+  "prof_note": null,
+  "semesters": [
+   "大二·秋季"
+  ],
+  "groups": [
+   "运筹统计（基础加强）"
+  ]
+ },
+ {
+  "course_id": "30160203",
+  "name": "应用统计与数据分析",
+  "credits": 3,
+  "attr": "restricted",
+  "prof_note": null,
+  "semesters": [
+   "大二·春季"
+  ],
+  "groups": [
+   "运筹统计（基础加强）"
+  ]
+ },
+ {
+  "course_id": "30160213",
+  "name": "概率论",
+  "credits": 3,
+  "attr": "required",
+  "prof_note": null,
+  "semesters": [
+   "大二·秋季"
+  ],
+  "groups": [
+   "数学基础"
+  ]
+ },
+ {
+  "course_id": "30160234",
+  "name": "人因工程",
+  "credits": 4,
+  "attr": "prof_required",
+  "prof_note": "工业工程专业必修（11A）",
+  "semesters": [
+   "大二·春季"
+  ],
+  "groups": [
+   "模块11 课组11A"
+  ]
+ },
+ {
+  "course_id": "30160253",
+  "name": "机器学习与大数据",
+  "credits": 3,
+  "attr": "restricted",
+  "prof_note": null,
+  "semesters": [
+   "大三·秋季"
+  ],
+  "groups": [
+   "模块3 课组3B",
+   "模块9 课组9A"
+  ]
+ },
+ {
+  "course_id": "30160313",
+  "name": "工业与系统工程",
+  "credits": 3,
+  "attr": "restricted",
+  "prof_note": null,
+  "semesters": [
+   "大二·春季"
+  ],
+  "groups": [
+   "模块10 课组10B",
+   "模块12 课组12B",
+   "模块13 课组13A"
+  ]
+ },
+ {
+  "course_id": "30160322",
+  "name": "计算机程序设计实践",
+  "credits": 2,
+  "attr": "required",
+  "prof_note": null,
+  "semesters": [
+   "大一·夏季"
+  ],
+  "groups": [
+   "进阶式实践"
+  ]
+ },
+ {
+  "course_id": "30160333",
+  "name": "数据库概念与应用",
+  "credits": 3,
+  "attr": "restricted",
+  "prof_note": null,
+  "semesters": [
+   "大二·春季"
+  ],
+  "groups": [
+   "模块9 课组9B",
+   "模块10 课组10B"
+  ]
+ },
+ {
+  "course_id": "30160343",
+  "name": "运筹学（决策方法学）",
+  "credits": 3,
+  "attr": "restricted",
+  "prof_note": null,
+  "semesters": [
+   "大二·春季"
+  ],
+  "groups": [
+   "模块10 课组10A",
+   "模块12 课组12A"
+  ]
+ },
+ {
+  "course_id": "30160353",
+  "name": "运筹学（确定性方法）",
+  "credits": 3,
+  "attr": "required",
+  "prof_note": null,
+  "semesters": [
+   "大二·秋季"
+  ],
+  "groups": [
+   "运筹统计（基础加强）"
+  ]
+ },
+ {
+  "course_id": "30160363",
+  "name": "智能生产运营",
+  "credits": 3,
+  "attr": "restricted",
+  "prof_note": null,
+  "semesters": [
+   "大三·秋季"
+  ],
+  "groups": [
+   "模块10 课组10B",
+   "模块13 课组13A"
+  ]
+ },
+ {
+  "course_id": "30160373",
+  "name": "建模与仿真",
+  "credits": 3,
+  "attr": "restricted",
+  "prof_note": null,
+  "semesters": [
+   "大三·秋季"
+  ],
+  "groups": [
+   "模块10 课组10A",
+   "模块12 课组12B",
+   "模块13 课组13A"
+  ]
+ },
+ {
+  "course_id": "30160382",
+  "name": "人工智能与质量管理",
+  "credits": 2,
+  "attr": "restricted",
+  "prof_note": null,
+  "semesters": [
+   "大三·秋季"
+  ],
+  "groups": [
+   "模块13 课组13B"
+  ]
+ },
+ {
+  "course_id": "30310084",
+  "name": "弹性力学",
+  "credits": 4,
+  "attr": "prof_required",
+  "prof_note": "工程力学专业必修",
+  "semesters": [
+   "大三·秋季"
+  ],
+  "groups": [
+   "模块1 课组1B"
+  ]
+ },
+ {
+  "course_id": "30310493",
+  "name": "传热学",
+  "credits": 3,
+  "attr": "restricted",
+  "prof_note": null,
+  "semesters": [
+   "大三·秋季"
+  ],
+  "groups": [
+   "模块2 课组2B"
+  ]
+ },
+ {
+  "course_id": "30310572",
+  "name": "振动理论基础",
+  "credits": 2,
+  "attr": "restricted",
+  "prof_note": null,
+  "semesters": [],
+  "groups": [
+   "模块1 课组1B"
+  ]
+ },
+ {
+  "course_id": "30310674",
+  "name": "有限元法基础",
+  "credits": 4,
+  "attr": "restricted",
+  "prof_note": null,
+  "semesters": [
+   "大三·春季"
+  ],
+  "groups": [
+   "模块3 课组3A",
+   "模块4 课组4B"
+  ]
+ },
+ {
+  "course_id": "30310683",
+  "name": "计算流体力学基础",
+  "credits": 3,
+  "attr": "restricted",
+  "prof_note": null,
+  "semesters": [
+   "大三·春季"
+  ],
+  "groups": [
+   "模块3 课组3A"
+  ]
+ },
+ {
+  "course_id": "30310822",
+  "name": "航电理论基础",
+  "credits": 2,
+  "attr": "restricted",
+  "prof_note": null,
+  "semesters": [
+   "大三·春季"
+  ],
+  "groups": [
+   "模块1 课组1B"
+  ]
+ },
+ {
+  "course_id": "30310843",
+  "name": "信号处理",
+  "credits": 3,
+  "attr": "restricted",
+  "prof_note": null,
+  "semesters": [],
+  "groups": [
+   "模块1 课组1B"
+  ]
+ },
+ {
+  "course_id": "30310893",
+  "name": "宇航医学工程",
+  "credits": 3,
+  "attr": "restricted",
+  "prof_note": null,
+  "semesters": [
+   "大三·春季"
+  ],
+  "groups": [
+   "模块1 课组1B"
+  ]
+ },
+ {
+  "course_id": "30310914",
+  "name": "飞行动力学与飞行控制",
+  "credits": 4,
+  "attr": "restricted",
+  "prof_note": null,
+  "semesters": [
+   "大三·春季"
+  ],
+  "groups": [
+   "模块1 课组1B"
+  ]
+ },
+ {
+  "course_id": "30310973",
+  "name": "工程科学计算",
+  "credits": 3,
+  "attr": "restricted",
+  "prof_note": null,
+  "semesters": [
+   "大三·秋季"
+  ],
+  "groups": [
+   "模块1 课组1A",
+   "模块2 课组2A"
+  ]
+ },
+ {
+  "course_id": "30310992",
+  "name": "自动控制原理",
+  "credits": 2,
+  "attr": "required",
+  "prof_note": null,
+  "semesters": [
+   "大三·秋季"
+  ],
+  "groups": [
+   "机电基础"
+  ]
+ },
+ {
+  "course_id": "30311003",
+  "name": "实验与量测技术",
+  "credits": 3,
+  "attr": "restricted",
+  "prof_note": null,
+  "semesters": [
+   "大三·春季"
+  ],
+  "groups": [
+   "模块1 课组1A",
+   "模块2 课组2A"
+  ]
+ },
+ {
+  "course_id": "30311013",
+  "name": "流体力学",
+  "credits": 3,
+  "attr": "restricted",
+  "prof_note": null,
+  "semesters": [
+   "大二·春季"
+  ],
+  "groups": [
+   "模块1 课组1A",
+   "模块2 课组2A",
+   "模块3 课组3A"
+  ]
+ },
+ {
+  "course_id": "30311023",
+  "name": "空气动力学",
+  "credits": 3,
+  "attr": "restricted",
+  "prof_note": null,
+  "semesters": [
+   "大三·秋季"
+  ],
+  "groups": [
+   "模块1 课组1B"
+  ]
+ },
+ {
+  "course_id": "30311033",
+  "name": "工程热力学",
+  "credits": 3,
+  "attr": "restricted",
+  "prof_note": null,
+  "semesters": [
+   "大三·秋季"
+  ],
+  "groups": [
+   "模块1 课组1A",
+   "模块2 课组2A"
+  ]
+ },
+ {
+  "course_id": "30311054",
+  "name": "航天动力学与控制",
+  "credits": 4,
+  "attr": "prof_required",
+  "prof_note": "航空航天工程专业：1B 课组至少选一门",
+  "semesters": [
+   "大三·春季"
+  ],
+  "groups": [
+   "模块1 课组1B"
+  ]
+ },
+ {
+  "course_id": "30311064",
+  "name": "推进原理",
+  "credits": 4,
+  "attr": "prof_required",
+  "prof_note": "航空航天工程专业必修",
+  "semesters": [
+   "大三·春季"
+  ],
+  "groups": [
+   "模块1 课组1B"
+  ]
+ },
+ {
+  "course_id": "30420364",
+  "name": "拓扑学",
+  "credits": 4,
+  "attr": "restricted",
+  "prof_note": null,
+  "semesters": [
+   "大三·秋季"
+  ],
+  "groups": [
+   "模块4 课组4A",
+   "模块7 课组7B"
+  ]
+ },
+ {
+  "course_id": "30430203",
+  "name": "基础拓扑学",
+  "credits": 3,
+  "attr": "restricted",
+  "prof_note": null,
+  "semesters": [
+   "大三·秋季"
+  ],
+  "groups": [
+   "模块4 课组4A",
+   "模块7 课组7B"
+  ]
+ },
+ {
+  "course_id": "34100053",
+  "name": "操作系统",
+  "credits": 3,
+  "attr": "restricted",
+  "prof_note": null,
+  "semesters": [
+   "大二·春季"
+  ],
+  "groups": [
+   "模块4 课组4A",
+   "模块5 课组5A",
+   "模块6 课组6A",
+   "模块7 课组7A",
+   "模块8 课组8A"
+  ]
+ },
+ {
+  "course_id": "34100063",
+  "name": "程序设计基础",
+  "credits": 3,
+  "attr": "required",
+  "prof_note": null,
+  "semesters": [
+   "大一·秋季"
+  ],
+  "groups": [
+   "信智基础"
+  ]
+ },
+ {
+  "course_id": "34100173",
+  "name": "数据库原理",
+  "credits": 3,
+  "attr": "restricted",
+  "prof_note": null,
+  "semesters": [
+   "大三·春季"
+  ],
+  "groups": [
+   "模块5 课组5A"
+  ]
+ },
+ {
+  "course_id": "34100232",
+  "name": "程序设计实训",
+  "credits": 2,
+  "attr": "required",
+  "prof_note": null,
+  "semesters": [
+   "大一·夏季"
+  ],
+  "groups": [
+   "进阶式实践"
+  ]
+ },
+ {
+  "course_id": "34100362",
+  "name": "面向对象程序设计基础",
+  "credits": 2,
+  "attr": "required",
+  "prof_note": null,
+  "semesters": [
+   "大一·春季"
+  ],
+  "groups": [
+   "信智基础"
+  ]
+ },
+ {
+  "course_id": "34100373",
+  "name": "数据结构",
+  "credits": 3,
+  "attr": "required",
+  "prof_note": null,
+  "semesters": [
+   "大二·秋季"
+  ],
+  "groups": [
+   "信智基础"
+  ]
+ },
+ {
+  "course_id": "34100443",
+  "name": "程序验证原理",
+  "credits": 3,
+  "attr": "restricted",
+  "prof_note": null,
+  "semesters": [
+   "大三·春季"
+  ],
+  "groups": [
+   "模块6 课组6B"
+  ]
+ },
+ {
+  "course_id": "34100453",
+  "name": "机器学习",
+  "credits": 3,
+  "attr": "restricted",
+  "prof_note": null,
+  "semesters": [
+   "大三·春季"
+  ],
+  "groups": [
+   "模块5 课组5A",
+   "模块7 课组7B",
+   "模块8 课组8B",
+   "模块10 课组10B"
+  ]
+ },
+ {
+  "course_id": "34790012",
+  "name": "工程经济与项目管理",
+  "credits": 2,
+  "attr": "required",
+  "prof_note": null,
+  "semesters": [
+   "大三·春季"
+  ],
+  "groups": [
+   "书院通识课"
+  ]
+ },
+ {
+  "course_id": "40160522",
+  "name": "国际物流（英）",
+  "credits": 2,
+  "attr": "restricted",
+  "prof_note": null,
+  "semesters": [
+   "大三·春季"
+  ],
+  "groups": [
+   "模块12 课组12B"
+  ]
+ },
+ {
+  "course_id": "40160532",
+  "name": "可靠性工程与设备管理",
+  "credits": 2,
+  "attr": "restricted",
+  "prof_note": null,
+  "semesters": [
+   "大三·秋季"
+  ],
+  "groups": [
+   "模块13 课组13B"
+  ]
+ },
+ {
+  "course_id": "40160763",
+  "name": "多元统计分析",
+  "credits": 3,
+  "attr": "restricted",
+  "prof_note": null,
+  "semesters": [
+   "大二·春季"
+  ],
+  "groups": [
+   "模块9 课组9A",
+   "模块12 课组12B"
+  ]
+ },
+ {
+  "course_id": "40160833",
+  "name": "贝叶斯统计导论",
+  "credits": 3,
+  "attr": "restricted",
+  "prof_note": null,
+  "semesters": [
+   "大三·秋季"
+  ],
+  "groups": [
+   "模块9 课组9B"
+  ]
+ },
+ {
+  "course_id": "40160892",
+  "name": "质量管理与质量控制",
+  "credits": 2,
+  "attr": "restricted",
+  "prof_note": null,
+  "semesters": [
+   "大三·春季"
+  ],
+  "groups": [
+   "模块13 课组13B"
+  ]
+ },
+ {
+  "course_id": "40160912",
+  "name": "领导与管理沟通",
+  "credits": 2,
+  "attr": "restricted",
+  "prof_note": null,
+  "semesters": [
+   "大三·春季"
+  ],
+  "groups": [
+   "模块11 课组11B"
+  ]
+ },
+ {
+  "course_id": "40160923",
+  "name": "动态规划与强化学习",
+  "credits": 3,
+  "attr": "restricted",
+  "prof_note": null,
+  "semesters": [
+   "大三·秋季"
+  ],
+  "groups": [
+   "模块9 课组9B",
+   "模块10 课组10A",
+   "模块12 课组12B"
+  ]
+ },
+ {
+  "course_id": "40160933",
+  "name": "试验设计与数据分析",
+  "credits": 3,
+  "attr": "prof_required",
+  "prof_note": "工业工程专业必修（11A）",
+  "semesters": [
+   "大三·秋季"
+  ],
+  "groups": [
+   "模块9 课组9A",
+   "模块11 课组11A"
+  ]
+ },
+ {
+  "course_id": "40160942",
+  "name": "表征与推理：大模型基础",
+  "credits": 2,
+  "attr": "restricted",
+  "prof_note": null,
+  "semesters": [
+   "大三·春季"
+  ],
+  "groups": [
+   "模块9 课组9B",
+   "模块10 课组10B"
+  ]
+ },
+ {
+  "course_id": "40160953",
+  "name": "心智与机器",
+  "credits": 3,
+  "attr": "restricted",
+  "prof_note": null,
+  "semesters": [
+   "大三·秋季"
+  ],
+  "groups": [
+   "模块11 课组11A"
+  ]
+ },
+ {
+  "course_id": "40160963",
+  "name": "交通系统建模与优化",
+  "credits": 3,
+  "attr": "restricted",
+  "prof_note": null,
+  "semesters": [
+   "大三·秋季"
+  ],
+  "groups": [
+   "模块12 课组12A"
+  ]
+ },
+ {
+  "course_id": "40160973",
+  "name": "非线性规划基础",
+  "credits": 3,
+  "attr": "restricted",
+  "prof_note": null,
+  "semesters": [
+   "大三·秋季"
+  ],
+  "groups": [
+   "模块10 课组10A",
+   "模块12 课组12B"
+  ]
+ },
+ {
+  "course_id": "40160983",
+  "name": "人机交互设计与评估",
+  "credits": 3,
+  "attr": "restricted",
+  "prof_note": null,
+  "semesters": [
+   "大三·秋季"
+  ],
+  "groups": [
+   "模块4 课组4B",
+   "模块7 课组7B",
+   "模块11 课组11A"
+  ]
+ },
+ {
+  "course_id": "40160992",
+  "name": "智慧物流系统设计",
+  "credits": 2,
+  "attr": "restricted",
+  "prof_note": null,
+  "semesters": [
+   "大三·秋季"
+  ],
+  "groups": [
+   "模块12 课组12B"
+  ]
+ },
+ {
+  "course_id": "40161002",
+  "name": "数智化供应链管理",
+  "credits": 2,
+  "attr": "restricted",
+  "prof_note": null,
+  "semesters": [
+   "大三·秋季"
+  ],
+  "groups": [
+   "模块12 课组12B"
+  ]
+ },
+ {
+  "course_id": "40161012",
+  "name": "现代管理学：理论与应用",
+  "credits": 2,
+  "attr": "restricted",
+  "prof_note": null,
+  "semesters": [
+   "大三·秋季"
+  ],
+  "groups": [
+   "模块11 课组11B"
+  ]
+ },
+ {
+  "course_id": "40161023",
+  "name": "智能优化理论及算法",
+  "credits": 3,
+  "attr": "restricted",
+  "prof_note": null,
+  "semesters": [
+   "大三·秋季"
+  ],
+  "groups": [
+   "模块10 课组10B"
+  ]
+ },
+ {
+  "course_id": "40161032",
+  "name": "安全工程与管理",
+  "credits": 2,
+  "attr": "restricted",
+  "prof_note": null,
+  "semesters": [
+   "大三·春季"
+  ],
+  "groups": [
+   "模块11 课组11B"
+  ]
+ },
+ {
+  "course_id": "40161042",
+  "name": "系统科学与物理人工智能",
+  "credits": 2,
+  "attr": "restricted",
+  "prof_note": null,
+  "semesters": [
+   "大三·春季"
+  ],
+  "groups": [
+   "模块10 课组10B",
+   "模块13 课组13B"
+  ]
+ },
+ {
+  "course_id": "40161053",
+  "name": "需求与库存管理",
+  "credits": 3,
+  "attr": "restricted",
+  "prof_note": null,
+  "semesters": [
+   "大三·春季"
+  ],
+  "groups": [
+   "模块12 课组12A",
+   "模块13 课组13B"
+  ]
+ },
+ {
+  "course_id": "40161062",
+  "name": "服务创新与运作管理",
+  "credits": 2,
+  "attr": "restricted",
+  "prof_note": null,
+  "semesters": [
+   "大三·春季"
+  ],
+  "groups": [
+   "模块13 课组13B"
+  ]
+ },
+ {
+  "course_id": "40161072",
+  "name": "智能交互",
+  "credits": 2,
+  "attr": "restricted",
+  "prof_note": null,
+  "semesters": [
+   "大三·春季"
+  ],
+  "groups": [
+   "模块11 课组11A"
+  ]
+ },
+ {
+  "course_id": "40161082",
+  "name": "产业链供应链管理",
+  "credits": 2,
+  "attr": "restricted",
+  "prof_note": null,
+  "semesters": [
+   "大三·春季"
+  ],
+  "groups": [
+   "模块12 课组12B"
+  ]
+ },
+ {
+  "course_id": "40310063",
+  "name": "燃烧学",
+  "credits": 3,
+  "attr": "restricted",
+  "prof_note": null,
+  "semesters": [
+   "大三·秋季"
+  ],
+  "groups": [
+   "模块2 课组2B"
+  ]
+ },
+ {
+  "course_id": "40310623",
+  "name": "热物理数值计算",
+  "credits": 3,
+  "attr": "restricted",
+  "prof_note": null,
+  "semesters": [
+   "大三·春季"
+  ],
+  "groups": [
+   "模块2 课组2B"
+  ]
+ },
+ {
+  "course_id": "40311043",
+  "name": "新概念热学",
+  "credits": 3,
+  "attr": "restricted",
+  "prof_note": null,
+  "semesters": [
+   "大三·春季"
+  ],
+  "groups": [
+   "模块2 课组2B"
+  ]
+ },
+ {
+  "course_id": "40420624",
+  "name": "概率论（1）",
+  "credits": 4,
+  "attr": "required",
+  "prof_note": null,
+  "semesters": [
+   "大二·秋季"
+  ],
+  "groups": [
+   "数学基础"
+  ]
+ },
+ {
+  "course_id": "40420644",
+  "name": "微分几何",
+  "credits": 4,
+  "attr": "restricted",
+  "prof_note": null,
+  "semesters": [
+   "大三·秋季"
+  ],
+  "groups": [
+   "模块4 课组4A",
+   "模块5 课组5B",
+   "模块7 课组7B"
+  ]
+ },
+ {
+  "course_id": "40880023",
+  "name": "非参数统计方法",
+  "credits": 3,
+  "attr": "restricted",
+  "prof_note": null,
+  "semesters": [
+   "大二·春季"
+  ],
+  "groups": [
+   "模块9 课组9A"
+  ]
+ },
+ {
+  "course_id": "40880063",
+  "name": "因果推断",
+  "credits": 3,
+  "attr": "restricted",
+  "prof_note": null,
+  "semesters": [
+   "大三·秋季"
+  ],
+  "groups": [
+   "模块9 课组9A"
+  ]
+ },
+ {
+  "course_id": "44100113",
+  "name": "计算机网络",
+  "credits": 3,
+  "attr": "restricted",
+  "prof_note": null,
+  "semesters": [
+   "大三·秋季"
+  ],
+  "groups": [
+   "模块8 课组8A"
+  ]
+ },
+ {
+  "course_id": "44100173",
+  "name": "算法分析与设计基础",
+  "credits": 3,
+  "attr": "restricted",
+  "prof_note": null,
+  "semesters": [
+   "大三·秋季"
+  ],
+  "groups": [
+   "模块3 课组3B",
+   "模块4 课组4B",
+   "模块5 课组5B",
+   "模块6 课组6B",
+   "模块7 课组7A",
+   "模块8 课组8A"
+  ]
+ },
+ {
+  "course_id": "44100203",
+  "name": "软件工程",
+  "credits": 3,
+  "attr": "restricted",
+  "prof_note": null,
+  "semesters": [
+   "大三·秋季"
+  ],
+  "groups": [
+   "模块3 课组3B",
+   "模块4 课组4A",
+   "模块5 课组5A",
+   "模块6 课组6A",
+   "模块7 课组7A"
+  ]
+ },
+ {
+  "course_id": "44100532",
+  "name": "物联网导论",
+  "credits": 2,
+  "attr": "restricted",
+  "prof_note": null,
+  "semesters": [
+   "大三·秋季"
+  ],
+  "groups": [
+   "模块8 课组8B",
+   "模块13 课组13B"
+  ]
+ },
+ {
+  "course_id": "44100563",
+  "name": "形式语言与自动机",
+  "credits": 3,
+  "attr": "restricted",
+  "prof_note": null,
+  "semesters": [
+   "大三·秋季"
+  ],
+  "groups": [
+   "模块6 课组6A"
+  ]
+ },
+ {
+  "course_id": "44100573",
+  "name": "计算机组成原理",
+  "credits": 3,
+  "attr": "restricted",
+  "prof_note": null,
+  "semesters": [
+   "大二·春季"
+  ],
+  "groups": [
+   "计算基础（基础加强）"
+  ]
+ },
+ {
+  "course_id": "44100593",
+  "name": "汇编与编译原理",
+  "credits": 3,
+  "attr": "restricted",
+  "prof_note": null,
+  "semesters": [
+   "大三·秋季"
+  ],
+  "groups": [
+   "模块5 课组5B",
+   "模块6 课组6A",
+   "模块8 课组8A"
+  ]
+ },
+ {
+  "course_id": "44100622",
+  "name": "云服务性能优化",
+  "credits": 2,
+  "attr": "restricted",
+  "prof_note": null,
+  "semesters": [
+   "大三·秋季"
+  ],
+  "groups": [
+   "模块8 课组8B"
+  ]
+ },
+ {
+  "course_id": "44100642",
+  "name": "计算机动画的算法与技术",
+  "credits": 2,
+  "attr": "restricted",
+  "prof_note": null,
+  "semesters": [
+   "大三·秋季"
+  ],
+  "groups": [
+   "模块3 课组3B",
+   "模块7 课组7B"
+  ]
+ },
+ {
+  "course_id": "44100652",
+  "name": "计算机图形学基础",
+  "credits": 2,
+  "attr": "restricted",
+  "prof_note": null,
+  "semesters": [
+   "大三·秋季"
+  ],
+  "groups": [
+   "模块3 课组3B",
+   "模块7 课组7B"
+  ]
+ },
+ {
+  "course_id": "44100662",
+  "name": "模型驱动的软件开发",
+  "credits": 2,
+  "attr": "restricted",
+  "prof_note": null,
+  "semesters": [
+   "大三·秋季"
+  ],
+  "groups": [
+   "模块6 课组6B"
+  ]
+ },
+ {
+  "course_id": "44100703",
+  "name": "数据系统软件",
+  "credits": 3,
+  "attr": "restricted",
+  "prof_note": null,
+  "semesters": [
+   "大三·春季"
+  ],
+  "groups": [
+   "模块5 课组5B"
+  ]
+ },
+ {
+  "course_id": "44730052",
+  "name": "系统设计与管理",
+  "credits": 2,
+  "attr": "restricted",
+  "prof_note": null,
+  "semesters": [
+   "大三·春季"
+  ],
+  "groups": [
+   "模块13 课组13B"
+  ]
+ },
+ {
+  "course_id": "44790012",
+  "name": "科研探索导引",
+  "credits": 2,
+  "attr": "required",
+  "prof_note": null,
+  "semesters": [
+   "大三·秋季"
+  ],
+  "groups": [
+   "进阶式实践"
+  ]
+ },
+ {
+  "course_id": "44790023",
+  "name": "智能系统创新实践",
+  "credits": 3,
+  "attr": "required",
+  "prof_note": null,
+  "semesters": [
+   "大二·夏季"
+  ],
+  "groups": [
+   "进阶式实践"
+  ]
+ },
+ {
+  "course_id": "60330014",
+  "name": "热参数近代测试技术",
+  "credits": 4,
+  "attr": "restricted",
+  "prof_note": null,
+  "semesters": [
+   "大四·春季"
+  ],
+  "groups": [
+   "模块2 课组2B"
+  ]
+ },
+ {
+  "course_id": "60420144",
+  "name": "基础泛函分析",
+  "credits": 4,
+  "attr": "restricted",
+  "prof_note": null,
+  "semesters": [
+   "大三·秋季"
+  ],
+  "groups": [
+   "模块9 课组9B"
+  ]
+ },
+ {
+  "course_id": "70160693",
+  "name": "人工智能中的优化算法",
+  "credits": 3,
+  "attr": "restricted",
+  "prof_note": null,
+  "semesters": [
+   "大三·秋季"
+  ],
+  "groups": [
+   "模块10 课组10B"
+  ]
+ },
+ {
+  "course_id": "80160622",
+  "name": "医疗服务系统的人工智能理论与应用",
+  "credits": 2,
+  "attr": "restricted",
+  "prof_note": null,
+  "semesters": [
+   "大三·春季"
+  ],
+  "groups": [
+   "模块13 课组13B"
+  ]
+ },
+ {
+  "course_id": "80310663",
+  "name": "人因工程与人工智能",
+  "credits": 3,
+  "attr": "restricted",
+  "prof_note": null,
+  "semesters": [
+   "大三·秋季"
+  ],
+  "groups": [
+   "模块1 课组1B"
+  ]
+ },
+ {
+  "course_id": "84100253",
+  "name": "计算机辅助几何造型",
+  "credits": 3,
+  "attr": "restricted",
+  "prof_note": null,
+  "semesters": [
+   "大四·春季"
+  ],
+  "groups": [
+   "模块4 课组4B"
+  ]
+ },
+ {
+  "course_id": "84100272",
+  "name": "数字几何处理",
+  "credits": 2,
+  "attr": "restricted",
+  "prof_note": null,
+  "semesters": [
+   "大四·春季"
+  ],
+  "groups": [
+   "模块7 课组7B"
+  ]
+ },
+ {
+  "course_id": "84100343",
+  "name": "深度学习",
+  "credits": 3,
+  "attr": "restricted",
+  "prof_note": null,
+  "semesters": [
+   "大四·秋季"
+  ],
+  "groups": [
+   "模块5 课组5B",
+   "模块10 课组10B",
+   "模块12 课组12B"
+  ]
+ },
+ {
+  "course_id": "84100372",
+  "name": "三维空间计算基础",
+  "credits": 2,
+  "attr": "restricted",
+  "prof_note": null,
+  "semesters": [
+   "大四·秋季"
+  ],
+  "groups": [
+   "模块7 课组7B"
+  ]
+ },
+ {
+  "course_id": "FOREIGN_1",
+  "name": "第二外国语(1)",
+  "credits": 4,
+  "attr": "restricted",
+  "prof_note": null,
+  "semesters": [],
+  "groups": []
+ },
+ {
+  "course_id": "FOREIGN_2",
+  "name": "第二外国语(2)",
+  "credits": 4,
+  "attr": "restricted",
+  "prof_note": null,
+  "semesters": [],
+  "groups": []
+ },
+ {
+  "course_id": "FOREIGN_3",
+  "name": "第二外国语(3)",
+  "credits": 4,
+  "attr": "restricted",
+  "prof_note": null,
+  "semesters": [],
+  "groups": []
+ },
+ {
+  "course_id": "FOREIGN_4",
+  "name": "第二外国语(4)",
+  "credits": 4,
+  "attr": "restricted",
+  "prof_note": null,
+  "semesters": [],
+  "groups": []
+ },
+ {
+  "course_id": "NEW006",
+  "name": "工业智能大模型",
+  "credits": 3,
+  "attr": "restricted",
+  "prof_note": null,
+  "semesters": [
+   "大三·春季"
+  ],
+  "groups": [
+   "模块4 课组4A",
+   "模块5 课组5B"
+  ]
+ },
+ {
+  "course_id": "NEW009",
+  "name": "嵌入式系统",
+  "credits": 3,
+  "attr": "restricted",
+  "prof_note": null,
+  "semesters": [
+   "大三·春季"
+  ],
+  "groups": [
+   "模块8 课组8B"
+  ]
+ },
+ {
+  "course_id": "NEW011",
+  "name": "博弈论与机制设计",
+  "credits": 2,
+  "attr": "restricted",
+  "prof_note": null,
+  "semesters": [
+   "大三·春季"
+  ],
+  "groups": [
+   "模块10 课组10B",
+   "模块12 课组12B"
+  ]
+ },
+ {
+  "course_id": "NEW017",
+  "name": "科研科创实践",
+  "credits": 6,
+  "attr": "required",
+  "prof_note": null,
+  "semesters": [
+   "大四·秋季",
+   "大四·春季"
+  ],
+  "groups": [
+   "进阶式实践"
+  ]
+ },
+ {
+  "course_id": "NEW018",
+  "name": "专业实践",
+  "credits": 3,
+  "attr": "required",
+  "prof_note": null,
+  "semesters": [
+   "大三·夏季"
+  ],
+  "groups": [
+   "进阶式实践"
+  ]
+ },
+ {
+  "course_id": "NEW019",
+  "name": "综合论文",
+  "credits": 3,
+  "attr": "required",
+  "prof_note": null,
+  "semesters": [
+   "大四·春季"
+  ],
+  "groups": [
+   "进阶式实践"
+  ]
+ },
+ {
+  "course_id": "NEW020",
+  "name": "工业大数据分析",
+  "credits": 3,
+  "attr": "restricted",
+  "prof_note": null,
+  "semesters": [
+   "大三·秋季"
+  ],
+  "groups": [
+   "模块5 课组5B",
+   "模块9 课组9B",
+   "模块13 课组13B"
+  ]
+ }
+]

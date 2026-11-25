@@ -29,10 +29,10 @@ const HELP_ITEMS = [
     },
     {
         key: "degree",
-        title: {zh: "综合工具", en: "Degree check"},
+        title: {zh: "综合工具", en: "Tools"},
         body: {
-            zh: "使用多种多样的工具来管理你的选课和学位进度。",
-            en: "The Tools page shows the 5 degree tracks and cross-discipline check.",
+            zh: "“学位评定”展示七条学位轨道的获取进度（含交叉工程双学位，软件工程/工业工程与交叉工程可手动指定模块或专业对）；还有 AI 推荐助手可回答选课问题。",
+            en: "“Degree Evaluation” shows progress across all 7 degree tracks (including the Cross-Engineering double degree; SE/IE/CED allow manual module or major-pair selection). The AI assistant answers course-planning questions.",
         },
     },
     {

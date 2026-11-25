@@ -4,6 +4,7 @@ import {useAppTheme} from "../theme/ThemeContext";
 import {
   buildRelationIndex,
   sharedCoursesOf,
+  REL_CLASS_EN,
   type RelClass,
   type GroupRel,
 } from "./mindmapShared";
@@ -233,7 +234,7 @@ export function CurriculumRelationMap({mobile}: {mobile?: boolean}) {
     const q = search.trim().toLowerCase();
     return idx.crossCourses.filter((c) => {
       if (classFilter !== "all" && c.classTag !== classFilter) return false;
-      if (q && !c.name.toLowerCase().includes(q)) return false;
+      if (q && !c.name.toLowerCase().includes(q) && !(c.nameEn ?? "").toLowerCase().includes(q)) return false;
       return true;
     });
   }, [idx, search, classFilter]);
@@ -285,7 +286,7 @@ export function CurriculumRelationMap({mobile}: {mobile?: boolean}) {
             const col = palette[c.classTag];
             return (
               <g key={c.courseId} className="cursor-pointer" onClick={() => { if (movedRef.current) return; setFocusCourseId(c.courseId); }}>
-                <title>{`${c.name}（×${c.groupCount}组）`}</title>
+                <title>{zh ? `${c.name}（×${c.groupCount}组）` : `${c.nameEn ?? c.name} (×${c.groupCount} groups)`}</title>
                 <circle cx={x} cy={y} r={c.groupCount >= 5 ? 11 : c.groupCount >= 3 ? 9 : 7} fill={col.fill} stroke={col.stroke} strokeWidth={2} />
                 <circle cx={x} cy={y} r={2.5} fill={col.stroke} />
               </g>
@@ -322,18 +323,18 @@ export function CurriculumRelationMap({mobile}: {mobile?: boolean}) {
             const h = 36;
             return (
               <g key={"g" + gid}>
-                <title>{`${g.name}（模块${g.moduleId} · 共 ${g.totalCredits} 学分）`}</title>
+                <title>{zh ? `${g.name}（模块${g.moduleId} · 共 ${g.totalCredits} 学分）` : `${g.nameEn ?? g.name} (Module ${g.moduleId} · ${g.totalCredits} cr)`}</title>
                 <rect x={x - w / 2} y={y - h / 2} width={w} height={h} rx={8} fill={col.fill} stroke={col.stroke} strokeWidth={1.5} />
-                <text x={x} y={y - 3} textAnchor="middle" fontSize={12} fontWeight={600} fill={col.text}>{trunc(g.name, 11)}</text>
-                <text x={x} y={y + 12} textAnchor="middle" fontSize={10} fill={col.text} opacity={0.75}>模块{g.moduleId} · {g.totalCredits}学分</text>
+                <text x={x} y={y - 3} textAnchor="middle" fontSize={12} fontWeight={600} fill={col.text}>{trunc(zh ? g.name : (g.nameEn ?? g.name), zh ? 11 : 16)}</text>
+                <text x={x} y={y + 12} textAnchor="middle" fontSize={10} fill={col.text} opacity={0.75}>{zh ? `模块${g.moduleId} · ${g.totalCredits}学分` : `Module ${g.moduleId} · ${g.totalCredits} cr`}</text>
               </g>
             );
           })}
           {/* 中心课程节点 */}
           <g>
             <rect x={cx - 95} y={cy - 26} width={190} height={52} rx={12} fill={isDark ? "#1f1f2e" : "#ffffff"} stroke={accent} strokeWidth={2.5} />
-            <text x={cx} y={cy - 4} textAnchor="middle" fontSize={14} fontWeight={700} fill={isDark ? "#fff" : "#1f2937"}>{trunc(c.name, 12)}</text>
-            <text x={cx} y={cy + 14} textAnchor="middle" fontSize={11} fill={accent}>{c.credits} 学分 · 跨 {c.groupCount} 个课组</text>
+            <text x={cx} y={cy - 4} textAnchor="middle" fontSize={14} fontWeight={700} fill={isDark ? "#fff" : "#1f2937"}>{trunc(zh ? c.name : (c.nameEn ?? c.name), zh ? 12 : 17)}</text>
+            <text x={cx} y={cy + 14} textAnchor="middle" fontSize={11} fill={accent}>{zh ? `${c.credits} 学分 · 跨 ${c.groupCount} 个课组` : `${c.credits} cr · in ${c.groupCount} groups`}</text>
           </g>
         </>
       );
@@ -381,9 +382,9 @@ export function CurriculumRelationMap({mobile}: {mobile?: boolean}) {
             const h = 34;
             return (
               <g key={"g" + gid}>
-                <title>{`${g.name}（模块${g.moduleId} · 共 ${g.totalCredits} 学分）`}</title>
+                <title>{zh ? `${g.name}（模块${g.moduleId} · 共 ${g.totalCredits} 学分）` : `${g.nameEn ?? g.name} (Module ${g.moduleId} · ${g.totalCredits} cr)`}</title>
                 <rect x={x - w / 2} y={y - h / 2} width={w} height={h} rx={8} fill={col.fill} stroke={col.stroke} strokeWidth={1.5} />
-                <text x={x} y={y + 4} textAnchor="middle" fontSize={12} fontWeight={600} fill={col.text}>{trunc(g.name, 11)}</text>
+                <text x={x} y={y + 4} textAnchor="middle" fontSize={12} fontWeight={600} fill={col.text}>{trunc(zh ? g.name : (g.nameEn ?? g.name), zh ? 11 : 16)}</text>
               </g>
             );
           })}
@@ -395,9 +396,9 @@ export function CurriculumRelationMap({mobile}: {mobile?: boolean}) {
             const h = 32;
             return (
               <g key={"c" + c.courseId}>
-                <title>{`${c.name}（被 ${hit} 个所选课组共享）`}</title>
+                <title>{zh ? `${c.name}（被 ${hit} 个所选课组共享）` : `${c.nameEn ?? c.name} (shared by ${hit} selected groups)`}</title>
                 <rect x={x - w / 2} y={y - h / 2} width={w} height={h} rx={8} fill={col.fill} stroke={col.stroke} strokeWidth={1.5} />
-                <text x={x} y={y + 4} textAnchor="middle" fontSize={11.5} fill={col.text}>{trunc(c.name, 11)} <tspan fontSize={10} opacity={0.7}>×{hit}</tspan></text>
+                <text x={x} y={y + 4} textAnchor="middle" fontSize={11.5} fill={col.text}>{trunc(zh ? c.name : (c.nameEn ?? c.name), zh ? 11 : 15)} <tspan fontSize={10} opacity={0.7}>×{hit}</tspan></text>
               </g>
             );
           })}
@@ -428,11 +429,10 @@ export function CurriculumRelationMap({mobile}: {mobile?: boolean}) {
           {mobile && (
             <button
               onClick={() => setSidebarOpen(false)}
-              className={`flex items-center gap-1 rounded border px-2 py-0.5 text-[10px] ${chipOff}`}
-              title={t("workspace.fold")}
+              className={`flex items-center gap-1 rounded border px-2 py-0.5 text-[10px] font-medium transition-colors ${isDark ? "border-blue-500/40 bg-blue-500/15 text-blue-300 hover:bg-blue-500/25" : "border-blue-500/40 bg-blue-500/10 text-blue-600 hover:bg-blue-500/20"}`}
+              title={t("workspace.collapseSidebar")}
             >
-              <span>{t("workspace.fold")}</span>
-              <span className="text-xs leading-none">»</span>
+              <span>{t("workspace.collapseSidebar")}</span>
             </button>
           )}
         </div>
@@ -469,7 +469,7 @@ export function CurriculumRelationMap({mobile}: {mobile?: boolean}) {
                   onClick={() => setClassFilter(f)}
                   className={`flex-1 rounded-md border px-1 py-1 text-[10px] transition-colors ${classFilter === f ? chipOn : chipOff}`}
                 >
-                  {f === "all" ? (zh ? "全部" : "All") : f}
+                  {f === "all" ? (zh ? "全部" : "All") : (zh ? f : REL_CLASS_EN[f])}
                 </button>
               ))}
             </div>
@@ -486,7 +486,7 @@ export function CurriculumRelationMap({mobile}: {mobile?: boolean}) {
                     }`}
                   >
                     <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{background: col.stroke}} />
-                    <span className={`flex-1 truncate text-[11px] ${isDark ? "text-white/85" : "text-gray-700"}`}>{c.name}</span>
+                    <span className={`flex-1 truncate text-[11px] ${isDark ? "text-white/85" : "text-gray-700"}`}>{zh ? c.name : (c.nameEn ?? c.name)}</span>
                     <span className="shrink-0 text-[10px]" style={{color: col.stroke}}>×{c.groupCount}</span>
                   </button>
                 );
@@ -521,7 +521,7 @@ export function CurriculumRelationMap({mobile}: {mobile?: boolean}) {
             <div className="flex-1 overflow-y-auto px-2 pb-2">
               {CLASS_ORDER.map((cls) => (
                 <div key={cls} className="mb-2">
-                  <div className={`mb-1 px-1 text-[10px] font-semibold ${muted}`}>{cls}</div>
+                  <div className={`mb-1 px-1 text-[10px] font-semibold ${muted}`}>{zh ? cls : REL_CLASS_EN[cls]}</div>
                   <div className="flex flex-wrap gap-1">
                     {groupsByClass[cls].map((g) => {
                       const on = selSet.has(g.groupId);
@@ -532,13 +532,13 @@ export function CurriculumRelationMap({mobile}: {mobile?: boolean}) {
                           key={g.groupId}
                           onClick={() => toggleGroup(g.groupId)}
                           disabled={disabled}
-                          title={`${g.name}（模块${g.moduleId}）`}
+                          title={zh ? `${g.name}（模块${g.moduleId}）` : `${g.nameEn ?? g.name} (Module ${g.moduleId})`}
                           className={`rounded-md border px-2 py-1 text-[10px] transition-colors ${
                             on ? "" : disabled ? (isDark ? "opacity-30 border-white/10 text-white/40" : "opacity-30 border-gray-200 text-gray-400") : chipOff
                           }`}
                           style={on ? {borderColor: col.stroke, background: col.soft, color: col.text} : undefined}
                         >
-                          {g.name}
+                          {zh ? g.name : (g.nameEn ?? g.name)}
                         </button>
                       );
                     })}
@@ -556,7 +556,7 @@ export function CurriculumRelationMap({mobile}: {mobile?: boolean}) {
             {CLASS_ORDER.map((cls) => (
               <span key={cls} className="flex items-center gap-1">
                 <span className="h-2 w-2 rounded-full" style={{background: palette[cls].stroke}} />
-                <span className={`text-[9px] ${muted}`}>{cls}</span>
+                <span className={`text-[9px] ${muted}`}>{zh ? cls : REL_CLASS_EN[cls]}</span>
               </span>
             ))}
           </div>

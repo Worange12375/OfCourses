@@ -1,9 +1,12 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react";
-import structuredData from "@/data/structured_data.json";
+import {getSchemeData} from "@/data/schemeStore";
+import {ATTR_LABELS, ATTR_LABELS_EN} from "../utils/recommend";
 import {useAppTheme} from "../theme/ThemeContext";
-import {useMindMapState, PERF_MAX, MIN_MAX, MAIN_SCHEME_COURSES, buildSearchIndex, searchTargets} from "./mindmapShared";
+import {useLocale} from "../i18n/LocaleContext";
+import {useMindMapState, PERF_MAX, MIN_MAX, MAIN_SCHEME_COURSES, buildSearchIndex, searchTargets, SCOPE_OPTIONS} from "./mindmapShared";
 import type {SearchScope, SearchHit, SearchTarget} from "./mindmapShared";
 import {SearchScopeSelect} from "./SearchScopeSelect";
+
 
 /* ============ 布局常量 ============ */
 const BASE_NODE_W = 196;
@@ -32,6 +35,10 @@ function fitText(text: string, maxWidth: number, fontSize: number): string {
 export const CurriculumTreeMap = ({mobile}: {mobile?: boolean}) => {
     const {theme} = useAppTheme();
     const isDark = theme === "dark";
+    const {t, locale} = useLocale();
+    const zh = locale === "zh";
+    const tf = (key: string, params: Record<string, string | number>) =>
+        t(key).replace(/\{(\w+)\}/g, (_, k) => String(params[k] ?? ""));
 
     // 移动端缩小节点尺寸，避免三层层级超出屏幕
     const mNodeW = mobile ? 130 : BASE_NODE_W;
@@ -64,7 +71,12 @@ export const CurriculumTreeMap = ({mobile}: {mobile?: boolean}) => {
         onMaxChange,
     } = useMindMapState();
 
-    const data = structuredData as unknown as {courses: {course_id: string; name: string; credits: number | null; module_type: string | null}[]};
+    const data = getSchemeData() as unknown as {courses: {course_id: string; name: string; credits: number | null; module_type: string | null}[]};
+    const courseAttrKeyById = useMemo(() => new Map<string, string>(
+        ((data.courses as unknown as Array<{ course_id: string; course_attr?: string | null }>)
+            .map((c): [string, string] => [c.course_id, c.course_attr ?? ""])
+            .filter(([, key]) => !!key))
+    ), [data]);
 
     /* ============ 搜索（范围选择 + 文本目标：输入关键词列出去重后的目标文本，选定后解析为全部同名节点并一并框出） ============ */
     const searchIndex = useMemo(buildSearchIndex, []);
@@ -79,6 +91,8 @@ export const CurriculumTreeMap = ({mobile}: {mobile?: boolean}) => {
     const [searchActiveId, setSearchActiveId] = useState<string | null>(null); // 当前游标节点（更强高亮）
     const searchHighlightSet = useMemo(() => new Set(searchResults.map((h) => h.id)), [searchResults]);
     const [searchInfo, setSearchInfo] = useState("");
+    // 其他范围的搜索发现：限定单一范围搜索时同步检索另一范围，列表末尾提示可切换（与列表图一致）
+    const [otherScopeInfo, setOtherScopeInfo] = useState<{scope: "main" | "basis"; count: number} | null>(null);
     const [confirmExpand, setConfirmExpand] = useState<{needed: number; base: Set<string>} | null>(null);
     const [showCollapseConfirm, setShowCollapseConfirm] = useState(false);
     const expandSnapshot = useRef<Set<string> | null>(null);
@@ -108,17 +122,25 @@ export const CurriculumTreeMap = ({mobile}: {mobile?: boolean}) => {
             setSearchResults([]);
             setSearchActiveId(null);
             if (resetCursor) setSearchCursor(0);
+            // 同步检索另一范围（仅当限定了单一范围时），供「在 XX 中还发现 N 项」引导
+            if (scope !== "all" && q.trim()) {
+                const other: "main" | "basis" = scope === "main" ? "basis" : "main";
+                const n = searchTargets(searchIndex, q, other).length;
+                setOtherScopeInfo(n > 0 ? {scope: other, count: n} : null);
+            } else {
+                setOtherScopeInfo(null);
+            }
             if (!q.trim()) {
                 setSearchInfo("");
                 return;
             }
             if (targets.length === 0) {
-                setSearchInfo("无匹配目标");
+                setSearchInfo(t("mindmap.noMatches"));
                 return;
             }
-            setSearchInfo(`找到 ${targets.length} 个目标文本，点击即可定位`);
+            setSearchInfo(tf("mindmap.foundTargets", {n: targets.length}));
         },
-        [searchIndex],
+        [searchIndex, t, zh],
     );
 
     // 选定一个文本目标 → 解析为全部同名节点并框出（可能有多个）
@@ -130,13 +152,13 @@ export const CurriculumTreeMap = ({mobile}: {mobile?: boolean}) => {
             setSearchCursor(0);
             if (!hits.length) {
                 setSearchActiveId(null);
-                setSearchInfo("该目标无可展开节点");
+                setSearchInfo(t("mindmap.targetNoExpand"));
                 return;
             }
             expandHits(hits);
-            setSearchInfo(`共 ${hits.length} 处同名匹配，第 1 / ${hits.length} 项`);
+            setSearchInfo(`${tf("mindmap.matchCount", {n: hits.length})}${zh ? "，" : ", "}${tf("mindmap.position", {i: 1, n: hits.length})}`);
         },
-        [hitById, expandHits],
+        [hitById, expandHits, t, zh],
     );
 
     const gotoNext = useCallback(() => {
@@ -166,11 +188,11 @@ export const CurriculumTreeMap = ({mobile}: {mobile?: boolean}) => {
         if (needed <= userMax) {
             setExpanded(base);
             setSearchActiveId(searchResults[searchResults.length - 1].id);
-            setSearchInfo(`已展开全部 ${searchResults.length} 个匹配结果`);
+            setSearchInfo(tf("mindmap.expandedAll", {n: searchResults.length}));
         } else {
             setConfirmExpand({needed, base});
         }
-    }, [searchResults, expanded, nodes, countVisible, userMax, setExpanded]);
+    }, [searchResults, expanded, nodes, countVisible, userMax, setExpanded, t, zh]);
 
     const expandWithinLimit = useCallback(() => {
         if (!searchResults.length) return;
@@ -192,11 +214,11 @@ export const CurriculumTreeMap = ({mobile}: {mobile?: boolean}) => {
         const notShown = searchResults.length - shown;
         setSearchInfo(
             notShown > 0
-                ? `受上限（${userMax}）约束，还有 ${notShown} 个匹配结果未展开`
-                : `已展开全部 ${searchResults.length} 个匹配结果`,
+                ? tf("mindmap.limitNotExpanded", {max: userMax, n: notShown})
+                : tf("mindmap.expandedAll", {n: searchResults.length}),
         );
         setConfirmExpand(null);
-    }, [searchResults, expanded, nodes, countVisible, userMax, setExpanded]);
+    }, [searchResults, expanded, nodes, countVisible, userMax, setExpanded, t, zh]);
 
     const closeSearch = useCallback(() => {
         // 仅关闭搜索浮窗与清除搜索高亮/游标，保持树状图 expanded 结构不变
@@ -208,6 +230,7 @@ export const CurriculumTreeMap = ({mobile}: {mobile?: boolean}) => {
         setSearchCursor(0);
         setSearchInfo("");
         setConfirmExpand(null);
+        setOtherScopeInfo(null);
         setSearchOpen(false);
     }, []);
 
@@ -306,11 +329,35 @@ export const CurriculumTreeMap = ({mobile}: {mobile?: boolean}) => {
     const touchMovedRef = useRef(false);
 
     const clampScale = (s: number) => Math.min(2.5, Math.max(0.3, s));
+    const pendingRootReset = useRef(false);
+
+    // 复位视口：将主根节点定位到视口左侧约 1/3、垂直居中，确保复位后必见根节点
+    const centerOnRoot = useCallback(() => {
+        const cont = containerRef.current;
+        const p = positions.get(forestRoots[0]) ?? {x: 0, y: 0};
+        const s = 1;
+        const W = cont?.clientWidth ?? 0;
+        const H = cont?.clientHeight ?? 0;
+        setScale(s);
+        setTx(Math.max(16, W * 0.3 - (p.x + mNodeW / 2) * s));
+        setTy(H / 2 - (p.y + mNodeH / 2) * s);
+    }, [positions, forestRoots]);
+
     const resetViewBox = useCallback(() => {
-        setTx(16);
-        setTy(16);
-        setScale(1);
-    }, []);
+        pendingRootReset.current = false;
+        centerOnRoot();
+    }, [centerOnRoot]);
+
+    // 「重置」（清空展开/固定/上限）后布局会重算，待新布局渲染完成再把视口移回根节点
+    const handleResetAll = useCallback(() => {
+        pendingRootReset.current = true;
+        resetView();
+    }, [resetView]);
+    useEffect(() => {
+        if (!pendingRootReset.current) return;
+        pendingRootReset.current = false;
+        centerOnRoot();
+    }, [positions, centerOnRoot]);
 
     // 滚轮缩放（以光标为中心），用原生非 passive 监听以便 preventDefault
     useEffect(() => {
@@ -347,14 +394,50 @@ export const CurriculumTreeMap = ({mobile}: {mobile?: boolean}) => {
         dragging.current = null;
     };
 
-    // 触摸平移（移动端）：与鼠标拖拽逻辑一致，并防止误触节点
+    // 触摸：单指平移 + 双指捏合缩放（以两指中点为中心，移动端）
+    const pinchRef = useRef<{d0: number; s0: number; tx0: number; ty0: number} | null>(null);
     const onTouchStart = (e: React.TouchEvent) => {
+        if (e.touches.length >= 2) {
+            // 双指按下：记录初始距离与视口，进入捏合缩放模式（停止单指平移）
+            const a = e.touches[0];
+            const b = e.touches[1];
+            pinchRef.current = {
+                d0: Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY),
+                s0: scale,
+                tx0: tx,
+                ty0: ty,
+            };
+            dragging.current = null;
+            return;
+        }
         const t = e.touches[0];
         if (!t) return;
         dragging.current = {x: t.clientX, y: t.clientY, tx, ty, moved: false};
         touchMovedRef.current = false;
     };
     const onTouchMove = (e: React.TouchEvent) => {
+        // 双指捏合：以两指中点为缩放中心
+        if (e.touches.length >= 2 && pinchRef.current) {
+            const el = containerRef.current;
+            if (!el) return;
+            const a = e.touches[0];
+            const b = e.touches[1];
+            const rect = el.getBoundingClientRect();
+            const midX = (a.clientX + b.clientX) / 2 - rect.left;
+            const midY = (a.clientY + b.clientY) / 2 - rect.top;
+            const d = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+            const {d0, s0, tx0, ty0} = pinchRef.current;
+            if (d0 <= 0) return;
+            const ns = clampScale(s0 * (d / d0));
+            const wx = (midX - tx0) / s0;
+            const wy = (midY - ty0) / s0;
+            setScale(ns);
+            setTx(midX - wx * ns);
+            setTy(midY - wy * ns);
+            touchMovedRef.current = true;
+            e.preventDefault();
+            return;
+        }
         if (!dragging.current) return;
         const t = e.touches[0];
         if (!t) return;
@@ -368,8 +451,16 @@ export const CurriculumTreeMap = ({mobile}: {mobile?: boolean}) => {
         setTy(dragging.current.ty + dy);
         e.preventDefault(); // 阻止浏览器默认滚动/缩放
     };
-    const onTouchEnd = () => {
-        dragging.current = null;
+    const onTouchEnd = (e: React.TouchEvent) => {
+        if (e.touches.length < 2) pinchRef.current = null;
+        if (e.touches.length === 1) {
+            // 双指抬剩一指：无缝衔接为单指平移
+            const t = e.touches[0];
+            dragging.current = {x: t.clientX, y: t.clientY, tx, ty, moved: true};
+            touchMovedRef.current = true;
+        } else if (e.touches.length === 0) {
+            dragging.current = null;
+        }
     };
 
     // 方向键平移视口（开关控制；开启时拦截方向键，关闭不响应；输入框内不触发）
@@ -473,7 +564,7 @@ export const CurriculumTreeMap = ({mobile}: {mobile?: boolean}) => {
             {/* 工具栏（与列表图一致：上限滑块 + 操作） */}
             <div className={`shrink-0 border-b ${borderCls} px-3 py-2 space-y-2`}>
                 <div className="flex items-center justify-between">
-                    <span className={`text-[11px] ${textMuted}`}>同时可见课程上限</span>
+                    <span className={`text-[11px] ${textMuted}`}>{t("mindmap.visibleLimit")}</span>
                     <span className={`text-[11px] font-medium ${textNormal}`}>{userMax}</span>
                 </div>
                 <div className="relative">
@@ -488,17 +579,17 @@ export const CurriculumTreeMap = ({mobile}: {mobile?: boolean}) => {
                     <div
                         className="pointer-events-none absolute top-0 h-4 w-px bg-[#863bff]"
                         style={{left: `${((MAIN_SCHEME_COURSES - 1 - MIN_MAX) / (PERF_MAX - MIN_MAX)) * 100}%`}}
-                        title={`紫色刻度 = ${MAIN_SCHEME_COURSES}：设为此值可恰好只展开培养方案全部课程`}
+                        title={tf("mindmap.purpleTick", {n: MAIN_SCHEME_COURSES})}
                     />
                 </div>
                 <div className={`text-[10px] ${visibleCount > userMax ? "text-orange-500" : textMuted}`}>
-                    已显示课程 {visibleCount} / {userMax}
-                    {pinned.size > 0 && ` · 已固定 ${pinned.size}`}
+                    {tf("mindmap.shownCourses", {shown: visibleCount, max: userMax})}
+                    {pinned.size > 0 && ` · ${tf("mindmap.pinnedSuffix", {n: pinned.size})}`}
                 </div>
                 <div className="flex gap-1">
-                    <button onClick={expandAll} className={`flex-1 rounded border px-1 py-0.5 text-[10px] ${borderCls} ${textMuted} ${hoverBg}`}>展开全部</button>
-                    <button onClick={handleCollapseClick} className={`flex-1 rounded border px-1 py-0.5 text-[10px] ${borderCls} ${textMuted} ${hoverBg}`}>收起全部</button>
-                    <button onClick={resetView} className={`flex-1 rounded border px-1 py-0.5 text-[10px] ${borderCls} ${textMuted} ${hoverBg}`}>重置</button>
+                    <button onClick={expandAll} className={`flex-1 rounded border px-1 py-0.5 text-[10px] ${borderCls} ${textMuted} ${hoverBg}`}>{t("mindmap.expandAll")}</button>
+                    <button onClick={handleCollapseClick} className={`flex-1 rounded border px-1 py-0.5 text-[10px] ${borderCls} ${textMuted} ${hoverBg}`}>{t("mindmap.collapseAll")}</button>
+                    <button onClick={handleResetAll} className={`flex-1 rounded border px-1 py-0.5 text-[10px] ${borderCls} ${textMuted} ${hoverBg}`}>{t("mindmap.reset")}</button>
                 </div>
             </div>
 
@@ -549,11 +640,12 @@ export const CurriculumTreeMap = ({mobile}: {mobile?: boolean}) => {
                             const textStart = hasChildren ? 22 : 12;
                             const textEnd = (isCourse && n.sub) || isGroup ? mNodeW - 42 : mNodeW - 12;
                             const maxTextW = Math.max(60, textEnd - textStart);
-                            const displayLabel = fitText(n.label, maxTextW, labelFontSize);
+                            const nodeLabel = zh ? n.label : (n.labelEn ?? n.label);
+                            const displayLabel = fitText(nodeLabel, maxTextW, labelFontSize);
 
                             return (
                                 <g key={id} transform={`translate(${p.x},${p.y})`} style={{cursor: "pointer"}} onClick={onClick}>
-                                    <title>{n.label}{n.sub ? ` · ${n.sub}` : ""}</title>
+                                    <title>{nodeLabel}{n.sub ? ` · ${zh ? n.sub : (n.subEn ?? n.sub)}` : ""}</title>
                                     <rect
                                         width={mNodeW}
                                         height={mNodeH}
@@ -592,7 +684,7 @@ export const CurriculumTreeMap = ({mobile}: {mobile?: boolean}) => {
                                             fontWeight={isGroup ? 600 : 400}
                                             style={{userSelect: "none"}}
                                         >
-                                            {isCourse ? n.sub : `${n.groupCredits ?? 0} 学分`}
+                                            {isCourse ? (zh ? n.sub : (n.subEn ?? n.sub)) : `${n.groupCredits ?? 0} ${t("mindmap.creditUnit")}`}
                                         </text>
                                     )}
                                     {/* 固定按钮：置于节点框内右上角 */}
@@ -619,12 +711,12 @@ export const CurriculumTreeMap = ({mobile}: {mobile?: boolean}) => {
                     </g>
                 </svg>
 
-                {/* 缩放控制 + 搜索入口（右下角） */}
+                {/* 缩放控制 + 搜索入口（右下角）；复位为纵向胶囊按钮（文字竖排） */}
                 <div className={`absolute bottom-3 right-3 flex flex-col items-center gap-1 ${isDark ? "text-white/80" : "text-gray-700"}`}>
                     {!mobile && (
                         <button
                             onClick={() => setKeysEnabled((v) => !v)}
-                            title={keysEnabled ? "方向键平移：已开启（点击关闭）" : "方向键平移：已关闭（点击开启）"}
+                            title={keysEnabled ? t("mindmap.keysOn") : t("mindmap.keysOff")}
                             className={`h-7 w-7 rounded border text-[12px] transition-colors ${
                                 keysEnabled
                                     ? isDark
@@ -636,10 +728,9 @@ export const CurriculumTreeMap = ({mobile}: {mobile?: boolean}) => {
                     )}
                     <button
                         onClick={() => setSearchOpen((o) => !o)}
-                        title="搜索导图"
+                        title={t("mindmap.searchPopup")}
                         className={`h-7 w-7 rounded border text-[13px] ${borderCls} ${hoverBg} ${isDark ? "bg-[#1a1a22]" : "bg-white"}`}
                     >🔍</button>
-                    <span className={`text-[10px] ${textMuted}`}>{Math.round(scale * 100)}%</span>
                     <button
                         onClick={() => setScale((s) => clampScale(s * 1.15))}
                         className={`h-7 w-7 rounded border text-sm ${borderCls} ${hoverBg} ${isDark ? "bg-[#1a1a22]" : "bg-white"}`}
@@ -648,11 +739,21 @@ export const CurriculumTreeMap = ({mobile}: {mobile?: boolean}) => {
                         onClick={() => setScale((s) => clampScale(s / 1.15))}
                         className={`h-7 w-7 rounded border text-sm ${borderCls} ${hoverBg} ${isDark ? "bg-[#1a1a22]" : "bg-white"}`}
                     >－</button>
+                    <span className={`text-[10px] ${textMuted}`}>{Math.round(scale * 100)}%</span>
                     <button
                         onClick={resetViewBox}
-                        className={`h-7 w-7 rounded border text-[10px] ${borderCls} ${hoverBg} ${isDark ? "bg-[#1a1a22]" : "bg-white"}`}
-                        title="复位视图"
-                    >⟳</button>
+                        title={t("mindmap.resetView")}
+                        className={`flex w-7 flex-col items-center rounded-full border shadow-sm transition-colors ${
+                            mobile ? "py-2.5" : "py-2"
+                        } ${
+                            isDark
+                                ? "border-blue-500/40 bg-blue-500/15 text-blue-300 hover:bg-blue-500/25"
+                                : "border-blue-500/40 bg-blue-500/10 text-blue-600 hover:bg-blue-500/20"
+                        }`}
+                    >
+                        <span className="text-[12px] leading-none">⟳</span>
+                        <span className="mt-1 text-[10px] leading-none [writing-mode:vertical-rl] tracking-[0.2em]">{t("mindmap.resetView")}</span>
+                    </button>
                 </div>
 
                 {/* 搜索浮窗（可在导图区域内拖拽） */}
@@ -670,7 +771,7 @@ export const CurriculumTreeMap = ({mobile}: {mobile?: boolean}) => {
                             className={`flex items-center justify-between px-2.5 py-1.5 cursor-move rounded-t-lg ${isDark ? "bg-white/5" : "bg-gray-100"}`}
                             onMouseDown={onPopupHeaderDown}
                         >
-                            <span className={`text-[11px] font-medium ${textNormal}`}>搜索导图</span>
+                            <span className={`text-[11px] font-medium ${textNormal}`}>{t("mindmap.searchPopup")}</span>
                             <button onClick={closeSearch} className={`text-[12px] ${textMuted} hover:opacity-70`}>✕</button>
                         </div>
                         <div className="p-2.5 space-y-2">
@@ -679,38 +780,50 @@ export const CurriculumTreeMap = ({mobile}: {mobile?: boolean}) => {
                                 <input
                                     value={searchQuery}
                                     onChange={(e) => { setSearchQuery(e.target.value); runSearch(searchScope, e.target.value); }}
-                                    placeholder="输入关键词…"
+                                    placeholder={t("mindmap.searchPlaceholder")}
                                     className={`flex-1 min-w-0 rounded border px-2 py-1 text-[11px] outline-none ${borderCls} ${isDark ? "bg-white/5 text-white/90 placeholder-white/30" : "bg-white text-gray-800 placeholder-gray-400"}`}
                                 />
                             </div>
                             {targetList.length > 0 && (
                                 <div className={`max-h-40 overflow-auto rounded border ${borderCls} divide-y ${listDivider}`}>
-                                    {targetList.map((t) => (
+                                    {targetList.map((tg) => (
                                         <button
-                                            key={t.label}
-                                            onClick={() => selectTarget(t)}
-                                            className={`w-full text-left px-2 py-1 text-[11px] ${selectedTarget?.label === t.label ? (isDark ? "bg-[#863bff]/25 text-white" : "bg-[#863bff]/10 text-[#863bff]") : (isDark ? "text-white/80 hover:bg-white/5" : "text-gray-700 hover:bg-gray-100")}`}
+                                            key={tg.label}
+                                            onClick={() => selectTarget(tg)}
+                                            className={`w-full text-left px-2 py-1 text-[11px] ${selectedTarget?.label === tg.label ? (isDark ? "bg-[#863bff]/25 text-white" : "bg-[#863bff]/10 text-[#863bff]") : (isDark ? "text-white/80 hover:bg-white/5" : "text-gray-700 hover:bg-gray-100")}`}
                                         >
-                                            <span className="block truncate">{t.label}</span>
-                                            <span className={`block text-[9px] ${textMuted}`}>{t.count > 1 ? `共 ${t.count} 处同名` : "1 处匹配"}</span>
+                                            <span className="block truncate">{zh ? tg.label : (tg.labelEn ?? tg.label)}</span>
+                                            <span className={`block text-[9px] ${textMuted}`}>{tg.count > 1 ? tf("mindmap.sameNameCount", {n: tg.count}) : t("mindmap.oneMatch")}</span>
                                         </button>
                                     ))}
                                 </div>
                             )}
+                            {otherScopeInfo && (() => {
+                                const other = SCOPE_OPTIONS.find((s) => s.value === otherScopeInfo.scope);
+                                const otherLabel = other ? (zh ? other.label : (other.labelEn ?? other.label)) : "";
+                                return (
+                                    <button
+                                        onClick={() => onScopeChange(otherScopeInfo.scope)}
+                                        className={`w-full text-left rounded border px-2 py-1 text-[10px] ${borderCls} ${isDark ? "text-blue-300/80 hover:bg-white/5" : "text-blue-600 hover:bg-blue-50"}`}
+                                    >
+                                        {tf("mindmap.otherScopeHint", {scope: otherLabel, n: otherScopeInfo.count})}
+                                    </button>
+                                );
+                            })()}
                             {selectedTarget && searchResults.length > 0 && (
                                 <div className={`flex items-center justify-between text-[10px] ${textMuted}`}>
-                                    <span>第 {searchCursor + 1} / {searchResults.length} 处</span>
+                                    <span>{tf("mindmap.position", {i: searchCursor + 1, n: searchResults.length})}</span>
                                     <div className="flex gap-1">
-                                        <button onClick={gotoPrev} className={searchBtnCls}>上一个</button>
-                                        <button onClick={gotoNext} className={searchBtnCls}>下一个</button>
+                                        <button onClick={gotoPrev} className={searchBtnCls}>{t("mindmap.prev")}</button>
+                                        <button onClick={gotoNext} className={searchBtnCls}>{t("mindmap.next")}</button>
                                     </div>
                                 </div>
                             )}
                             {selectedTarget && searchResults.length > 0 && (
-                                <button onClick={expandAllMatches} className={`w-full rounded border px-2 py-1 text-[10px] ${borderCls} ${textMuted} ${hoverBg}`}>展开全部匹配</button>
+                                <button onClick={expandAllMatches} className={`w-full rounded border px-2 py-1 text-[10px] ${borderCls} ${textMuted} ${hoverBg}`}>{t("mindmap.expandMatchesBtn")}</button>
                             )}
                             {searchInfo && (
-                                <div className={`text-[10px] ${searchInfo.includes("未展开") ? "text-orange-500" : textMuted}`}>{searchInfo}</div>
+                                <div className={`text-[10px] ${searchInfo.includes("未展开") || searchInfo.includes("not expanded") ? "text-orange-500" : textMuted}`}>{searchInfo}</div>
                             )}
                         </div>
                     </div>
@@ -720,11 +833,15 @@ export const CurriculumTreeMap = ({mobile}: {mobile?: boolean}) => {
             {/* 选中课程详情 */}
             {selCourse && (
                 <div className={`shrink-0 border-t ${borderCls} px-3 py-2 text-[11px] ${textNormal}`}>
-                    <div className="font-medium">{selCourse.name}</div>
+                    <div className="font-medium">{zh ? selCourse.name : (selNode?.labelEn ?? selCourse.name)}</div>
                     <div className={`mt-0.5 ${textMuted}`}>
-                        {selCourse.credits != null ? `${selCourse.credits} 学分` : "学分未标注"}
+                        {selCourse.credits != null ? `${selCourse.credits} ${t("mindmap.creditUnit")}` : t("mindmap.creditMissing")}
                         {selCourse.module_type ? ` · ${selCourse.module_type}` : ""}
-                        {courseGroupCount.get(selCourse.course_id) ? ` · 出现于 ${courseGroupCount.get(selCourse.course_id)} 个课组` : ""}
+                        {(() => {
+                            const ak = courseAttrKeyById.get(selCourse.course_id);
+                            return ak ? ` · ${zh ? (ATTR_LABELS[ak] ?? ak) : (ATTR_LABELS_EN[ak] ?? ak)}` : "";
+                        })()}
+                        {courseGroupCount.get(selCourse.course_id) ? ` · ${tf("mindmap.appearsInGroups", {n: courseGroupCount.get(selCourse.course_id) ?? 0})}` : ""}
                     </div>
                 </div>
             )}
@@ -733,12 +850,12 @@ export const CurriculumTreeMap = ({mobile}: {mobile?: boolean}) => {
             {showCollapseConfirm && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center" style={{background: "rgba(0,0,0,0.45)"}} onClick={() => setShowCollapseConfirm(false)}>
                     <div className={`w-80 rounded-xl border px-5 py-4 ${isDark ? "bg-[#1e1e2a] border-white/10" : "bg-white border-gray-200"}`} onClick={(e) => e.stopPropagation()}>
-                        <div className={`text-sm font-semibold mb-2 ${textNormal}`}>收起全部</div>
-                        <div className={`text-[12px] mb-4 ${textMuted}`}>你已固定 {pinned.size} 个节点。收起时是否一并收起这些固定节点？</div>
+                        <div className={`text-sm font-semibold mb-2 ${textNormal}`}>{t("mindmap.collapseAll")}</div>
+                        <div className={`text-[12px] mb-4 ${textMuted}`}>{tf("mindmap.collapseDesc", {n: pinned.size})}</div>
                         <div className="flex flex-col gap-2">
-                            <button onClick={() => { collapseAll(); setShowCollapseConfirm(false); }} className={`rounded px-3 py-2 text-[12px] font-medium ${isDark ? "bg-red-500/20 text-red-200 hover:bg-red-500/30" : "bg-red-50 text-red-600 hover:bg-red-100"}`}>一并收起固定（{pinned.size}）</button>
-                            <button onClick={() => { collapseAllSoft(); setShowCollapseConfirm(false); }} className={`rounded px-3 py-2 text-[12px] ${isDark ? "bg-white/10 text-white/85 hover:bg-white/15" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`}>仅收起未固定</button>
-                            <button onClick={() => setShowCollapseConfirm(false)} className={`rounded px-3 py-2 text-[12px] ${textMuted} ${hoverBg}`}>取消</button>
+                            <button onClick={() => { collapseAll(); setShowCollapseConfirm(false); }} className={`rounded px-3 py-2 text-[12px] font-medium ${isDark ? "bg-red-500/20 text-red-200 hover:bg-red-500/30" : "bg-red-50 text-red-600 hover:bg-red-100"}`}>{tf("mindmap.collapsePinned", {n: pinned.size})}</button>
+                            <button onClick={() => { collapseAllSoft(); setShowCollapseConfirm(false); }} className={`rounded px-3 py-2 text-[12px] ${isDark ? "bg-white/10 text-white/85 hover:bg-white/15" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`}>{t("mindmap.collapseSoft")}</button>
+                            <button onClick={() => setShowCollapseConfirm(false)} className={`rounded px-3 py-2 text-[12px] ${textMuted} ${hoverBg}`}>{t("mindmap.cancel")}</button>
                         </div>
                     </div>
                 </div>
@@ -748,12 +865,12 @@ export const CurriculumTreeMap = ({mobile}: {mobile?: boolean}) => {
             {confirmExpand && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center" style={{background: "rgba(0,0,0,0.45)"}} onClick={() => setConfirmExpand(null)}>
                     <div className={`w-80 rounded-xl border px-5 py-4 ${isDark ? "bg-[#1e1e2a] border-white/10" : "bg-white border-gray-200"}`} onClick={(e) => e.stopPropagation()}>
-                        <div className={`text-sm font-semibold mb-2 ${textNormal}`}>展开全部匹配</div>
-                        <div className={`text-[12px] mb-4 ${textMuted}`}>全部展开共需显示 {confirmExpand.needed} 门课程，超出当前上限 {userMax}。是否临时扩大上限以展开全部？</div>
+                        <div className={`text-sm font-semibold mb-2 ${textNormal}`}>{t("mindmap.expandMatchesTitle")}</div>
+                        <div className={`text-[12px] mb-4 ${textMuted}`}>{tf("mindmap.expandMatchesDesc", {needed: confirmExpand.needed, max: userMax})}</div>
                         <div className="flex flex-col gap-2">
-                            <button onClick={() => { setUserMax(Math.max(userMax, confirmExpand.needed)); setExpanded(confirmExpand.base); setSearchActiveId(searchResults[searchResults.length - 1]?.id ?? null); setSearchInfo(`已展开全部 ${searchResults.length} 个匹配结果`); setConfirmExpand(null); }} className={`rounded px-3 py-2 text-[12px] font-medium ${isDark ? "bg-[#863bff]/25 text-white hover:bg-[#863bff]/35" : "bg-[#863bff]/10 text-[#863bff] hover:bg-[#863bff]/20"}`}>扩大上限至 {confirmExpand.needed}</button>
-                            <button onClick={expandWithinLimit} className={`rounded px-3 py-2 text-[12px] ${isDark ? "bg-white/10 text-white/85 hover:bg-white/15" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`}>仅展开上限内（{userMax}）</button>
-                            <button onClick={() => setConfirmExpand(null)} className={`rounded px-3 py-2 text-[12px] ${textMuted} ${hoverBg}`}>取消</button>
+                            <button onClick={() => { setUserMax(Math.max(userMax, confirmExpand.needed)); setExpanded(confirmExpand.base); setSearchActiveId(searchResults[searchResults.length - 1]?.id ?? null); setSearchInfo(tf("mindmap.expandedAll", {n: searchResults.length})); setConfirmExpand(null); }} className={`rounded px-3 py-2 text-[12px] font-medium ${isDark ? "bg-[#863bff]/25 text-white hover:bg-[#863bff]/35" : "bg-[#863bff]/10 text-[#863bff] hover:bg-[#863bff]/20"}`}>{tf("mindmap.raiseLimitTo", {n: confirmExpand.needed})}</button>
+                            <button onClick={expandWithinLimit} className={`rounded px-3 py-2 text-[12px] ${isDark ? "bg-white/10 text-white/85 hover:bg-white/15" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`}>{tf("mindmap.expandWithin", {max: userMax})}</button>
+                            <button onClick={() => setConfirmExpand(null)} className={`rounded px-3 py-2 text-[12px] ${textMuted} ${hoverBg}`}>{t("mindmap.cancel")}</button>
                         </div>
                     </div>
                 </div>

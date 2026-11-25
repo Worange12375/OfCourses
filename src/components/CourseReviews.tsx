@@ -1,0 +1,1227 @@
+/**
+ * 课程评价页签（ToolsPage "review"）——知乎式布局（用户定稿 2026-11-16 第二轮）：
+ * 顶栏不分栏：左侧「课程评价」标题，右侧依次 消息 / 我的评价 / 实名与昵称（与账号系统互通）。
+ * 主体双栏（PC 优先）：左栏 = 搜索栏 + 首字母索引 + 推荐评价流（无限滚动）；
+ * 右栏 = 「我要评价」（顶置，弹窗发布）+ 热度排行榜（月榜/年榜 前10）+ 规则说明（固定最底）。
+ * 先审后显；互动五档（不实用与其余互斥）；举报 ⋯ 行内；筛选页提供取消筛选。
+ * 后端：/vote/reviews/init /feed /list /board /mine /messages /react /report、POST /vote/reviews、DELETE /vote/reviews/{id}
+ */
+import {useCallback, useEffect, useRef, useState} from "react";
+import {useAccount} from "@/account/AccountContext";
+
+export interface ReviewTopic {
+    id: number;
+    source: string;   // official | custom
+    course_id: number | null;
+    name: string;
+    initial: string;
+    review_count: number;
+}
+
+export interface ReviewItem {
+    id: number;
+    topic_id: number;
+    content: string;
+    sign: string;             // real | nick
+    status: string;           // pending | approved | rejected | deleted_user | removed_admin | removed_report
+    author_name: string;
+    ts: number;
+    approved_at: number;
+    topic: {id: number; name: string; source: string; course_id: number | null};
+    reactions: Record<string, number>;
+    mine: string[];
+    hot: number;
+    own?: boolean;
+    reject_note?: string | null;
+}
+
+interface RvMsg {
+    id: number;
+    kind: string;      // system 公告/私信 | event 事件通知
+    title: string;
+    content: string;
+    ts: number;
+    read: boolean;
+}
+
+const PAGE_SIZE = 20;
+
+const REACTIONS: Array<{key: string; zh: string; en: string; icon: string}> = [
+    {key: "like", zh: "赞", en: "Like", icon: "👍"},
+    {key: "useful", zh: "实用！", en: "Useful!", icon: "✅"},
+    {key: "watch", zh: "观望中", en: "Watching", icon: "👀"},
+    {key: "doubt", zh: "真的吗？", en: "Really?", icon: "🤔"},
+    {key: "unuseful", zh: "不实用", en: "Not useful", icon: "👎"},
+];
+
+const RULES_ZH =
+    "本评价社区初衷是为了让大家能有一个平台，能向大家推荐一下自己上过的好课，帮助后来的同学能有更好的课程选择。" +
+    "请大家理性友善，允许有自己的一些主观积极感受，但同时真实客观地呈现课程的情况。" +
+    "当然我们也接受大家的一些小吐槽、避雷帖，但请一定注意就事论事，不要人身攻击、泄露他人隐私、影响他人名誉。" +
+    "本平台的所有评价都会经过一次人工审核，因此实际发布时间会有所延迟。也欢迎大家与已有评价进行积极互动。希望大家共同维护良好的平台秩序！";
+const RULES_EN =
+    "This community exists so everyone can recommend courses they have taken and help others choose better. " +
+    "Be rational and friendly: subjective positive impressions are welcome, but present courses truthfully and objectively. " +
+    "Small rants and warning posts are accepted too — argue the case, never attack individuals, leak privacy, or harm reputations. " +
+    "All reviews pass a manual moderation before publication, so posting appears with a delay. Interactions with existing reviews are encouraged. Let's keep the community healthy together!";
+
+const fmtTime = (ts: number): string => {
+    const d = new Date(ts * 1000);
+    const p = (n: number) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+};
+
+async function rvGet<T>(url: string): Promise<T> {
+    const res = await fetch(url);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(String((data as {detail?: string}).detail ?? `http_${res.status}`));
+    return data as T;
+}
+
+async function rvSend<T>(url: string, method: string, body?: unknown): Promise<T> {
+    const res = await fetch(url, {
+        method,
+        headers: body !== undefined ? {"Content-Type": "application/json"} : undefined,
+        body: body !== undefined ? JSON.stringify(body) : undefined,
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(String((data as {detail?: string}).detail ?? `http_${res.status}`));
+    return data as T;
+}
+
+export default function CourseReviews({locale, isDark, mobile = false}: {locale: "zh" | "en"; isDark: boolean; mobile?: boolean}) {
+    const zh = locale === "zh";
+    const mobileLayout = mobile;
+    const {user, openAuthModal, updateProfile} = useAccount();
+
+    /* 数据 */
+    const [topics, setTopics] = useState<ReviewTopic[]>([]);
+    const [letters, setLetters] = useState<string[]>([]);
+    const [initReady, setInitReady] = useState(false);
+
+    /* 筛选态：query（搜索）/ letter（首字母）/ activeTopic（进入某条目） */
+    const [query, setQuery] = useState("");
+    const [letter, setLetter] = useState<string | null>(null);
+    const [activeTopic, setActiveTopic] = useState<ReviewTopic | null>(null);
+
+    /* 推荐评价流（左栏主体，无限滚动） */
+    const [feed, setFeed] = useState<ReviewItem[]>([]);
+    const [feedTotal, setFeedTotal] = useState(0);
+    const [feedSort, setFeedSort] = useState<"time" | "hot">("time");
+    const [feedLoading, setFeedLoading] = useState(false);
+
+    /* 条目内列表（筛选结果页） */
+    const [topicItems, setTopicItems] = useState<ReviewItem[]>([]);
+    const [topicTotal, setTopicTotal] = useState(0);
+    const [topicSort, setTopicSort] = useState<"time" | "hot">("time");
+    const [topicLoading, setTopicLoading] = useState(false);
+
+    /* 热度排行榜（右栏） */
+    const [boardPeriod, setBoardPeriod] = useState<"month" | "year">("month");
+    const [board, setBoard] = useState<ReviewItem[] | null>(null);
+
+    /* 站内消息 */
+    const [msgs, setMsgs] = useState<RvMsg[] | null>(null);
+    const [unread, setUnread] = useState(0);
+    const [msgOpen, setMsgOpen] = useState(false);
+
+    /* 弹窗：发布 / 我的评价 */
+    const [composeOpen, setComposeOpen] = useState(false);
+    const [mineOpen, setMineOpen] = useState(false);
+    const [mine, setMine] = useState<ReviewItem[] | null>(null);
+
+    /* 身份面板（实名与昵称） */
+    const [idOpen, setIdOpen] = useState(false);
+    const [nickInput, setNickInput] = useState("");
+    const [nickMsg, setNickMsg] = useState<string | null>(null);
+    const [nickSaving, setNickSaving] = useState(false);
+
+    /* 发布表单 */
+    const [pickQuery, setPickQuery] = useState("");
+    const [picked, setPicked] = useState<{type: "existing"; topic: ReviewTopic} | {type: "new"; name: string} | null>(null);
+    const [content, setContent] = useState("");
+    const [sign, setSign] = useState<"real" | "nick">("nick");
+    const [submitting, setSubmitting] = useState(false);
+    const [confirmSubmit, setConfirmSubmit] = useState(false);
+    const [confirmCancel, setConfirmCancel] = useState(false);
+
+    /* 举报 / 删除行内操作（⋯ 小浮窗 + 举报弹窗） */
+    const [menuFor, setMenuFor] = useState<number | null>(null);
+    const [deleteFor, setDeleteFor] = useState<number | null>(null);
+    const [reportModal, setReportModal] = useState<{rid: number; name: string} | null>(null);
+    const [reportReason, setReportReason] = useState("");
+    const [reportSubmitting, setReportSubmitting] = useState(false);
+    const [reportModalMsg, setReportModalMsg] = useState<string | null>(null);
+
+    /* 就地提示（无全局浮条）：卡片级 / 发布弹窗内 / 列表加载失败 */
+    const [inline, setInline] = useState<{rid: number; text: string; ok: boolean} | null>(null);
+    const [formMsg, setFormMsg] = useState<{text: string; ok: boolean} | null>(null);
+    const [feedError, setFeedError] = useState<string | null>(null);
+    const [topicError, setTopicError] = useState<string | null>(null);
+    const inlineToast = useCallback((rid: number, text: string, ok = false) => {
+        setInline({rid, text, ok});
+        window.setTimeout(() => setInline((cur) => (cur && cur.rid === rid ? null : cur)), 4000);
+    }, []);
+
+    /* —— 数据加载 —— */
+    const loadInit = useCallback(async () => {
+        try {
+            const d = await rvGet<{topics: ReviewTopic[]; letters: string[]}>("/vote/reviews/init");
+            setTopics(d.topics);
+            setLetters(d.letters);
+        } catch (e) {
+            setFeedError(zh ? `课程条目加载失败：${(e as Error).message}` : `Failed to load topics: ${(e as Error).message}`);
+        } finally {
+            setInitReady(true);
+        }
+    }, [zh]);
+
+    const loadFeed = useCallback(async (sort: "time" | "hot", reset = true, offset = 0) => {
+        setFeedLoading(true);
+        setFeedError(null);
+        try {
+            const d = await rvGet<{items: ReviewItem[]; total: number}>(`/vote/reviews/feed?sort=${sort}&limit=${PAGE_SIZE}&offset=${offset}`);
+            setFeed((prev) => (reset ? d.items : [...prev, ...d.items]));
+            setFeedTotal(d.total);
+        } catch (e) {
+            setFeedError(zh ? `评价流加载失败：${(e as Error).message}` : `Failed to load feed: ${(e as Error).message}`);
+        } finally {
+            setFeedLoading(false);
+        }
+    }, [zh]);
+
+    const loadTopic = useCallback(async (id: number, sort: "time" | "hot", reset = true, offset = 0) => {
+        setTopicLoading(true);
+        setTopicError(null);
+        try {
+            const d = await rvGet<{items: ReviewItem[]; total: number}>(`/vote/reviews/list?topic_id=${id}&sort=${sort}&limit=${PAGE_SIZE}&offset=${offset}`);
+            setTopicItems((prev) => (reset ? d.items : [...prev, ...d.items]));
+            setTopicTotal(d.total);
+        } catch (e) {
+            setTopicError(zh ? `评价加载失败：${(e as Error).message}` : `Failed to load reviews: ${(e as Error).message}`);
+        } finally {
+            setTopicLoading(false);
+        }
+    }, [zh]);
+
+    const loadBoard = useCallback(async (period: "month" | "year") => {
+        try {
+            const d = await rvGet<{items: ReviewItem[]}>(`/vote/reviews/board?period=${period}`);
+            setBoard(d.items);
+        } catch {
+            setBoard(null);
+        }
+    }, []);
+
+    const loadMine = useCallback(async () => {
+        try {
+            const d = await rvGet<{items: ReviewItem[]}>("/vote/reviews/mine");
+            setMine(d.items);
+        } catch {
+            setMine(null);
+        }
+    }, []);
+
+    const loadMsgs = useCallback(async () => {
+        if (!user) { setMsgs(null); setUnread(0); return; }
+        try {
+            const d = await rvGet<{items: RvMsg[]; unread: number}>("/vote/reviews/messages");
+            setMsgs(d.items);
+            setUnread(d.unread);
+        } catch {
+            /* 静默 */
+        }
+    }, [user]);
+
+    useEffect(() => { loadInit(); loadFeed("time"); loadBoard("month"); }, [loadInit, loadFeed, loadBoard]);
+    useEffect(() => {
+        if (user) { loadMine(); loadMsgs(); } else { setMine(null); setMsgs(null); setUnread(0); }
+    }, [user, loadMine, loadMsgs]);
+
+    /* 进入条目时加载其列表 */
+    useEffect(() => {
+        if (activeTopic) loadTopic(activeTopic.id, topicSort);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [activeTopic]);
+
+    /* ⋯ 浮窗：点击外部关闭（业内惯例的轻量菜单行为） */
+    useEffect(() => {
+        if (menuFor === null) return;
+        const onDoc = (e: MouseEvent) => {
+            const t = e.target as HTMLElement;
+            if (!t.closest("[data-rv-menu]")) setMenuFor(null);
+        };
+        document.addEventListener("mousedown", onDoc);
+        return () => document.removeEventListener("mousedown", onDoc);
+    }, [menuFor]);
+
+    /* 无限滚动（知乎/B站式翻动更新）：列表底部哨兵进入视口 → 追加下一页 */
+    const feedSentinelRef = useRef<HTMLDivElement | null>(null);
+    useEffect(() => {
+        const el = feedSentinelRef.current;
+        if (!el) return;
+        const ob = new IntersectionObserver((entries) => {
+            if (entries[0].isIntersecting && !feedLoading && feed.length < feedTotal) {
+                loadFeed(feedSort, false, feed.length);
+            }
+        }, {rootMargin: "240px"});
+        ob.observe(el);
+        return () => ob.disconnect();
+    }, [feed, feedLoading, feedTotal, feedSort, loadFeed]);
+
+    const topicSentinelRef = useRef<HTMLDivElement | null>(null);
+    useEffect(() => {
+        const el = topicSentinelRef.current;
+        if (!el || !activeTopic) return;
+        const ob = new IntersectionObserver((entries) => {
+            if (entries[0].isIntersecting && !topicLoading && topicItems.length < topicTotal) {
+                loadTopic(activeTopic.id, topicSort, false, topicItems.length);
+            }
+        }, {rootMargin: "240px"});
+        ob.observe(el);
+        return () => ob.disconnect();
+    }, [activeTopic, topicItems, topicLoading, topicTotal, topicSort, loadTopic]);
+
+    /* —— 互动 —— */
+    const patchItem = useCallback((id: number, reactions: Record<string, number>, mineArr: string[]) => {
+        const patch = (list: ReviewItem[]) => list.map((it) => (it.id === id ? {...it, reactions, mine: mineArr} : it));
+        setFeed(patch);
+        setTopicItems(patch);
+        setBoard((prev) => (prev ? patch(prev) : prev));
+        setMine((prev) => (prev ? patch(prev) : prev));
+    }, []);
+
+    const toggleReact = useCallback(async (item: ReviewItem, key: string) => {
+        if (!user) { openAuthModal(); return; }
+        const on = !item.mine.includes(key);
+        try {
+            const d = await rvSend<{reactions: Record<string, number>; mine: string[]}>("/vote/reviews/react", "POST",
+                {review_id: item.id, type: key, on});
+            patchItem(item.id, d.reactions, d.mine);
+            setInline(null);
+        } catch (e) {
+            inlineToast(item.id, (e as Error).message);
+        }
+    }, [user, openAuthModal, patchItem, inlineToast]);
+
+    /* —— 举报（⋯ 浮窗 → 举报弹窗，一人一帖一次） —— */
+    const submitReport = useCallback(async () => {
+        if (!reportModal) return;
+        if (!user) { openAuthModal(); return; }
+        setReportSubmitting(true);
+        setReportModalMsg(null);
+        try {
+            await rvSend("/vote/reviews/report", "POST", {review_id: reportModal.rid, reason: reportReason.trim()});
+            setReportModal(null);
+            setReportReason("");
+            inlineToast(reportModal.rid, zh ? "举报已提交，感谢反馈" : "Report submitted. Thank you.", true);
+        } catch (e) {
+            setReportModalMsg((e as Error).message);
+        } finally {
+            setReportSubmitting(false);
+        }
+    }, [user, openAuthModal, reportModal, reportReason, inlineToast, zh]);
+
+    /* —— 删除自己的评价 —— */
+    const submitDelete = useCallback(async (reviewId: number) => {
+        try {
+            await rvSend(`/vote/reviews/${reviewId}`, "DELETE");
+            setDeleteFor(null);
+            inlineToast(reviewId, zh ? "已删除" : "Deleted", true);
+            loadFeed(feedSort);
+            if (activeTopic) loadTopic(activeTopic.id, topicSort);
+            loadMine();
+        } catch (e) {
+            inlineToast(reviewId, (e as Error).message);
+        }
+    }, [feedSort, topicSort, activeTopic, loadFeed, loadTopic, loadMine, inlineToast, zh]);
+
+    /* —— 发布 —— */
+    const openCompose = (topic?: ReviewTopic) => {
+        if (!user) { openAuthModal(); return; }
+        if (topic) { setPicked({type: "existing", topic}); setPickQuery(topic.name); }
+        setConfirmSubmit(false);
+        setConfirmCancel(false);
+        setFormMsg(null);
+        setComposeOpen(true);
+    };
+
+    const closeCompose = () => {
+        setComposeOpen(false);
+        setConfirmSubmit(false);
+        setConfirmCancel(false);
+        setFormMsg(null);
+    };
+
+    const doSubmit = useCallback(async () => {
+        if (content.trim().length < 5) {
+            setFormMsg({text: zh ? "评价内容太短（至少 5 字）" : "Content too short (min 5 chars)", ok: false});
+            setConfirmSubmit(false);
+            return;
+        }
+        setSubmitting(true);
+        setFormMsg(null);
+        try {
+            const body = picked?.type === "existing"
+                ? {content: content.trim(), topic_id: picked.topic.id, sign}
+                : {content: content.trim(), new_name: (picked?.type === "new" ? picked.name : "").trim(), sign};
+            const d = await rvSend<{detail: string}>("/vote/reviews", "POST", body);
+            setContent("");
+            setPicked(null);
+            setPickQuery("");
+            setConfirmSubmit(false);
+            setFormMsg({text: d.detail || (zh ? "已提交，审核通过后展示" : "Submitted for review"), ok: true});
+            loadMine();
+            loadFeed(feedSort);
+        } catch (e) {
+            setFormMsg({text: (e as Error).message, ok: false});
+            setConfirmSubmit(false);
+        } finally {
+            setSubmitting(false);
+        }
+    }, [content, picked, sign, zh, loadMine, loadFeed, feedSort]);
+
+    /* —— 消息已读 —— */
+    const markRead = useCallback(async (id: number | null) => {
+        try {
+            await rvSend("/vote/reviews/messages/read", "POST", id === null ? {} : {id});
+            loadMsgs();
+        } catch {
+            /* 静默 */
+        }
+    }, [loadMsgs]);
+
+    /* —— 昵称修改（每天一次，后端强制） —— */
+    const saveNick = useCallback(async () => {
+        setNickSaving(true);
+        setNickMsg(null);
+        try {
+            await updateProfile({nickname: nickInput.trim()});
+            setNickMsg(zh ? "已更新" : "Updated");
+        } catch (e) {
+            const m = (e as Error).message;
+            setNickMsg(m === "nickname_daily_limit"
+                ? (zh ? "昵称每天只能修改一次，明天再来吧" : "Nickname can be changed once per day")
+                : m);
+        } finally {
+            setNickSaving(false);
+        }
+    }, [nickInput, updateProfile, zh]);
+
+    const nickLocked = !!user && (Date.now() / 1000 - (user.last_nick_change ?? 0) < 86400);
+
+    /* —— 派生列表 —— */
+    const kw = query.trim().toLowerCase();
+    const searchedTopics = kw ? topics.filter((t) => t.name.toLowerCase().includes(kw)) : [];
+    const letterTopics = !kw && letter
+        ? topics.filter((t) => t.initial === letter && t.review_count > 0)
+        : [];
+
+    /* —— 样式令牌 —— */
+    const borderCls = isDark ? "border-white/10" : "border-gray-200";
+    const textMain = isDark ? "text-gray-100" : "text-gray-800";
+    const textSub = isDark ? "text-gray-400" : "text-gray-500";
+    const cardBg = isDark ? "bg-white/[0.03]" : "bg-gray-50";
+    const inputCls = `w-full rounded-md border px-3 py-2 text-sm outline-none transition-colors ${borderCls} ${
+        isDark ? "bg-white/5 text-gray-100 placeholder:text-gray-500 focus:border-blue-400/60" : "bg-white text-gray-800 placeholder:text-gray-400 focus:border-blue-400"
+    }`;
+    const pillBase = "rounded-full border px-2.5 py-1 text-xs transition-colors cursor-pointer select-none";
+    const pillIdle = `${pillBase} ${borderCls} ${isDark ? "text-gray-300 hover:bg-white/10" : "text-gray-600 hover:bg-gray-100"}`;
+    const pillOn = `${pillBase} border-blue-400 bg-blue-500/15 text-blue-500 dark:text-blue-300 font-medium`;
+    const btnMain = "cursor-pointer rounded-md border-none bg-blue-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-blue-500 disabled:opacity-50";
+    const btnGhost = `rounded-md border px-3 py-1.5 text-xs transition-colors ${borderCls} ${
+        isDark ? "text-gray-300 hover:bg-white/10" : "text-gray-600 hover:bg-gray-100"
+    }`;
+
+    /* —— 评价卡 —— */
+    const renderCard = (item: ReviewItem, opts: {showStatus?: boolean} = {}) => (
+        <div key={item.id} className={`rounded-lg border p-3 ${borderCls} ${cardBg}`}>
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                <button
+                    className={`order-1 max-w-[55%] truncate rounded-full border px-2 py-0.5 text-[11px] font-medium transition-colors sm:max-w-[50%] ${borderCls} ${
+                        isDark ? "text-blue-300 hover:bg-white/10" : "text-blue-600 hover:bg-blue-50"
+                    }`}
+                    onClick={() => { setActiveTopic(topics.find((t) => t.id === item.topic_id) ?? (item.topic as unknown as ReviewTopic)); }}
+                    title={item.topic.name}
+                >
+                    {item.topic.name}
+                </button>
+                <span className={`order-2 min-w-0 flex-1 truncate text-[11px] ${textSub}`}>
+                    {item.author_name || (zh ? "同学" : "Student")}
+                    {item.sign === "real" ? (zh ? " · 实名" : " · real") : ""}
+                </span>
+                {user && (
+                    <span className={`order-3 shrink-0 ${mobileLayout ? "" : "sm:order-4"}`}>
+                        {item.own ? (
+                            deleteFor === item.id ? (
+                                <span className="flex items-center gap-1">
+                                    <button className="text-[11px] text-red-500 hover:underline" onClick={() => submitDelete(item.id)}>
+                                        {zh ? "确认删除" : "Confirm"}
+                                    </button>
+                                    <button className={`text-[11px] ${textSub}`} onClick={() => setDeleteFor(null)}>
+                                        {zh ? "取消" : "Cancel"}
+                                    </button>
+                                </span>
+                            ) : (
+                                <button className={`text-[11px] hover:underline ${textSub}`} onClick={() => setDeleteFor(item.id)}>
+                                    {zh ? "删除" : "Delete"}
+                                </button>
+                            )
+                        ) : (
+                            <span className="relative inline-block" data-rv-menu>
+                                <button
+                                    className={`text-[15px] leading-none ${textSub} hover:opacity-70`}
+                                    onClick={() => setMenuFor(menuFor === item.id ? null : item.id)}
+                                    title={zh ? "更多" : "More"}
+                                >⋯</button>
+                                {menuFor === item.id && (
+                                    <span className={`absolute right-0 top-5 z-30 block rounded-md border py-1 shadow-lg ${borderCls} ${
+                                        isDark ? "bg-gray-900" : "bg-white"
+                                    }`}>
+                                        <button
+                                            className={`block w-full whitespace-nowrap px-3 py-1.5 text-left text-xs hover:bg-blue-500/10 ${
+                                                isDark ? "text-gray-200" : "text-gray-700"
+                                            }`}
+                                            onClick={() => {
+                                                setMenuFor(null);
+                                                setReportReason("");
+                                                setReportModalMsg(null);
+                                                setReportModal({rid: item.id, name: item.topic.name});
+                                            }}
+                                        >
+                                            🚩 {zh ? "举报" : "Report"}
+                                        </button>
+                                    </span>
+                                )}
+                            </span>
+                        )}
+                    </span>
+                )}
+                <span className={`order-4 basis-full text-right text-[10px] ${textSub} ${mobileLayout ? "" : "sm:order-3 sm:basis-auto sm:text-[11px]"}`}>
+                    {fmtTime(item.approved_at || item.ts)}
+                </span>
+            </div>
+
+            {opts.showStatus && (
+                <div className="mt-1.5">
+                    {item.status === "pending" && (
+                        <span className={`rounded px-1.5 py-0.5 text-[11px] ${isDark ? "bg-yellow-500/15 text-yellow-300" : "bg-yellow-100 text-yellow-700"}`}>
+                            {zh ? "待审核" : "Pending review"}
+                        </span>
+                    )}
+                    {item.status === "rejected" && (
+                        <span className={`rounded px-1.5 py-0.5 text-[11px] ${isDark ? "bg-red-500/15 text-red-300" : "bg-red-100 text-red-700"}`}>
+                            {zh ? "未通过" : "Rejected"}
+                            {item.reject_note ? ` · ${item.reject_note}` : ""}
+                        </span>
+                    )}
+                    {item.status !== "approved" && item.status !== "pending" && item.status !== "rejected" && (
+                        <span className={`rounded px-1.5 py-0.5 text-[11px] ${textSub} ${isDark ? "bg-white/5" : "bg-gray-100"}`}>
+                            {zh ? "已删除/下架" : "Removed"}
+                        </span>
+                    )}
+                </div>
+            )}
+
+            <p className={`mt-2 whitespace-pre-wrap text-[13px] leading-relaxed ${isDark ? "text-gray-200" : "text-gray-700"}`}>
+                {item.content}
+            </p>
+
+            <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+                {REACTIONS.map((r) => {
+                    const active = item.mine.includes(r.key);
+                    return (
+                        <button
+                            key={r.key}
+                            onClick={() => toggleReact(item, r.key)}
+                            className={`flex min-h-8 items-center gap-1 rounded-full border px-2.5 py-1.5 text-xs transition-colors ${mobileLayout ? "" : "sm:min-h-0 sm:px-2 sm:py-1 sm:text-[11px]"} ${
+                                active
+                                    ? "border-blue-400 bg-blue-500/15 text-blue-500 dark:text-blue-300 font-medium"
+                                    : `${borderCls} ${isDark ? "text-gray-400 hover:bg-white/10" : "text-gray-500 hover:bg-gray-100"}`
+                            }`}
+                        >
+                            <span>{r.icon}</span>
+                            <span>{zh ? r.zh : r.en}</span>
+                            {(item.reactions[r.key] ?? 0) > 0 && <span className="tabular-nums">{item.reactions[r.key]}</span>}
+                        </button>
+                    );
+                })}
+            </div>
+
+            {/* 就地提示（互动/举报/删除的结果与错误） */}
+            {inline && inline.rid === item.id && (
+                <div className={`mt-2 rounded-md border px-2.5 py-1.5 text-[11px] ${borderCls} ${
+                    inline.ok
+                        ? (isDark ? "bg-green-500/10 text-green-300" : "bg-green-50 text-green-700")
+                        : (isDark ? "bg-red-500/10 text-red-300" : "bg-red-50 text-red-700")
+                }`}>
+                    {inline.text}
+                </div>
+            )}
+        </div>
+    );
+
+    /* —— 发布弹窗 —— */
+    const renderComposeModal = () => {
+        const pickKw = pickQuery.trim().toLowerCase();
+        const pickMatches = pickKw ? topics.filter((t) => t.name.toLowerCase().includes(pickKw)).slice(0, 8) : [];
+        const normPick = (s: string) => s.toLowerCase().replace(/\s+/g, "");
+        const exactHit = pickKw !== "" && topics.some((t) => normPick(t.name) === normPick(pickKw));
+
+        return (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
+                 onClick={() => { if (formMsg?.ok) { closeCompose(); return; } if (!confirmSubmit && !confirmCancel) setConfirmCancel(true); }}>
+                <div className={`max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-xl border p-4 shadow-2xl ${borderCls} ${
+                    isDark ? "bg-gray-900" : "bg-white"
+                }`}
+                     onClick={(e) => e.stopPropagation()}>
+                    <div className="mb-3 flex items-center">
+                        <span className={`text-sm font-semibold ${textMain}`}>{zh ? "发表评价" : "Write a review"}</span>
+                        <button className={`ml-auto text-lg leading-none ${textSub} hover:opacity-70`}
+                                onClick={() => { if (formMsg?.ok) { closeCompose(); return; } if (!confirmSubmit) setConfirmCancel(true); }}
+                                title={zh ? "关闭" : "Close"}>✕</button>
+                    </div>
+
+                    {confirmCancel ? (
+                        <div className="py-6">
+                            <p className={`mb-4 text-center text-sm ${textMain}`}>
+                                {zh ? "确定要放弃编辑吗？" : "Discard this draft?"}
+                            </p>
+                            <div className="flex justify-center gap-3">
+                                <button className={btnMain} onClick={closeCompose}>{zh ? "放弃" : "Discard"}</button>
+                                <button className={btnGhost} onClick={() => setConfirmCancel(false)}>{zh ? "继续编辑" : "Keep editing"}</button>
+                            </div>
+                        </div>
+                    ) : (
+                        <>
+                            {/* 课程选择 */}
+                            <div className="relative">
+                                <input
+                                    className={inputCls}
+                                    value={pickQuery}
+                                    onChange={(e) => { setPickQuery(e.target.value); setPicked(null); }}
+                                    placeholder={zh ? "这里输入课程名，尽量选择已有课程条目哦！" : "Type a course name here; pick an existing topic if possible!"}
+                                />
+                                {picked && (
+                                    <div className="mt-1.5 flex items-center gap-2">
+                                        <span className={`rounded-full border px-2 py-0.5 text-[11px] ${borderCls} ${isDark ? "text-blue-300" : "text-blue-600"}`}>
+                                            {picked.type === "existing" ? picked.topic.name : `${zh ? "新条目" : "New"}「${picked.name}」`}
+                                        </span>
+                                        <button className={`text-[11px] ${textSub} hover:underline`}
+                                                onClick={() => { setPicked(null); setPickQuery(""); }}>
+                                            {zh ? "重选" : "Change"}
+                                        </button>
+                                    </div>
+                                )}
+                                {!picked && pickKw && (
+                                    <div className={`absolute z-10 mt-1 max-h-56 w-full overflow-y-auto rounded-md border shadow-lg ${borderCls} ${
+                                        isDark ? "bg-gray-900" : "bg-white"
+                                    }`}>
+                                        {pickMatches.map((t) => (
+                                            <button key={t.id}
+                                                    className={`block w-full px-3 py-2 text-left text-xs hover:bg-blue-500/10 ${
+                                                        isDark ? "text-gray-200" : "text-gray-700"
+                                                    }`}
+                                                    onClick={() => { setPicked({type: "existing", topic: t}); setPickQuery(t.name); }}>
+                                                {t.name}
+                                                <span className={`ml-1.5 text-[10px] ${textSub}`}>{t.review_count} {zh ? "条" : "reviews"}</span>
+                                            </button>
+                                        ))}
+                                        {!exactHit && (
+                                            <button className={`block w-full px-3 py-2 text-left text-xs hover:bg-blue-500/10 ${
+                                                isDark ? "text-gray-300" : "text-gray-600"
+                                            }`}
+                                                    onClick={() => setPicked({type: "new", name: pickQuery.trim()})}>
+                                                {zh ? `创建新条目「${pickQuery.trim()}」` : `Create new topic "${pickQuery.trim()}"`}
+                                            </button>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* 正文 */}
+                            <textarea
+                                className={`mt-3 ${inputCls} min-h-[110px] resize-y`}
+                                value={content}
+                                onChange={(e) => setContent(e.target.value.slice(0, 2000))}
+                                maxLength={2000}
+                                placeholder={zh
+                                    ? "可以从考核与签到、给分情况、任务量、授课质量等方面进行评价，友善发言，不能损害他人名誉哦 ~"
+                                    : "Cover assessment, grading, workload, teaching quality... Be friendly; no harm to anyone's reputation."}
+                            />
+                            <div className={`mt-0.5 text-right text-[10px] ${textSub}`}>{content.length}/2000</div>
+
+                            {/* 署名 */}
+                            <div className="mt-2 flex flex-wrap items-center gap-2">
+                                <span className={`text-[11px] ${textSub}`}>{zh ? "署名" : "Sign as"}</span>
+                                {(["real", "nick"] as const).map((s) => (
+                                    <button key={s}
+                                            className={sign === s ? pillOn : pillIdle}
+                                            onClick={() => setSign(s)}>
+                                        {s === "real"
+                                            ? (zh ? `实名（${user?.prefix ?? "-"}）` : `Real (${user?.prefix ?? "-"})`)
+                                            : (zh ? `昵称（${user?.nickname ?? "-"}）` : `Nickname (${user?.nickname ?? "-"})`)}
+                                    </button>
+                                ))}
+                            </div>
+
+                            {/* 社区规范 */}
+                            <p className={`mt-2 text-[11px] leading-relaxed ${textSub}`}>
+                                {zh
+                                    ? "请友善交流：不发布与课程无关的内容、广告引流，不针对具体教师个人发表负面评价（审核不通过将不予展示，驳回意见可在“我的评价”查看）。所有评价审核通过后才会公开。"
+                                    : "Be respectful: no off-topic content or ads, no negative remarks targeting specific individuals. All reviews are shown only after approval; rejection reasons appear in \"My reviews\"."}
+                            </p>
+
+                            {/* 底部按钮（防呆） */}
+                            <div className="mt-3">
+                                {formMsg && (
+                                    <div className={`mb-2 rounded-md border px-3 py-2 text-xs ${borderCls} ${
+                                        formMsg.ok
+                                            ? (isDark ? "bg-green-500/10 text-green-300" : "bg-green-50 text-green-700")
+                                            : (isDark ? "bg-red-500/10 text-red-300" : "bg-red-50 text-red-700")
+                                    }`}>
+                                        {formMsg.text}
+                                    </div>
+                                )}
+                                {confirmSubmit ? (
+                                    <div className={`rounded-md border p-3 ${borderCls}`}>
+                                        <p className={`mb-2 text-center text-sm ${textMain}`}>
+                                            {zh ? "确定要提交评价吗？" : "Submit this review?"}
+                                        </p>
+                                        <div className="flex justify-center gap-3">
+                                            <button className={btnMain} disabled={submitting} onClick={doSubmit}>
+                                                {submitting ? (zh ? "提交中…" : "Submitting…") : (zh ? "确定提交" : "Confirm")}
+                                            </button>
+                                            <button className={btnGhost} disabled={submitting} onClick={() => setConfirmSubmit(false)}>
+                                                {zh ? "再想想" : "Not yet"}
+                                            </button>
+                                        </div>
+                                    </div>
+                                ) : formMsg?.ok ? (
+                                    /* 提交成功：就地显示结果，由用户点「完成」关闭 */
+                                    <div className="flex justify-center">
+                                        <button className={btnMain} onClick={closeCompose}>{zh ? "完成" : "Done"}</button>
+                                    </div>
+                                ) : (
+                                    <div className="flex items-center gap-2">
+                                        <button className={btnMain} onClick={() => setConfirmSubmit(true)}>
+                                            {zh ? "提交" : "Submit"}
+                                        </button>
+                                        <button className={btnGhost} onClick={() => setConfirmCancel(true)}>
+                                            {zh ? "取消" : "Cancel"}
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        </>
+                    )}
+                </div>
+            </div>
+        );
+    };
+
+    /* —— 举报弹窗（⋯ 浮窗进入；一人一帖一次，理由可选） —— */
+    const renderReportModal = () => (
+        reportModal && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
+                 onClick={() => setReportModal(null)}>
+                <div className={`w-full max-w-sm rounded-xl border p-4 shadow-2xl ${borderCls} ${
+                    isDark ? "bg-gray-900" : "bg-white"
+                }`}
+                     onClick={(e) => e.stopPropagation()}>
+                    <div className="mb-1 text-sm font-semibold text-gray-800 dark:text-gray-100">
+                        {zh ? "举报这条评价" : "Report this review"}
+                    </div>
+                    <p className={`mb-3 text-[11px] ${textSub}`}>
+                        {zh ? `课程：${reportModal.name} · 举报后由管理员复核处理` : `Topic: ${reportModal.name} · Moderators will review`}
+                    </p>
+                    <textarea
+                        className={`${inputCls} min-h-[72px] resize-y`}
+                        value={reportReason}
+                        onChange={(e) => setReportReason(e.target.value)}
+                        maxLength={500}
+                        placeholder={zh ? "举报理由（可选）：如广告引流、无关内容、人身攻击等" : "Reason (optional): ads, off-topic, personal attacks..."}
+                    />
+                    {reportModalMsg && (
+                        <div className={`mt-2 rounded-md border px-2.5 py-1.5 text-[11px] ${borderCls} ${
+                            isDark ? "bg-red-500/10 text-red-300" : "bg-red-50 text-red-700"
+                        }`}>
+                            {reportModalMsg}
+                        </div>
+                    )}
+                    <div className="mt-3 flex items-center gap-2">
+                        <button className={btnMain} disabled={reportSubmitting} onClick={submitReport}>
+                            {reportSubmitting ? (zh ? "提交中…" : "Submitting…") : (zh ? "提交举报" : "Submit")}
+                        </button>
+                        <button className={btnGhost} disabled={reportSubmitting}
+                                onClick={() => { setReportModal(null); setReportReason(""); setReportModalMsg(null); }}>
+                            {zh ? "取消" : "Cancel"}
+                        </button>
+                        <span className={`ml-auto text-[10px] ${textSub}`}>{reportReason.length}/500</span>
+                    </div>
+                </div>
+            </div>
+        )
+    );
+
+    /* —— 我的评价弹窗 —— */
+    const renderMineModal = () => (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
+             onClick={() => setMineOpen(false)}>
+            <div className={`max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-xl border p-4 shadow-2xl ${borderCls} ${
+                isDark ? "bg-gray-900" : "bg-white"
+            }`}
+                 onClick={(e) => e.stopPropagation()}>
+                <div className="mb-3 flex items-center">
+                    <span className={`text-sm font-semibold ${textMain}`}>{zh ? "我的评价" : "My reviews"}</span>
+                    {mine && <span className={`ml-2 text-[11px] ${textSub}`}>({mine.length})</span>}
+                    <button className={`ml-auto text-lg leading-none ${textSub} hover:opacity-70`}
+                            onClick={() => setMineOpen(false)}>✕</button>
+                </div>
+                {(!mine || mine.length === 0) && (
+                    <div className={`py-8 text-center text-xs ${textSub}`}>
+                        {zh ? "还没有发表过评价" : "No reviews yet"}
+                    </div>
+                )}
+                <div className="flex flex-col gap-2.5">
+                    {mine?.map((it) => renderCard(it, {showStatus: true}))}
+                </div>
+            </div>
+        </div>
+    );
+
+    /* —— 顶栏：标题 + 消息 / 我的评价 / 身份（昵称直接展示，风格对齐 Navbar/AccountButton） —— */
+    const navBtn = `cursor-pointer rounded-lg border-none px-2 py-1 text-xs font-medium transition-all duration-200 ${mobileLayout ? "" : "sm:px-3 sm:py-1.5 sm:text-sm"} ${
+        isDark ? "text-gray-400 hover:bg-white/10 hover:text-gray-200" : "text-gray-500 hover:bg-[rgba(0,0,0,0.04)] hover:text-gray-700"
+    }`;
+    const dropPanel = `absolute right-0 top-full z-30 mt-1.5 rounded-xl border p-3 shadow-xl ${borderCls} ${
+        isDark ? "bg-gray-900" : "bg-white"
+    }`;
+
+    const renderTopBar = () => (
+        <div className={`relative mb-3 flex flex-wrap items-center gap-y-2 border-b pb-3 ${mobileLayout ? "" : "sm:mb-4"} ${borderCls}`}>
+            <span className={`shrink-0 text-sm font-semibold ${textMain}`}>{zh ? "课程评价" : "Course Reviews"}</span>
+
+            <div className="ml-auto flex max-w-full flex-wrap items-center justify-end gap-1 sm:gap-2">
+                {/* 消息（铃铛 + 未读角标） */}
+                {user && (
+                    <div className="relative">
+                        <button className={navBtn} onClick={() => { setMsgOpen((v) => !v); setIdOpen(false); }}>
+                            <span className="relative inline-flex items-center gap-1">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+                                    <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+                                </svg>
+                                {zh ? "消息" : "Inbox"}
+                                {unread > 0 && (
+                                    <span className="absolute -right-3 -top-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-semibold leading-none text-white">
+                                        {unread > 99 ? "99+" : unread}
+                                    </span>
+                                )}
+                            </span>
+                        </button>
+                        {msgOpen && (
+                            <div className={`${dropPanel} z-40 max-h-96 w-80 max-w-[calc(100vw-2rem)] overflow-y-auto`}>
+                                <div className="mb-1 flex items-center px-1">
+                                    <span className={`text-[11px] font-medium ${textSub}`}>{zh ? "消息中心" : "Messages"}</span>
+                                    <button className={`ml-auto text-[11px] hover:underline ${textSub}`}
+                                            onClick={() => markRead(null)}>
+                                        {zh ? "全部已读" : "Mark all read"}
+                                    </button>
+                                </div>
+                                {(!msgs || msgs.length === 0) && (
+                                    <div className={`px-1 py-4 text-center text-xs ${textSub}`}>{zh ? "暂无消息" : "No messages"}</div>
+                                )}
+                                {msgs?.map((m) => (
+                                    <div key={m.id}
+                                         className={`rounded-md px-2 py-2 ${m.read ? "" : (isDark ? "bg-blue-500/10" : "bg-blue-50")}`}>
+                                        <div className="flex items-center gap-1.5">
+                                            {!m.read && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-blue-500" />}
+                                            <span className={`text-xs font-medium ${textMain}`}>{m.title}</span>
+                                            <span className={`ml-auto shrink-0 text-[10px] ${textSub}`}>{fmtTime(m.ts)}</span>
+                                        </div>
+                                        {m.content && (
+                                            <p className={`mt-1 whitespace-pre-wrap text-[11px] leading-relaxed ${textSub}`}>
+                                                {m.content}
+                                            </p>
+                                        )}
+                                        {!m.read && (
+                                            <button className={`mt-1 text-[10px] hover:underline ${textSub}`}
+                                                    onClick={() => markRead(m.id)}>
+                                                {zh ? "标为已读" : "Mark read"}
+                                            </button>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {/* 我的评价 */}
+                {user && (
+                    <button className={navBtn}
+                            onClick={() => { loadMine(); setMineOpen(true); setIdOpen(false); setMsgOpen(false); }}>
+                        {zh ? "我的评价" : "My reviews"}
+                    </button>
+                )}
+
+                {/* 身份：直接展示 昵称 + 实名前缀（头像风格同 AccountButton），点击展开设置 */}
+                {user ? (
+                    <div className="relative">
+                        <button
+                            onClick={() => { setIdOpen((v) => !v); setMsgOpen(false); }}
+                            className={`flex cursor-pointer items-center gap-1.5 rounded-full border py-0.5 pl-0.5 pr-2.5 transition-colors ${
+                                isDark ? "border-white/15 bg-white/5 hover:bg-white/10" : "border-gray-200 bg-white hover:bg-gray-50"
+                            }`}
+                        >
+                            <span
+                                className="flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-semibold text-white"
+                                style={{background: "#863bff"}}
+                            >
+                                {user.nickname.slice(0, 1).toUpperCase()}
+                            </span>
+                                <span className={`truncate text-xs font-medium ${mobileLayout ? "max-w-20" : "max-w-20 sm:max-w-24"} ${isDark ? "text-white/85" : "text-gray-700"}`}>
+                                {user.nickname}
+                            </span>
+                            {!mobileLayout && <span className={`hidden max-w-20 truncate text-[10px] sm:inline ${textSub}`}>{user.prefix}</span>}
+                            <span className={`text-[8px] leading-none ${textSub}`}>▾</span>
+                        </button>
+                        {idOpen && (
+                            <div className={`${dropPanel} z-40 w-72 max-w-[calc(100vw-2rem)]`}>
+                                <div className={`mb-0.5 text-sm font-semibold ${textMain}`}>{user.nickname}</div>
+                                <div className={`mb-3 text-[11px] ${textSub}`}>
+                                    {zh ? `实名：${user.prefix}（邮箱前缀，不可修改）` : `Real name: ${user.prefix} (email prefix)`}
+                                </div>
+                                <div className="mb-1">
+                                    <span className={`mb-1 block text-[11px] font-medium ${textSub}`}>
+                                        {zh ? `昵称（每天最多修改一次${nickLocked ? "，今日已修改" : ""}）` : `Nickname (once per day${nickLocked ? ", changed today" : ""})`}
+                                    </span>
+                                    <div className="flex items-center gap-1.5">
+                                        <input
+                                            className={inputCls}
+                                            value={nickInput}
+                                            onChange={(e) => setNickInput(e.target.value)}
+                                            maxLength={24}
+                                            placeholder={user.nickname}
+                                            disabled={nickLocked}
+                                        />
+                                        <button className={btnMain} disabled={nickSaving || nickLocked || !nickInput.trim()}
+                                                onClick={saveNick}>
+                                            {zh ? "保存" : "Save"}
+                                        </button>
+                                    </div>
+                                    {nickMsg && (
+                                        <div className={`mt-1 text-[11px] ${
+                                            nickMsg === "已更新" || nickMsg === "Updated" ? "text-green-500" : "text-red-500"
+                                        }`}>{nickMsg}</div>
+                                    )}
+                                </div>
+                                <p className={`mt-2 border-t pt-2 text-[10px] leading-relaxed ${textSub} ${borderCls}`}>
+                                    {zh ? "发布评价时可选择以实名或昵称署名；审核时管理员同时可见你的实名与昵称。"
+                                        : "Reviews can be signed with your real name or nickname; moderators see both."}
+                                </p>
+                            </div>
+                        )}
+                    </div>
+                ) : (
+                    <button
+                        onClick={openAuthModal}
+                        className={`cursor-pointer rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                            isDark
+                                ? "border-[#863bff]/50 bg-[#863bff]/15 text-[#c4a8ff] hover:bg-[#863bff]/25"
+                                : "border-[#863bff]/40 bg-[#863bff]/10 text-[#863bff] hover:bg-[#863bff]/20"
+                        }`}
+                    >
+                        {zh ? "登录 / 注册" : "Sign in"}
+                    </button>
+                )}
+            </div>
+        </div>
+    );
+
+    /* —— 左栏：搜索 + 首字母索引 —— */
+    const renderSearchBlock = () => (
+        <>
+            <div className="flex items-center gap-2">
+                <input
+                    className={`${inputCls} min-w-0 flex-1`}
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    placeholder={zh ? "搜索课程名，进入对应评价" : "Search a course to see its reviews"}
+                />
+                {query && <button className={pillIdle} onClick={() => setQuery("")}>✕</button>}
+            </div>
+
+            {/* 搜索结果（课程条目） */}
+            {kw && (
+                <div className={`rounded-lg border p-2 ${borderCls}`}>
+                    <div className={`mb-1 px-1 text-[11px] ${textSub}`}>
+                        {zh ? `找到 ${searchedTopics.length} 个课程条目` : `${searchedTopics.length} topic(s)`}
+                    </div>
+                    {searchedTopics.length === 0 && (
+                        <div className={`px-1 py-2 text-xs ${textSub}`}>
+                            {zh
+                                ? "没有匹配的条目。想评价这门课？点右栏“我要评价”，提交时会自动创建新条目。"
+                                : "No match. Use \"Write a review\" on the right; a new topic will be created automatically."}
+                        </div>
+                    )}
+                    <div className="flex flex-wrap gap-1.5">
+                        {searchedTopics.map((t) => (
+                            <button key={t.id}
+                                    className={`${pillIdle} inline-flex items-center gap-1`}
+                                    onClick={() => setActiveTopic(t)}>
+                                {t.name}
+                                <span className="tabular-nums opacity-70">{t.review_count}</span>
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {/* 首字母索引（仅收录评价数 ≥1 的条目） */}
+            {!kw && letters.length > 0 && (
+                <div className={`rounded-lg border p-3 ${borderCls}`}>
+                    <div className={`mb-2 text-[11px] font-medium ${textSub}`}>
+                        {zh ? "按首字母快速检索" : "Browse by initial"}
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                        {letters.map((l) => (
+                            <button key={l}
+                                    className={letter === l ? pillOn : pillIdle}
+                                    onClick={() => setLetter(letter === l ? null : l)}>
+                                {l}
+                            </button>
+                        ))}
+                    </div>
+                    {letter && (
+                        <div className={`mt-2 flex flex-wrap gap-1.5 border-t pt-2 ${borderCls}`}>
+                            {letterTopics.length === 0 && <span className={`text-xs ${textSub}`}>…</span>}
+                            {letterTopics.map((t) => (
+                                <button key={t.id}
+                                        className={`${pillIdle} inline-flex items-center gap-1`}
+                                        onClick={() => setActiveTopic(t)}>
+                                    {t.name}
+                                    <span className="tabular-nums opacity-70">{t.review_count}</span>
+                                </button>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            )}
+        </>
+    );
+
+    /* —— 排序 tabs + 刷新 —— */
+    // reload 接收目标排序：先 setState 再用旧闭包值会导致「切热门实际加载旧排序」，必须显式传参
+    const sortTabs = (sort: "time" | "hot", setSort: (s: "time" | "hot") => void,
+                      reload: (s: "time" | "hot") => void, loading: boolean) => (
+        <div className="flex items-center gap-2">
+            {(["time", "hot"] as const).map((s) => (
+                <button key={s}
+                        className={sort === s ? pillOn : pillIdle}
+                        onClick={() => { setSort(s); reload(s); }}>
+                    {s === "time" ? (zh ? "最新" : "Latest") : (zh ? "热门" : "Hot")}
+                </button>
+            ))}
+            <button className={pillIdle} disabled={loading} onClick={() => reload(sort)}>
+                ↻ {zh ? "刷新" : "Refresh"}
+            </button>
+        </div>
+    );
+
+    const renderBoardPeriodTabs = () => (
+        <div className="ml-auto flex gap-1.5">
+            {(["month", "year"] as const).map((p) => (
+                <button key={p}
+                        className={boardPeriod === p ? pillOn : pillIdle}
+                        onClick={() => setBoardPeriod(p)}>
+                    {p === "month" ? (zh ? "月榜" : "Month") : (zh ? "年榜" : "Year")}
+                </button>
+            ))}
+        </div>
+    );
+
+    const renderBoardItems = () => (!board || board.length === 0 ? (
+        <div className={`py-3 text-center text-[11px] ${textSub}`}>
+            {zh
+                ? `${boardPeriod === "month" ? "近 30 天" : "近一年"}暂无已发布的评价`
+                : "No published reviews in this window"}
+        </div>
+    ) : (
+        <ol className="flex flex-col gap-1">
+            {board.map((it, i) => (
+                <li key={it.id}>
+                    <button
+                        className={`flex min-h-9 w-full items-start gap-2 rounded-md px-1.5 py-1.5 text-left transition-colors ${mobileLayout ? "" : "sm:min-h-0 sm:py-1"} ${
+                            isDark ? "hover:bg-white/5" : "hover:bg-gray-100"
+                        }`}
+                        onClick={() => setActiveTopic(topics.find((t) => t.id === it.topic_id) ?? (it.topic as unknown as ReviewTopic))}
+                    >
+                        <span className={`mt-0.5 w-4 shrink-0 text-center text-xs font-semibold ${
+                            i < 3 ? "text-orange-500" : textSub
+                        }`}>{i + 1}</span>
+                        <span className="min-w-0 flex-1">
+                            <span className={`block truncate text-xs ${textMain}`}>
+                                {it.content.replace(/\s+/g, " ").slice(0, 30)}
+                            </span>
+                            <span className={`block truncate text-[10px] ${textSub}`}>
+                                {it.topic.name} · {it.author_name}
+                            </span>
+                        </span>
+                    </button>
+                </li>
+            ))}
+        </ol>
+    ));
+
+    const renderRulesText = () => (
+        <p className={`text-[11px] leading-relaxed ${textSub}`}>{zh ? RULES_ZH : RULES_EN}</p>
+    );
+
+    const renderWriteButton = () => (
+        <button className={`${btnMain} min-h-10 w-full py-2.5 text-sm`} onClick={() => openCompose(activeTopic ?? undefined)}>
+            {zh ? "我要评价" : "Write a review"}
+        </button>
+    );
+
+    /* —— PC 右栏 —— */
+    const renderRightCol = () => (
+        <div className="flex flex-col gap-3">
+            {renderWriteButton()}
+
+            {/* 热度排行榜（月榜/年榜 前 10） */}
+            <div className={`rounded-lg border p-3 ${borderCls}`}>
+                <div className="mb-2 flex items-center">
+                    <span className={`text-xs font-semibold ${textMain}`}>{zh ? "热度排行榜" : "Top rankings"}</span>
+                    {renderBoardPeriodTabs()}
+                </div>
+                {renderBoardItems()}
+            </div>
+
+            {/* 规则说明 */}
+            <div className={`rounded-lg border p-3 ${borderCls} ${cardBg}`}>
+                <p className={`mb-1.5 text-xs font-semibold ${textMain}`}>
+                    {zh ? "课程评价 · 规则说明" : "Course Reviews · Rules"}
+                </p>
+                {renderRulesText()}
+            </div>
+        </div>
+    );
+
+    /* —— 移动端快捷操作与折叠辅助信息 —— */
+    const renderMobileExtras = () => (
+        <div className={`flex flex-col gap-2 ${mobileLayout ? "" : "lg:hidden"}`}>
+            {renderWriteButton()}
+            <details className={`rounded-lg border ${borderCls} ${cardBg}`}>
+                <summary className={`cursor-pointer px-3 py-2.5 text-xs font-semibold ${textMain}`}>
+                    {zh ? "热度排行榜" : "Top rankings"}
+                </summary>
+                <div className={`border-t p-3 ${borderCls}`}>
+                    <div className="mb-2 flex items-center">{renderBoardPeriodTabs()}</div>
+                    {renderBoardItems()}
+                </div>
+            </details>
+            <details className={`rounded-lg border ${borderCls} ${cardBg}`}>
+                <summary className={`cursor-pointer px-3 py-2.5 text-xs font-semibold ${textMain}`}>
+                    {zh ? "课程评价 · 规则说明" : "Course Reviews · Rules"}
+                </summary>
+                <div className={`border-t p-3 ${borderCls}`}>
+                    {renderRulesText()}
+                </div>
+            </details>
+        </div>
+    );
+
+    /* —— 页面主体 —— */
+    return (
+        <div className="min-w-0">
+            {renderTopBar()}
+
+            {/* 顶栏下拉面板打开时的透明遮罩（点击空白收起） */}
+            {(msgOpen || idOpen) && (
+                <div className="fixed inset-0 z-20" onClick={() => { setMsgOpen(false); setIdOpen(false); }} />
+            )}
+
+            <div className={`grid min-w-0 grid-cols-1 gap-3 ${mobileLayout ? "" : "lg:grid-cols-[minmax(0,1fr)_300px] lg:gap-4"}`}>
+                {/* 左栏：内容主体 */}
+                <div className="flex min-w-0 flex-col gap-3">
+                    {renderMobileExtras()}
+                    {activeTopic ? (
+                        <>
+                            {/* 筛选头 + 取消筛选 */}
+                            <div className={`flex flex-wrap items-center gap-2 rounded-lg border p-3 ${borderCls}`}>
+                                <span className={`text-xs ${textSub}`}>{zh ? "当前筛选" : "Filter"}</span>
+                                <span className={`rounded-full border px-2.5 py-1 text-xs font-medium ${borderCls} ${textMain}`}>
+                                    {activeTopic.name}
+                                </span>
+                                <button className={`${pillIdle} ml-auto`}
+                                        onClick={() => { setActiveTopic(null); setTopicItems([]); setTopicTotal(0); setTopicError(null); }}>
+                                    ✕ {zh ? "取消筛选" : "Clear filter"}
+                                </button>
+                            </div>
+
+                            {sortTabs(topicSort, setTopicSort, (s) => loadTopic(activeTopic.id, s), topicLoading)}
+
+                            {topicLoading && topicItems.length === 0 && <div className={`py-6 text-center text-xs ${textSub}`}>…</div>}
+                            {topicError && (
+                                <div className={`rounded-lg border px-3 py-2 text-xs ${borderCls} ${
+                                    isDark ? "bg-red-500/10 text-red-300" : "bg-red-50 text-red-700"
+                                }`}>
+                                    {topicError}
+                                    <button className={`ml-2 underline`} onClick={() => loadTopic(activeTopic.id, topicSort)}>
+                                        {zh ? "重试" : "Retry"}
+                                    </button>
+                                </div>
+                            )}
+                            {!topicLoading && !topicError && topicItems.length === 0 && (
+                                <div className={`rounded-lg border p-6 text-center text-xs ${borderCls} ${textSub}`}>
+                                    {zh ? "这个课程还没有已发布的评价，来写第一条吧" : "No published reviews yet — be the first!"}
+                                </div>
+                            )}
+                            <div className="flex flex-col gap-2.5">
+                                {topicItems.map((it) => renderCard(it))}
+                            </div>
+                            <div ref={topicSentinelRef} />
+                        </>
+                    ) : (
+                        <>
+                            {renderSearchBlock()}
+                            {sortTabs(feedSort, setFeedSort, (s) => loadFeed(s), feedLoading)}
+                            {feedLoading && feed.length === 0 && <div className={`py-6 text-center text-xs ${textSub}`}>…</div>}
+                            {feedError && (
+                                <div className={`rounded-lg border px-3 py-2 text-xs ${borderCls} ${
+                                    isDark ? "bg-red-500/10 text-red-300" : "bg-red-50 text-red-700"
+                                }`}>
+                                    {feedError}
+                                    <button className={`ml-2 underline`} onClick={() => loadFeed(feedSort)}>
+                                        {zh ? "重试" : "Retry"}
+                                    </button>
+                                </div>
+                            )}
+                            {initReady && !feedLoading && !feedError && feed.length === 0 && (
+                                <div className={`rounded-lg border p-6 text-center text-xs ${borderCls} ${textSub}`}>
+                                    {zh ? "还没有已发布的评价，第一条由你来写" : "No reviews yet — write the first one!"}
+                                </div>
+                            )}
+                            <div className="flex flex-col gap-2.5">
+                                {feed.map((it) => renderCard(it))}
+                            </div>
+                            <div ref={feedSentinelRef} />
+                        </>
+                    )}
+                </div>
+
+                {/* 右栏：辅助信息 */}
+                <div className={mobileLayout ? "hidden" : "hidden min-w-0 lg:block"}>
+                    {renderRightCol()}
+                </div>
+            </div>
+
+            {/* 弹窗 */}
+            {composeOpen && renderComposeModal()}
+            {mineOpen && renderMineModal()}
+            {renderReportModal()}
+        </div>
+    );
+}

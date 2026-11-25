@@ -47,8 +47,8 @@ export function CurriculumMapTutorial({onClose}: Props) {
     {
       title: zh ? "其他提示" : "Tips",
       body: zh
-        ? "鼠标悬停在任意节点上通常能看到完整课程名称和学分信息。上侧滑条可以调整全局呈现的课程总数上限。"
-        : "Hover over any node to see its full name and credits. The slider at the top adjusts the maximum number of courses shown globally.",
+        ? "鼠标悬停在任意节点上通常能看到完整课程名称和学分信息。上侧滑条可以调整全局呈现的课程总数上限。培养方案内容会随你选择的年级（字班）自动切换到对应版本（2024/2025/2026），导图展示的始终是当前年级的方案。"
+        : "Hover over any node to see its full name and credits. The slider at the top adjusts the maximum number of courses shown globally. The plan content follows your selected cohort year and switches automatically between the 2024/2025/2026 versions — the map always shows the current cohort’s scheme.",
     },
   ];
 

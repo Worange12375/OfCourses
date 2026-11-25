@@ -20,8 +20,11 @@ export const MobilePrompt = () => {
         <h2 className="mb-2 text-lg font-semibold text-gray-900 dark:text-white">
           本网站建议在 PC 端使用
         </h2>
-        <p className="mb-6 text-sm text-gray-500 dark:text-white/60">
+        <p className="mb-3 text-sm text-gray-500 dark:text-white/60">
           为获得最佳体验，推荐使用电脑浏览器访问。你也可以选择当前设备的显示方式。
+        </p>
+        <p className="mb-6 text-xs leading-relaxed text-gray-400 dark:text-white/40">
+          提示：部分手机浏览器可能会出现按钮、标签等颜色显示不全的情况。如遇此问题，建议切换到 PC 端、更换浏览器或开启暗色模式。也欢迎前往「关于我们」页的问题反馈区留下你的机型和浏览器信息，帮助我们提升兼容性。
         </p>
         <div className="flex flex-col gap-3">
           <button

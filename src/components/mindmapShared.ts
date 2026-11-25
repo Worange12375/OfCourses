@@ -1,5 +1,11 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react";
-import structuredData from "@/data/structured_data.json";
+import {getSchemeData} from "@/data/schemeStore";
+import enData from "@/data/courses_en.json";
+
+/** 英文名查询：courses（按 course_id）/ modules（按 module_id 字符串）/ groups（按 group_code） */
+export const EN_COURSES = enData.courses as Record<string, string>;
+export const EN_MODULES = enData.modules as Record<string, string>;
+export const EN_GROUPS = enData.groups as Record<string, string>;
 
 /* ============ 常量（与列表图共用，已锁定） ============ */
 // 可见课程硬上限 = 全展开培养方案后的「课程(叶)节点」总数（同一门课跨课组出现计多次）。
@@ -14,7 +20,9 @@ export type Level = "root" | "class" | "module" | "basis" | "group" | "course" |
 export interface TreeNode {
     id: string;
     label: string;
+    labelEn?: string; // 英文名（courses_en.json；缺失时回退 label）
     sub?: string;
+    subEn?: string; // 副信息英文（如 "4 cr"）
     level: Level;
     childIds: string[];
     courseCount?: number;
@@ -54,7 +62,7 @@ interface RawData {
 
 /** 全展开培养方案后的课程(叶)节点总数 = 各课组 course_ids 长度之和（含跨组重复） */
 function computePerfMax(): number {
-    const data = structuredData as unknown as RawData;
+    const data = getSchemeData() as unknown as RawData;
     let total = 0;
     data.group_courses.forEach((g) => (total += g.course_ids.length));
     return total;
@@ -62,7 +70,7 @@ function computePerfMax(): number {
 
 /** 仅培养方案（不含基础通识/自定义）的全部课程(叶)节点总数 = 各「非基础课组」course_ids 之和 */
 function computeMainSchemeCourses(): number {
-    const data = structuredData as unknown as RawData;
+    const data = getSchemeData() as unknown as RawData;
     const basisIds = new Set(data.course_groups.filter((g) => g.module_id === null).map((g) => g.group_id));
     let total = 0;
     data.group_courses.forEach((g) => {
@@ -108,7 +116,7 @@ export function expandWithAncestors(ids: Iterable<string>, nodes: Map<string, {a
 
 /* ============ 构建树（纯函数，组件内 useMemo 调用，绝不可在模块顶层调用 Hook） ============ */
 export function buildMindMapTree() {
-    const data = structuredData as unknown as RawData;
+    const data = getSchemeData() as unknown as RawData;
     const courseById = new Map<string, RawCourse>(data.courses.map((c) => [c.course_id, c]));
     const groupCoursesMap = new Map<number, string[]>(data.group_courses.map((g) => [g.group_id, g.course_ids]));
     const courseGroupCount = new Map<string, number>();
@@ -135,7 +143,9 @@ export function buildMindMapTree() {
         nodes.set(cid, {
             id: cid,
             label: c?.name ?? courseId,
+            labelEn: EN_COURSES[courseId],
             sub: c?.credits != null ? `${c.credits} 学分` : undefined,
+            subEn: c?.credits != null ? `${c.credits} cr` : undefined,
             level: "course",
             childIds: [],
             courseId,
@@ -152,7 +162,9 @@ export function buildMindMapTree() {
         nodes.set(gid, {
             id: gid,
             label: g.name,
+            labelEn: EN_GROUPS[g.group_code],
             sub: `${courseIds.length} 门 · 共 ${credits} 学分`,
+            subEn: `${courseIds.length} courses · ${credits} cr`,
             level: "group",
             childIds,
             courseCount: courseIds.length,
@@ -167,10 +179,10 @@ export function buildMindMapTree() {
     const class2Id = "class2";
     const class3Id = "class3";
     const classIds = [class1Id, class2Id, class3Id];
-    const classMeta: {id: string; label: string}[] = [
-        {id: class1Id, label: "I 类"},
-        {id: class2Id, label: "II 类"},
-        {id: class3Id, label: "III 类"},
+    const classMeta: {id: string; label: string; labelEn: string}[] = [
+        {id: class1Id, label: "I 类", labelEn: "Class I"},
+        {id: class2Id, label: "II 类", labelEn: "Class II"},
+        {id: class3Id, label: "III 类", labelEn: "Class III"},
     ];
 
     const classChildren = new Map<string, string[]>();
@@ -186,7 +198,9 @@ export function buildMindMapTree() {
             nodes.set(mid, {
                 id: mid,
                 label: `模块${m.module_id} · ${m.name}`,
+                labelEn: `Module ${m.module_id} · ${EN_MODULES[String(m.module_id)] ?? m.name}`,
                 sub: `${groups.length} 课组`,
+                subEn: `${groups.length} groups`,
                 level: "module",
                 childIds,
                 classTag: classTagOf(m.module_id),
@@ -195,10 +209,11 @@ export function buildMindMapTree() {
             classChildren.get(clsId)!.push(mid);
         });
 
-    classMeta.forEach(({id, label}) => {
+    classMeta.forEach(({id, label, labelEn}) => {
         nodes.set(id, {
             id,
             label,
+            labelEn,
             level: "class",
             childIds: classChildren.get(id) ?? [],
             ancestors: ["__root_main__"],
@@ -210,6 +225,7 @@ export function buildMindMapTree() {
     nodes.set(mainRootId, {
         id: mainRootId,
         label: "笃实书院培养方案",
+        labelEn: "Dushi College Curriculum",
         level: "root",
         childIds: classIds,
         ancestors: [],
@@ -226,7 +242,7 @@ export function buildMindMapTree() {
     const bid = "basis";
     if (basisGroups.length) {
         const childIds = basisGroups.map((g) => addGroup(bid, g, [bid]));
-        nodes.set(bid, {id: bid, label: "基础与通识", sub: `${basisGroups.length} 课组`, level: "basis", childIds, ancestors: []});
+        nodes.set(bid, {id: bid, label: "基础与通识", labelEn: "Foundations & General", sub: `${basisGroups.length} 课组`, subEn: `${basisGroups.length} groups`, level: "basis", childIds, ancestors: []});
         rootChildren.push(bid);
         forestRoots.push(bid);
     }
@@ -236,7 +252,9 @@ export function buildMindMapTree() {
     nodes.set(customId, {
         id: customId,
         label: "模块14 · 自定义",
+        labelEn: "Module 14 · Custom",
         sub: "（学生自定义选课方案）",
+        subEn: "(Student-defined plan)",
         level: "custom",
         childIds: [],
         ancestors: [],
@@ -250,16 +268,18 @@ export function buildMindMapTree() {
 /* ============ 搜索索引（列表图与树状图共用，返回统一树节点 id） ============ */
 export type SearchType = "course" | "module" | "group";
 export type SearchScope = "all" | "main" | "basis";
-export const SCOPE_OPTIONS: {value: SearchScope; label: string}[] = [
-    {value: "all", label: "全部"},
-    {value: "main", label: "培养方案"},
-    {value: "basis", label: "基础通识"},
+export const SCOPE_OPTIONS: {value: SearchScope; label: string; labelEn: string}[] = [
+    {value: "all", label: "全部", labelEn: "All"},
+    {value: "main", label: "交叉模块", labelEn: "Cross Modules"},
+    {value: "basis", label: "基础通识", labelEn: "Foundations & General"},
 ];
 export interface SearchHit {
     type: SearchType;
     id: string; // 统一节点 id（mX-gY-cZ 体系，列表图与树状图一致）
     label: string; // 命中项显示名
+    labelEn?: string; // 英文名（缺失回退 label）
     sub?: string; // 副信息
+    subEn?: string;
     groupId?: number;
     moduleId?: number | null;
     courseId?: string;
@@ -268,6 +288,7 @@ export interface SearchHit {
 // 文本级搜索目标：按 label 去重后的建议项；选定后解析为全部同名节点
 export interface SearchTarget {
     label: string; // 匹配到的文本（如「计算机图形学基础」）
+    labelEn?: string; // 英文显示名（缺失回退 label）
     type: SearchType;
     count: number; // 该文本在范围内出现的次数（同名节点数）
     ids: string[]; // 范围内所有同名节点的 id
@@ -277,7 +298,7 @@ export interface SearchIndex {
     hits: SearchHit[];
 }
 export function buildSearchIndex(): SearchIndex {
-    const data = structuredData as unknown as RawData;
+    const data = getSchemeData() as unknown as RawData;
     const courseById = new Map<string, RawCourse>(data.courses.map((c) => [c.course_id, c]));
     const groupById = new Map<number, RawGroup>(data.course_groups.map((g) => [g.group_id, g]));
     const prefixOf = (moduleId: number | null) => (moduleId != null ? `m${moduleId}` : "basis");
@@ -296,7 +317,9 @@ export function buildSearchIndex(): SearchIndex {
                 type: "course",
                 id: `${prefix}-g${g.group_id}-c${cid}`,
                 label: c.name,
+                labelEn: EN_COURSES[cid],
                 sub: grp?.name,
+                subEn: grp ? EN_GROUPS[grp.group_code] : undefined,
                 groupId: g.group_id,
                 moduleId: mid,
                 courseId: cid,
@@ -312,6 +335,7 @@ export function buildSearchIndex(): SearchIndex {
                 type: "module",
                 id: `m${m.module_id}`,
                 label: `模块${m.module_id} · ${m.name}`,
+                labelEn: `Module ${m.module_id} · ${EN_MODULES[String(m.module_id)] ?? m.name}`,
                 moduleId: m.module_id,
             });
         });
@@ -322,7 +346,9 @@ export function buildSearchIndex(): SearchIndex {
             type: "group",
             id: `${prefixOf(g.module_id)}-g${g.group_id}`,
             label: g.name,
+            labelEn: EN_GROUPS[g.group_code],
             sub: g.module_id != null ? `模块${g.module_id}` : "基础与通识",
+            subEn: g.module_id != null ? `Module ${g.module_id}` : "Foundations & General",
             groupId: g.group_id,
             moduleId: g.module_id,
         });
@@ -351,7 +377,7 @@ export function searchTargets(index: SearchIndex, query: string, scope: SearchSc
     for (const h of matched) {
         const exist = byLabel.get(h.label);
         if (!exist) {
-            byLabel.set(h.label, {label: h.label, type: h.type, count: 1, ids: [h.id], sub: h.sub});
+            byLabel.set(h.label, {label: h.label, labelEn: h.labelEn, type: h.type, count: 1, ids: [h.id], sub: h.sub});
         } else {
             exist.count += 1;
             exist.ids.push(h.id);
@@ -589,9 +615,11 @@ export function useMindMapState() {
  * 范围：仅培养方案课组（module_id != null），基础与通识（module_id === null）排除。
  */
 export type RelClass = "Ⅰ类" | "Ⅱ类" | "Ⅲ类";
+export const REL_CLASS_EN: Record<RelClass, string> = {"Ⅰ类": "Class I", "Ⅱ类": "Class II", "Ⅲ类": "Class III"};
 export interface GroupRel {
     groupId: number;
     name: string;
+    nameEn?: string; // 英文名（courses_en.json；缺失回退 name）
     moduleId: number;
     classTag: RelClass;
     totalCredits: number;
@@ -600,6 +628,7 @@ export interface GroupRel {
 export interface CourseRel {
     courseId: string;
     name: string;
+    nameEn?: string; // 英文名（缺失回退 name）
     credits: number;
     groupIds: number[]; // 所属培养方案课组（已排除基础通识）
     groupCount: number; // = groupIds.length
@@ -613,7 +642,7 @@ export interface RelationIndex {
 }
 
 export function buildRelationIndex(): RelationIndex {
-    const data = structuredData as unknown as RawData;
+    const data = getSchemeData() as unknown as RawData;
     const courseMeta = new Map<string, RawCourse>(data.courses.map((c) => [c.course_id, c]));
 
     // 仅培养方案课组（module_id != null）
@@ -630,6 +659,7 @@ export function buildRelationIndex(): RelationIndex {
     const groups: GroupRel[] = tpGroups.map((g) => ({
         groupId: g.group_id,
         name: g.name,
+        nameEn: EN_GROUPS[g.group_code],
         moduleId: g.module_id as number,
         classTag: classTagOf(g.module_id as number) as RelClass,
         totalCredits: gcredits.get(g.group_id) ?? 0,
@@ -655,6 +685,7 @@ export function buildRelationIndex(): RelationIndex {
         crossCourses.push({
             courseId: cid,
             name: meta?.name ?? cid,
+            nameEn: EN_COURSES[cid],
             credits: meta?.credits ?? 0,
             groupIds: gids,
             groupCount: gids.length,

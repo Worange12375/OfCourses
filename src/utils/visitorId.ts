@@ -26,6 +26,11 @@ export const getVisitorId = (): string => {
   }
 };
 
+// 上报去重：挂载期移动模式判定翻转等场景会让同一页面视图触发两次上报，
+// 3 秒内相同 (path, mobile) 只计一次，避免 PV 重复计数。
+let lastReportKey = "";
+let lastReportTs = 0;
+
 /**
  * 上报一次访问（PV）。服务端按 vid 去重得到 UV。
  * 任何失败都静默吞掉——统计功能绝不能影响主功能可用性。
@@ -34,6 +39,11 @@ export const reportVisit = (path: string, mobile: boolean): void => {
   try {
     // 本地开发没有后端，不上报
     if (import.meta.env.DEV) return;
+    const now = Date.now();
+    const key = `${path}|${mobile}`;
+    if (key === lastReportKey && now - lastReportTs < 3000) return;
+    lastReportKey = key;
+    lastReportTs = now;
     void fetch("/track", {
       method: "POST",
       headers: {"Content-Type": "application/json"},

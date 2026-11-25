@@ -15,9 +15,12 @@ import {
   useCourseGroups,
   useTName,
 } from "../hooks/useCurriculumData";
-import structuredData from "@/data/structured_data.json";
+import {useSchemeData} from "@/data/schemeStore";
 import enData from "@/data/courses_en.json";
 import type {Course} from "@/types/curriculum";
+import {ATTR_LABELS, ATTR_LABELS_EN, cohortScoringTables} from "../utils/recommend";
+import {SchemeManageModal} from "../account/SchemeManageModal";
+import {useAccount} from "../account/AccountContext";
 
 // 自定义课程属性的双语标签（"通识-艺术" 等），用于通识学分统计展示
 const GE_PROP_LABELS: Record<string, {zh: string; en: string}> = {
@@ -26,6 +29,7 @@ const GE_PROP_LABELS: Record<string, {zh: string; en: string}> = {
   "通识-人文": {zh: "人文", en: "Humanities"},
   "通识-科学": {zh: "科学", en: "Natural Sci"},
   "SRT": {zh: "SRT", en: "SRT"},
+  "思政限选": {zh: "思政限选", en: "Pol. Elective"},
 };
 const geLabelFor = (k: string, locale: string) =>
   GE_PROP_LABELS[k]?.[locale === "zh" ? "zh" : "en"] ?? k;
@@ -111,10 +115,13 @@ const formatModuleOption = (modId: number, name: string, locale: string): string
   locale === "zh" ? `模块${modId}：${name}` : `Module ${modId}: ${name}`;
 
 export const Workspace = ({onNavigate: _onNavigate, mobile = false}: WorkspaceProps) => {
+  // 当前年级的培养方案数据（切年级时引用变化，驱动下方 useMemo 重算）
+  // 响应式年级数据：年级切换（登录/手动）时组件重渲染并拿到新方案
+  const {structuredData, schemeYear} = useSchemeData();
   const {t, locale} = useLocale();
   const {theme} = useAppTheme();
   const isDark = theme === "dark";
-  const {semester: currentSemester, setSemester, allSemesters} = useSemester();
+  const {semester: currentSemester, semesterAuto} = useSemester();
   const {tName, tModule, tSemester, tGroup} = useTName();
 
   const [leftExpanded, setLeftExpanded] = useState(false);
@@ -132,12 +139,21 @@ export const Workspace = ({onNavigate: _onNavigate, mobile = false}: WorkspacePr
   const [showFilterHint, setShowFilterHint] = useState(false);
   const filterHintShownRef = useRef(false);
   const [selectedCourses, setSelectedCourses] = useState<Set<string>>(new Set());
+  /** 编辑来源学期：从选课历史点「编辑」进入时记录该学期；编辑中该学期课程在目录置顶、对勾按预选态显示。
+   *  退出编辑态的时机：保存成功 / 点击取消修改 / 切换预选学期（删除、新增课程不退出）。 */
+  const [editingFromHistory, setEditingFromHistory] = useState<string | null>(null);
+  /** 编辑态下被软删除的课程（编辑学期原有的课）：预选栏划线展示、可恢复，保存时剔除。 */
+  const [removedIds, setRemovedIds] = useState<Set<string>>(new Set());
   const [detailCourse, setDetailCourse] = useState<Course | null>(null);
   const [savedHistory, setSavedHistory] = useState<Record<string, string[]>>(() => {
     try { return JSON.parse(localStorage.getItem("oc_history") ?? "{}"); }
     catch { return {}; }
   });
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+  /** 取消修改/清空预选 的确认弹窗 */
+  const [cancelConfirm, setCancelConfirm] = useState(false);
+  /** 编辑学期 A 时点击学期 B 的编辑：待确认的切换意图（确认后保存 A / 放弃 A 再进 B） */
+  const [pendingEditSwitch, setPendingEditSwitch] = useState<{ sem: string; savedIds: string[] } | null>(null);
   const [stagingSemester, setStagingSemester] = useState<string>("");
   const [customCourses, setCustomCourses] = useState<Record<string, Array<{id: string; name: string; credits: number; property?: string}>>>(() => {
     try { return JSON.parse(localStorage.getItem("oc_custom") ?? "{}"); }
@@ -148,8 +164,7 @@ export const Workspace = ({onNavigate: _onNavigate, mobile = false}: WorkspacePr
   const [customProperty, setCustomProperty] = useState("无");
   const [customDuplicateMsg, setCustomDuplicateMsg] = useState<string | null>(null);
   /** 统计变量接口：通识-艺术/社科/人文/科学/SRT 五类的总学分数，供后续功能使用 */
-  const [customStats, setCustomStats] = useState<Record<string, number>>({ "通识-艺术": 0, "通识-社科": 0, "通识-人文": 0, "通识-科学": 0, "SRT": 0 });
-  const [showImportModal, setShowImportModal] = useState(false);
+  const [customStats, setCustomStats] = useState<Record<string, number>>({ "通识-艺术": 0, "通识-社科": 0, "通识-人文": 0, "通识-科学": 0, "SRT": 0, "思政限选": 0 });
   // 移动端：目录/历史 两段 Tab + 预选抽屉
   const [mobileTab, setMobileTab] = useState<"catalog" | "history">("catalog");
   // 移动端首次进入「课程目录」时，显示一次引导提示条，提示左侧有搜索筛选抽屉，4.5s 后自动消失（可手动关闭）
@@ -173,6 +188,14 @@ export const Workspace = ({onNavigate: _onNavigate, mobile = false}: WorkspacePr
     }
     prevSelectedCountRef.current = selectedCourses.size;
   }, [selectedCourses.size]);
+  // 编辑态维护：仅当切换预选学期时退出编辑态（删除/新增课程不退出，由保存/取消按钮显式结束）。
+  useEffect(() => {
+    if (!editingFromHistory) return;
+    if (stagingSemester !== editingFromHistory) {
+      setEditingFromHistory(null);
+      setRemovedIds(new Set());
+    }
+  }, [stagingSemester, editingFromHistory]);
   const [drawerOpen, setDrawerOpen] = useState(false);
   // 预选抽屉滑动手势状态（从上向下滑关闭）
   const stagingDragRef = useRef<{startY: number; startT: number; currentY: number} | null>(null);
@@ -193,6 +216,32 @@ export const Workspace = ({onNavigate: _onNavigate, mobile = false}: WorkspacePr
   const [showForceConfirm, setShowForceConfirm] = useState(false);
   const [, setForceSaveData] = useState<string[] | null>(null);
   const [diagExpanded, setDiagExpanded] = useState(false);
+  const [foldOpen, setFoldOpen] = useState<Set<string>>(new Set());
+  /* 云端方案：管理浮窗 + 脏标 + 云同步状态标注（2026-11-14 重构） */
+  const {user, syncState, lastSyncTs, dirtyHistory} = useAccount();
+  const [schemeModalOpen, setSchemeModalOpen] = useState(false);
+  const [cloudBubble, setCloudBubble] = useState(false);
+  const cloudBubbleTimer = useRef<number | null>(null);
+  const cloudOn = !!user && syncState !== "off";
+  const cloudText = (() => {
+    if (!user) return locale === "zh" ? "未登录" : "Signed out";
+    if (syncState === "off") return locale === "zh" ? "未开启" : "Off";
+    if (syncState === "syncing") return locale === "zh" ? "同步中…" : "Syncing…";
+    if (syncState === "conflict") return locale === "zh" ? "有冲突" : "Conflict";
+    if (syncState === "error") return locale === "zh" ? "同步失败" : "Error";
+    if (syncState === "saved" && lastSyncTs) {
+      const t = new Date(lastSyncTs).toLocaleTimeString(locale === "zh" ? "zh-CN" : "en-US", {hour: "2-digit", minute: "2-digit"});
+      return locale === "zh" ? `已同步 ${t}` : `Synced ${t}`;
+    }
+    return locale === "zh" ? "自动同步" : "Auto-sync";
+  })();
+  const toggleFold = (id: string) =>
+    setFoldOpen((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
   const [dismissedDiag, setDismissedDiag] = useState<Set<string>>(() => {
     try { return new Set(JSON.parse(localStorage.getItem("oc_diag_dismiss") ?? "[]")); }
     catch { return new Set(); }
@@ -240,12 +289,14 @@ export const Workspace = ({onNavigate: _onNavigate, mobile = false}: WorkspacePr
   }, [savedHistory, semesters, currentIdx]);
 
   // Also include editing semesters (those with saved data) as valid staging options
+  // 仅在「正处于该学期的编辑态」时保留为可选预选学期；退出编辑后不得滞留
+  //（否则取消/保存后非编辑态可往有历史记录的学期加课，保存会覆盖历史）
   const editingSemesters = useMemo(() => {
-    if (stagingSemester && savedHistory[stagingSemester] && !availableStagingSemesters.includes(stagingSemester)) {
+    if (editingFromHistory && stagingSemester === editingFromHistory && savedHistory[stagingSemester]) {
       return [stagingSemester];
     }
     return [];
-  }, [stagingSemester, savedHistory, availableStagingSemesters]);
+  }, [editingFromHistory, stagingSemester, savedHistory]);
 
   const allStagingOptions = useMemo(() => [...availableStagingSemesters, ...editingSemesters], [availableStagingSemesters, editingSemesters]);
 
@@ -280,11 +331,12 @@ export const Workspace = ({onNavigate: _onNavigate, mobile = false}: WorkspacePr
       list.forEach((cc) => existingNorm.add(normalizeName(cc.name)));
     }
     if (existingNorm.has(normTarget)) {
-      setCustomDuplicateMsg("同名课程已存在：" + customName.trim());
+      setCustomDuplicateMsg(locale === "zh" ? `同名课程已存在：${customName.trim()}` : `A course with the same name already exists: ${customName.trim()}`);
       return;
     }
     setCustomDuplicateMsg(null);
-    const creds = parseFloat(customCredits) || 0;
+    // 思政限选课固定 1 学分（培养方案口径），忽略输入框数值
+    const creds = customProperty === "思政限选" ? 1 : (parseFloat(customCredits) || 0);
     const id = "custom_" + Date.now();
     const next = {...customCourses};
     if (!next[stagingSemester]) next[stagingSemester] = [];
@@ -306,7 +358,7 @@ export const Workspace = ({onNavigate: _onNavigate, mobile = false}: WorkspacePr
 
   // 五类通识自定义课程总学分统计：遍历所有学期的自定义课程，按课程属性累加学分，结果同步到 customStats 用于展示。
   useEffect(() => {
-    const stats: Record<string, number> = { "通识-艺术": 0, "通识-社科": 0, "通识-人文": 0, "通识-科学": 0, "SRT": 0 };
+    const stats: Record<string, number> = { "通识-艺术": 0, "通识-社科": 0, "通识-人文": 0, "通识-科学": 0, "SRT": 0, "思政限选": 0 };
     for (const list of Object.values(customCourses)) {
       for (const cc of list) {
         if (cc.property && cc.property in stats) stats[cc.property] += cc.credits;
@@ -339,7 +391,7 @@ export const Workspace = ({onNavigate: _onNavigate, mobile = false}: WorkspacePr
       map.set(p.course_id, prev);
     }
     return map;
-  }, []);
+  }, [structuredData]);
 
   // --- Choice set lookup (set_id → course_ids[]) ---
   const choiceSetCourseMap = useMemo(() => {
@@ -350,7 +402,7 @@ export const Workspace = ({onNavigate: _onNavigate, mobile = false}: WorkspacePr
       map.set(sc.set_id, prev);
     }
     return map;
-  }, []);
+  }, [structuredData]);
 
   const choiceSetMap = useMemo(() => {
     const map = new Map<number, typeof structuredData.choice_sets[0]>();
@@ -358,7 +410,7 @@ export const Workspace = ({onNavigate: _onNavigate, mobile = false}: WorkspacePr
       map.set(cs.set_id, cs);
     }
     return map;
-  }, []);
+  }, [structuredData]);
 
   // PE courses by semester
   const PE_BY_SEMESTER: Record<string, string[]> = {
@@ -391,8 +443,8 @@ export const Workspace = ({onNavigate: _onNavigate, mobile = false}: WorkspacePr
     return map;
   }, [choiceSetCourseMap, choiceSetMap, courseMap]);
 
-  const getSemesterChecks = (sem: string, selected: string[]): Array<{type: "error" | "warning"; msg: string}> => {
-    const checks: Array<{type: "error" | "warning"; msg: string}> = [];
+  const getSemesterChecks = (sem: string, selected: string[]): Array<{type: "error" | "warning"; category: string; msg: string}> => {
+    const checks: Array<{type: "error" | "warning"; category: string; msg: string}> = [];
     const total = calcSemesterCredits(sem, selected);
     const limit = getCreditLimit(sem);
     if (!limit) return checks;
@@ -400,6 +452,7 @@ export const Workspace = ({onNavigate: _onNavigate, mobile = false}: WorkspacePr
     if (total > limit.max) {
       checks.push({
         type: "warning",
+        category: "overMax",
         msg: locale === "zh" ? `学分 ${total} > 上限 ${limit.max}` : `${total} credits > max ${limit.max}`,
       });
     }
@@ -407,6 +460,7 @@ export const Workspace = ({onNavigate: _onNavigate, mobile = false}: WorkspacePr
     if (limit.min > 0 && total > 0 && total < limit.min) {
       checks.push({
         type: "error",
+        category: "underMin",
         msg: locale === "zh" ? `学分 ${total} < 下限 ${limit.min}` : `${total} credits < min ${limit.min}`,
       });
     }
@@ -424,6 +478,7 @@ export const Workspace = ({onNavigate: _onNavigate, mobile = false}: WorkspacePr
           const pName = tName(pid, courseMap.get(pid)?.name ?? pid);
           checks.push({
             type: "warning",
+            category: "prereq",
             msg: locale === "zh" ? `「${cName}」需先修「${pName}」` : `"${cName}" needs prereq "${pName}"`,
           });
         }
@@ -439,11 +494,13 @@ export const Workspace = ({onNavigate: _onNavigate, mobile = false}: WorkspacePr
       if (totalInSet > (cs.max_select ?? 1)) {
         checks.push({
           type: "warning",
+          category: "choice",
           msg: locale === "zh" ? `「${cs.name}」可只选 ${cs.max_select} 门` : `"${cs.name}" max ${cs.max_select}`,
         });
       } else if (selectedInSet.length > (cs.max_select ?? 1)) {
         checks.push({
           type: "warning",
+          category: "choice",
           msg: locale === "zh" ? `「${cs.name}」可只选 ${cs.max_select} 门` : `"${cs.name}" max ${cs.max_select}`,
         });
       }
@@ -457,6 +514,7 @@ export const Workspace = ({onNavigate: _onNavigate, mobile = false}: WorkspacePr
           const cName = tName(cid, courseMap.get(cid)?.name ?? cid);
           checks.push({
             type: "error",
+            category: "duplicate",
             msg: locale === "zh" ? `「${cName}」已在 ${abbreviateSemester(otherSem)} 中选择过` : `"${cName}" already taken in ${abbreviateSemester(otherSem)}`,
           });
           break;
@@ -473,6 +531,7 @@ export const Workspace = ({onNavigate: _onNavigate, mobile = false}: WorkspacePr
       if (peCourses.length > 0 && !hasPe) {
         checks.push({
           type: "error",
+          category: "pe",
           msg: t("workspace.peRequired"),
         });
       }
@@ -483,36 +542,55 @@ export const Workspace = ({onNavigate: _onNavigate, mobile = false}: WorkspacePr
 
   // Build diagnostic data for all semesters + current staging
   const diagData = useMemo(() => {
-    const entries: Array<{sem: string; checks: Array<{type: "error" | "warning"; msg: string}>}> = [];
-    const choiceConflictEntries: Array<{type: "error" | "warning"; msg: string}> = [];
+    type DiagCheck = {type: "error" | "warning"; category: string; msg: string};
+    const semesterEntries: Array<{sem: string; checks: DiagCheck[]}> = []; // errors only (always individual)
+    const overMax: Array<{sem: string; total: number; max: number}> = [];
+    const prereqGroups = new Map<string, {prereq: string; courses: string[]}>();
+    const choiceConflicts: Array<{setName: string; max: number}> = [];
+
     const allSems = [...historySemesters, ...availableStagingSemesters];
     const seen = new Set<string>();
+    const stagingSem =
+      stagingSemester && selectedCourses.size > 0 && !seen.has(stagingSemester) ? stagingSemester : null;
+
+    const processSem = (sem: string, selected: string[]) => {
+      const checks = getSemesterChecks(sem, selected);
+      // Errors stay per-semester, shown individually
+      const errs = checks.filter((c) => c.type === "error");
+      if (errs.length > 0) semesterEntries.push({sem, checks: errs});
+
+      for (const c of checks) {
+        if (c.category === "overMax") {
+          const m = c.msg.match(/学分 (\d+(?:\.\d+)?) > 上限 (\d+)/) ?? c.msg.match(/(\d+(?:\.\d+)?) credits > max (\d+)/);
+          if (m) overMax.push({sem, total: parseFloat(m[1]), max: parseInt(m[2], 10)});
+        } else if (c.category === "prereq") {
+          const m = c.msg.match(/「(.+?)」需先修「(.+?)」/) ?? c.msg.match(/"([^"]+)" needs prereq "([^"]+)"/);
+          if (m) {
+            const course = m[1];
+            const prereq = m[2];
+            if (!prereqGroups.has(prereq)) prereqGroups.set(prereq, {prereq, courses: []});
+            const g = prereqGroups.get(prereq)!;
+            if (!g.courses.includes(course)) g.courses.push(course);
+          }
+        } else if (c.category === "choice") {
+          const m = c.msg.match(/「(.+?)」可只选 (\d+)/) ?? c.msg.match(/"([^"]+)" max (\d+)/);
+          if (m) {
+            const setName = m[1];
+            if (!choiceConflicts.some((x) => x.setName === setName)) choiceConflicts.push({setName, max: parseInt(m[2], 10)});
+          }
+        }
+      }
+    };
+
     for (const sem of allSems) {
       if (seen.has(sem)) continue;
       seen.add(sem);
-      const saved = savedHistory[sem] ?? [];
-      const checks = getSemesterChecks(sem, saved);
-      // Separate choice set conflicts from other checks
-      const conflicts = checks.filter((c) => c.msg.includes("最多选") || c.msg.includes("max"));
-      const others = checks.filter((c) => !(c.msg.includes("最多选") || c.msg.includes("max")));
-      if (others.length > 0) entries.push({sem, checks: others});
-      // Deduplicate choice conflicts by message
-      for (const conflict of conflicts) {
-        if (!choiceConflictEntries.some((existing) => existing.msg === conflict.msg)) {
-          choiceConflictEntries.push(conflict);
-        }
-      }
+      processSem(sem, savedHistory[sem] ?? []);
     }
-    // Also include current staging selection (if different from saved)
-    if (stagingSemester && selectedCourses.size > 0 && !seen.has(stagingSemester)) {
-      const checks = getSemesterChecks(stagingSemester, [...selectedCourses]);
-      const conflicts = checks.filter((c) => c.msg.includes("最多选") || c.msg.includes("max"));
-      const others = checks.filter((c) => !(c.msg.includes("最多选") || c.msg.includes("max")));
-      if (others.length > 0) entries.push({sem: stagingSemester, checks: others});
-      choiceConflictEntries.push(...conflicts);
-    }
-    return {entries, choiceConflicts: choiceConflictEntries};
-  }, [historySemesters, availableStagingSemesters, savedHistory, customCourses, stagingSemester, selectedCourses]);
+    if (stagingSem) processSem(stagingSem, [...selectedCourses]);
+
+    return {semesterEntries, overMax, prereqGroups: [...prereqGroups.values()], choiceConflicts};
+  }, [historySemesters, availableStagingSemesters, savedHistory, customCourses, stagingSemester, selectedCourses, locale]);
 
   // --- Import / Export ---
   const handleExport = () => {
@@ -593,7 +671,6 @@ export const Workspace = ({onNavigate: _onNavigate, mobile = false}: WorkspacePr
     persistCustom(mergedCustom);
     setPendingImport(null);
     setImportPreview(null);
-    setShowImportModal(false);
   };
 
   // 覆盖导入：直接以导入文件替换现有历史与自定义课程
@@ -603,13 +680,11 @@ export const Workspace = ({onNavigate: _onNavigate, mobile = false}: WorkspacePr
     persistCustom(pendingImport.customCourses);
     setPendingImport(null);
     setImportPreview(null);
-    setShowImportModal(false);
   };
 
   const cancelImport = () => {
     setPendingImport(null);
     setImportPreview(null);
-    setShowImportModal(false);
   };
 
   const toggleSelected = (courseId: string) => {
@@ -621,21 +696,31 @@ export const Workspace = ({onNavigate: _onNavigate, mobile = false}: WorkspacePr
 
     const isAlreadySelected = selectedCourses.has(courseId);
     if (!isAlreadySelected) {
+      // 编辑学期原有的课（含被软删除的）：它本就属于该学期，允许自由加回，不算重复选择
+      const isEditingSemCourse = editingFromHistory !== null && editingSavedSet.has(courseId);
       // Preventative: if course is already in history, block adding
       let foundInHistory = false;
       for (const [, ids] of Object.entries(savedHistory)) {
         if (ids.includes(courseId)) { foundInHistory = true; break; }
       }
-      if (foundInHistory) {
+      if (foundInHistory && !isEditingSemCourse) {
         // Show alert that this course is already taken
         setChoiceConflict({
           courseId,
           courseName: courseMap.get(courseId)?.name ?? courseId,
-          setName: locale === "zh" ? "历史已选课程" : "Already Taken",
+          setName: "历史已选课程", // 固定哨兵值（自冲突场景不对外显示；勿按语言改动，冲突弹窗靠它判断）
           conflictId: courseId,
           conflictName: locale === "zh" ? "该课程已在历史记录中，无法重复添加" : "This course is already in your history",
         });
         return;
+      }
+      // 从软删除状态加回：同步清除删除标记（预选栏由划线+恢复按钮变回正常+叉）
+      if (removedIds.has(courseId)) {
+        setRemovedIds((prev) => {
+          const next = new Set(prev);
+          next.delete(courseId);
+          return next;
+        });
       }
 
       // Check choice set conflict across ALL taken courses
@@ -713,7 +798,7 @@ export const Workspace = ({onNavigate: _onNavigate, mobile = false}: WorkspacePr
       }
     }
     return map;
-  }, [groupMap]);
+  }, [groupMap, structuredData]);
 
   // --- enName lookup ---
   const enNameMap = useMemo(() => {
@@ -832,7 +917,7 @@ export const Workspace = ({onNavigate: _onNavigate, mobile = false}: WorkspacePr
       }
     }
     return map;
-  }, [FOUNDATION_GROUP_IDS]);
+  }, [FOUNDATION_GROUP_IDS, structuredData]);
 
   // All selected course IDs across history + current staging
   const allSelectedIds = useMemo(() => {
@@ -877,7 +962,7 @@ export const Workspace = ({onNavigate: _onNavigate, mobile = false}: WorkspacePr
     }
 
     return {modConfig, courseModInfo};
-  }, [groupMap]);
+  }, [groupMap, structuredData]);
 
   // --- Module score map (accumulated from selected courses) ---
   const moduleScoreMap = useMemo(() => {
@@ -953,8 +1038,9 @@ export const Workspace = ({onNavigate: _onNavigate, mobile = false}: WorkspacePr
   /** Foundation group codes for 大二·春季 bonus */
   const FOUNDATION_GROUP_CODES = new Set(["MATH_BASIS","PHY_BASIS","ME_BASIS","MECH_BASIS","CS_BASIS","OR_STAT","COMP_BASIS"]);
 
-  /** Course IDs for 大二·春季 special +62 */
-  const DAER_CHUN_SPECIAL_62 = new Set(["10680022","10680142","14201032"]);
+  /** 大二·春特殊课 +62 / 定向加分表：按年级取（recommend.ts 同源分年级表，按当前方案数据过滤幽灵课号） */
+  const {courseBonus: COURSE_BONUS, daerChun62: DAER_CHUN_SPECIAL_62} = useMemo(
+    () => cohortScoringTables(schemeYear), [schemeYear]);
 
   /** English3(14201022) and English4(14201032) weight maps */
   const ENGLISH3_WEIGHT: Record<string, number> = {
@@ -968,14 +1054,7 @@ export const Workspace = ({onNavigate: _onNavigate, mobile = false}: WorkspacePr
     "大四·秋季": 3, "大四·春季": 4,
   };
 
-  const COURSE_BONUS: Record<string, Array<{semesterMatch: string; bonus: number}>> = {
-    "10691342": [{semesterMatch: "大一·秋季", bonus: 62}],
-    "30160023": [{semesterMatch: "大一·春季", bonus: 62}],
-    "24100023": [{semesterMatch: "大一·秋季", bonus: 61}],
-    "14920032": [{semesterMatch: "大一·春季", bonus: 61}],
-    "10421403": [{semesterMatch: "大一·春季", bonus: 61}],
-    "44100203": [{semesterMatch: "大二·秋季", bonus: 11}],
-  };
+  // （COURSE_BONUS 已在上方按年级从 cohortScoringTables 取得，与 recommend.ts 同源）
 
   // 学期顺序（用于延迟惩罚的"越往后优先级越高"语义）
   const SEM_ORDER = ["大一·秋季","大一·春季","大一·夏季","大二·秋季","大二·春季","大二·夏季","大三·秋季","大三·春季","大三·夏季","大四·秋季","大四·春季","大四·夏季"];
@@ -1099,7 +1178,7 @@ export const Workspace = ({onNavigate: _onNavigate, mobile = false}: WorkspacePr
     }
 
     return scores;
-  }, [courses, stagingCourseInfo, courseModuleMap, foundationActive, moduleScoreMap, courseGroupInfo, moduleScoringConfig, savedHistory, stagingSemester, hasSecondForeign]);
+  }, [courses, stagingCourseInfo, courseModuleMap, foundationActive, moduleScoreMap, courseGroupInfo, moduleScoringConfig, savedHistory, stagingSemester, hasSecondForeign, COURSE_BONUS, DAER_CHUN_SPECIAL_62]);
 
   const hasActiveFilters =
     filters.group !== "all" ||
@@ -1124,7 +1203,7 @@ export const Workspace = ({onNavigate: _onNavigate, mobile = false}: WorkspacePr
         // "新开课"/"新开"/"new course" → show all NEW-id courses
         if (isNewQuery && c.course_id.startsWith("NEW")) return true;
 
-        // Pure numeric query should NOT match NEW-id (e.g. "007" should not match "NEW007")
+        // Pure numeric query should NOT match NEW-id (e.g. "021" should not match "NEW021")
         if (c.course_id.startsWith("NEW") && /^\d+$/.test(q)) return false;
 
         // 外语检索别名：二外/各语种名 → 命中第二外国语系列课程
@@ -1195,12 +1274,77 @@ export const Workspace = ({onNavigate: _onNavigate, mobile = false}: WorkspacePr
         const sb = courseScores.get(b.course_id) ?? 0;
         return sb - sa;
       });
+      // 编辑历史学期时：该学期的课程（含已软删除的——对勾变加号）强制置顶，按历史记录原顺序；
+      // 退出编辑态后恢复普通排序。
+      if (editingFromHistory && !hasActiveFilters) {
+        const editingIds = savedHistory[editingFromHistory] ?? [];
+        const rank = new Map(editingIds.map((id, i) => [id, i]));
+        result = [
+          ...result.filter((c) => rank.has(c.course_id)).sort((a, b) => (rank.get(a.course_id) ?? 0) - (rank.get(b.course_id) ?? 0)),
+          ...result.filter((c) => !rank.has(c.course_id)),
+        ];
+      }
     }
 
     return result;
-  }, [courses, filters, courseGroupInfo, semesterMap, searchText, tName, recommendEnabled, courseScores, hasActiveFilters]);
+  }, [courses, filters, courseGroupInfo, semesterMap, searchText, tName, recommendEnabled, courseScores, hasActiveFilters, editingFromHistory, selectedCourses, savedHistory]);
 
   // --- Scroll history to rightmost ---
+  // 正在编辑的学期原有的课程集合（含已被软删除的）
+  const editingSavedSet = useMemo(
+    () => new Set(editingFromHistory ? savedHistory[editingFromHistory] ?? [] : []),
+    [editingFromHistory, savedHistory],
+  );
+  /** 课程是否属于正在编辑的学期：目录对勾上，这些课一律按预选态（绿勾/+）显示，替代黄勾。 */
+  const isEditingSemesterCourse = (courseId: string) =>
+    editingFromHistory !== null && editingSavedSet.has(courseId);
+
+  // 编辑态软删除 / 恢复
+  const softRemoveCourse = (courseId: string) => {
+    setSelectedCourses((prev) => {
+      const next = new Set(prev);
+      next.delete(courseId);
+      return next;
+    });
+    setRemovedIds((prev) => new Set(prev).add(courseId));
+  };
+  const restoreCourse = (courseId: string) => {
+    setRemovedIds((prev) => {
+      const next = new Set(prev);
+      next.delete(courseId);
+      return next;
+    });
+    setSelectedCourses((prev) => new Set(prev).add(courseId));
+  };
+  // 取消修改（编辑态）/ 清空预选（普通态）
+  const cancelStaging = () => {
+    const wasEditingSem = editingFromHistory;
+    setSelectedCourses(new Set());
+    setRemovedIds(new Set());
+    setEditingFromHistory(null);
+    // 取消编辑后不得滞留在有历史记录的学期：非编辑态下往该学期加课并保存会直接覆盖历史记录。
+    // 与保存流程一致，自动切到下一可选预选学期（无则置空，由下方 effect 回落到首个可选学期）。
+    if (wasEditingSem && stagingSemester === wasEditingSem) {
+      const idx = availableStagingSemesters.indexOf(stagingSemester);
+      if (idx >= 0 && idx + 1 < availableStagingSemesters.length) setStagingSemester(availableStagingSemesters[idx + 1]);
+      else setStagingSemester("");
+    }
+  };
+  /** 编辑态下是否有未保存的改动（删除过课 / 增删过课） */
+  const hasUnsavedEdits =
+    editingFromHistory !== null &&
+    (removedIds.size > 0 ||
+      [...selectedCourses].sort().join("|") !== [...(savedHistory[editingFromHistory] ?? [])].sort().join("|"));
+
+  // 定向重点课蓝字提醒：当前预选学期命中定向加分规则（带 label）且课程未入历史时返回提示文案
+  const targetedBoostLabel = (courseId: string): string | null => {
+    if (!stagingSemester) return null;
+    const rule = (COURSE_BONUS[courseId] ?? []).find((r) => r.semesterMatch === stagingSemester && r.label);
+    if (!rule || !rule.label) return null;
+    if (Object.values(savedHistory).some((ids) => ids.includes(courseId))) return null;
+    return rule.label;
+  };
+
   useEffect(() => {
     if (historyScrollRef.current) {
       historyScrollRef.current.scrollLeft = historyScrollRef.current.scrollWidth;
@@ -1298,20 +1442,14 @@ export const Workspace = ({onNavigate: _onNavigate, mobile = false}: WorkspacePr
         data-tour="workspace"
         className={mobile ? "relative flex flex-1 flex-col overflow-hidden" : "flex flex-1 gap-3 p-3 overflow-hidden"}
       >
-        {/* 移动端顶部学期选择条 */}
+        {/* 移动端顶部当前学期条（学期已自动判定，不再手动选择；旧下拉框位置改为打印文字） */}
         {mobile && (
           <div className={`shrink-0 flex items-center justify-between gap-2 border-b px-3 py-2 ${isDark ? "border-white/10 bg-[#121218]" : "border-gray-200 bg-white"}`}>
-            <span className={`text-xs ${textMuted}`}>{t("nav.currentSemester")}</span>
-            <div className="min-w-0 flex-1">
-              <NativeSelect
-                value={currentSemester}
-                options={allSemesters.map((s) => ({key: s, label: tSemester(s)}))}
-                onChange={(key) => setSemester(key as typeof currentSemester)}
-                dark={isDark}
-                borderCls={borderCls}
-                textMuted={textMuted}
-              />
-            </div>
+            <span className={`text-xs ${textMuted}`}>{locale === "zh" ? "当前学期" : "Current semester"}</span>
+            <span className={`flex items-baseline gap-1 text-xs ${textBody}`}>
+              <span className={`font-medium ${textDark}`}>{tSemester(currentSemester)}</span>
+              {semesterAuto && <span className={`text-[9px] ${isDark ? "text-white/35" : "text-gray-400"}`}>{locale === "zh" ? "（自动）" : "(auto)"}</span>}
+            </span>
           </div>
         )}
 
@@ -1323,21 +1461,63 @@ export const Workspace = ({onNavigate: _onNavigate, mobile = false}: WorkspacePr
           style={mobile ? undefined : {flex: leftExpanded ? "4" : "3"}}
         >
           <Island className={`flex h-full flex-col ${bgCard}`}>
-            <Header border>
+            <Header border wrapWithTitle={false}>
               <div className="flex w-full flex-col">
-                <div className={`flex w-full items-center gap-4 ${mobile ? "flex-wrap" : ""}`}>
+                <div className={`flex w-full items-center gap-3 ${mobile ? "flex-wrap" : ""}`}>
                   <span className={`text-sm font-semibold text-nowrap ${textDark}`}>{t("workspace.history")}</span>
-                  <div className={`ml-auto flex items-center gap-1 ${mobile ? "flex-wrap justify-end" : ""}`}>
-                    <Button onClick={handleExport} className={mobile ? "text-[10px] px-2 py-1" : ""}>{t("workspace.exportBtn")}</Button>
-                    <span data-tour="history">
-                      <Button onClick={() => setShowImportModal(true)} className={mobile ? "text-[10px] px-2 py-1" : ""}>{t("workspace.importBtn")}</Button>
+                  <div className={`relative flex items-center gap-1 ${mobile ? "flex-wrap justify-end" : ""}`}>
+                    {/* 方案管理（合并原导出/导入；按钮风格与「清除」一致，有未保存改动时右上角紫点提醒） */}
+                    <span className="relative inline-flex">
+                      <Button
+                        onClick={() => setSchemeModalOpen(true)}
+                        className={mobile ? "text-[10px] px-2 py-1" : ""}
+                        title={locale === "zh" ? "方案管理：云端方案 / 导入 / 导出" : "Plans: cloud / import / export"}
+                      >
+                        {locale === "zh" ? "方案管理" : "Plans"}
+                      </Button>
+                      {dirtyHistory && (
+                        <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-[#a78bfa]" title={locale === "zh" ? "有未保存的改动" : "Unsaved changes"} />
+                      )}
                     </span>
                     <Button onClick={() => setClearConfirm(true)} className={mobile ? "text-[10px] px-2 py-1" : ""}>{locale === "zh" ? "清除" : "Clear"}</Button>
+                    {/* 移动端：云同步状态气泡按钮（点击显示状态，5s 自动渐隐） */}
+                    {mobile && (
+                      <button
+                        onClick={() => {
+                          setCloudBubble(true);
+                          if (cloudBubbleTimer.current) window.clearTimeout(cloudBubbleTimer.current);
+                          cloudBubbleTimer.current = window.setTimeout(() => setCloudBubble(false), 5000);
+                        }}
+                        className={`flex h-6 w-6 cursor-pointer items-center justify-center rounded-full border text-[10px] transition-colors ${
+                          cloudOn
+                            ? isDark ? "border-blue-500/40 bg-blue-500/15 text-blue-300" : "border-blue-500/40 bg-blue-500/10 text-blue-600"
+                            : isDark ? "border-white/10 text-white/35" : "border-gray-200 text-gray-400"
+                        }`}
+                        title={locale === "zh" ? "云同步状态" : "Cloud sync"}
+                      >☁</button>
+                    )}
+                    {/* 移动端：云同步状态气泡（点击 ☁ 按钮后显示 5s 渐隐） */}
+                    {mobile && cloudBubble && (
+                      <div
+                        className={`absolute right-0 top-full z-30 mt-1.5 whitespace-nowrap rounded-lg border px-2.5 py-1.5 text-[10px] shadow-lg ${
+                          isDark ? "border-white/10 bg-[#1e1e2a] text-white/80" : "border-gray-200 bg-white text-gray-700"
+                        }`}
+                      >
+                        {cloudText}
+                      </div>
+                    )}
                     {/* 历史展开/折叠仅对 PC 三栏布局生效；移动端该 section 恒为 w-full，此按钮无效，故仅在 PC 渲染 */}
                     {!mobile && (
                       <Button onClick={() => setLeftExpanded(!leftExpanded)}>
                         {leftExpanded ? t("workspace.fold") : t("workspace.unfold")}
                       </Button>
+                    )}
+                    {/* PC：云同步状态标注（展开按钮右侧；未开启灰字，开启蓝字） */}
+                    {!mobile && (
+                      <span className={`ml-1 flex items-center gap-1 whitespace-nowrap text-[10px] ${cloudOn ? (isDark ? "text-blue-300" : "text-blue-600") : (isDark ? "text-white/35" : "text-gray-400")}`}>
+                        <span className="text-[10px]">☁</span>
+                        {cloudText}
+                      </span>
                     )}
                   </div>
                 </div>
@@ -1414,8 +1594,15 @@ export const Workspace = ({onNavigate: _onNavigate, mobile = false}: WorkspacePr
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
+                                  // 正在编辑学期 A 时改编辑学期 B：有未保存改动则先弹窗确认
+                                  if (editingFromHistory !== null && editingFromHistory !== sem && hasUnsavedEdits) {
+                                    setPendingEditSwitch({ sem, savedIds });
+                                    return;
+                                  }
                                   setStagingSemester(sem);
                                   setSelectedCourses(new Set(savedIds));
+                                  setRemovedIds(new Set());
+                                  setEditingFromHistory(sem);
                                   if (mobile) setDrawerOpen(true);
                                 }}
                                 className={`flex h-5 w-5 cursor-pointer items-center justify-center rounded border-none text-[10px] transition-colors ${
@@ -1459,6 +1646,18 @@ export const Workspace = ({onNavigate: _onNavigate, mobile = false}: WorkspacePr
                                   const next = {...savedHistory};
                                   delete next[sem];
                                   persistHistory(next);
+                                  // 同步清理该学期的自定义课程：否则删学期后课程滞留在自定义课程栏（孤儿数据）
+                                  if ((customCourses[sem] ?? []).length > 0) {
+                                    const nextCustom = {...customCourses};
+                                    delete nextCustom[sem];
+                                    persistCustom(nextCustom);
+                                  }
+                                  // 删除的正是正在编辑的学期 → 一并退出编辑态
+                                  if (editingFromHistory === sem) {
+                                    setEditingFromHistory(null);
+                                    setRemovedIds(new Set());
+                                    setSelectedCourses(new Set());
+                                  }
                                   setDeleteConfirm(null);
                                 }}
                                 className={`cursor-pointer rounded border-none px-2 py-0.5 text-[10px] font-medium ${
@@ -1511,20 +1710,28 @@ export const Workspace = ({onNavigate: _onNavigate, mobile = false}: WorkspacePr
             </Content>
 
             {/* Diagnostics inside history Island */}
-            {diagData.entries.length > 0 || diagData.choiceConflicts.length > 0 ? (
+            {diagData.semesterEntries.length > 0 || diagData.overMax.length > 0 || diagData.prereqGroups.length > 0 || diagData.choiceConflicts.length > 0 ? (
               <div className={`border-t shrink-0 flex flex-col ${borderCls}`} style={{flex: diagExpanded ? "0.33" : "0 0 auto", minHeight: 0}}>
                 <div className={`flex items-center gap-2 px-3 py-1.5 text-xs ${bgHeader}`}>
                   <span className={`font-semibold ${textDark}`}>
                     {locale === "zh" ? "诊断" : "Diagnostics"}
                   </span>
                   {(() => {
-                    const totalErrors = diagData.entries.reduce((s, e) => s + e.checks.filter((c) => c.type === "error" && !dismissedDiag.has(`${e.sem}_${e.checks.indexOf(c)}`)).length, 0);
-                    const totalWarnings = diagData.entries.reduce((s, e) => s + e.checks.filter((c) => c.type === "warning" && !dismissedDiag.has(`${e.sem}_${e.checks.indexOf(c)}`)).length, 0);
-                    const totalChoiceWarnings = diagData.choiceConflicts.filter((_, i) => !dismissedDiag.has(`choice_${i}`)).length;
+                    const totalErrors = diagData.semesterEntries.reduce(
+                      (s, e) => s + e.checks.filter((c) => !dismissedDiag.has(`${e.sem}_${e.checks.indexOf(c)}`)).length,
+                      0,
+                    );
+                    const overMaxCount = diagData.overMax.filter((o) => !dismissedDiag.has(`overmax_${o.sem}`)).length;
+                    const prereqCount = diagData.prereqGroups.reduce(
+                      (s, g) => s + g.courses.filter((course) => !dismissedDiag.has(`prereq_${g.prereq}_${course}`)).length,
+                      0,
+                    );
+                    const choiceCount = diagData.choiceConflicts.filter((c) => !dismissedDiag.has(`choice_${c.setName}`)).length;
+                    const totalWarnings = overMaxCount + prereqCount + choiceCount;
                     return (
                       <span className={`text-[10px] ${textMuted}`}>
                         {totalErrors > 0 && <span className="text-red-400">❌({totalErrors})</span>}
-                        {(totalWarnings + totalChoiceWarnings) > 0 && <span className="text-yellow-400 ml-1">⚠({totalWarnings + totalChoiceWarnings})</span>}
+                        {totalWarnings > 0 && <span className="text-yellow-400 ml-1">⚠({totalWarnings})</span>}
                       </span>
                     );
                   })()}
@@ -1537,29 +1744,19 @@ export const Workspace = ({onNavigate: _onNavigate, mobile = false}: WorkspacePr
                 <div className="flex-1 overflow-auto p-0" style={{minHeight: 0}}>
                   <div className={`flex ${diagExpanded ? "flex-row gap-2" : "flex-col"} px-2 py-1`}>
                     {/* Semester-specific entries */}
-                    {diagExpanded && diagData.entries.map((entry) => {
-                      const hasError = entry.checks.some((c) => c.type === "error");
+                    {/* Error blocks — per semester, always shown individually */}
+                    {diagExpanded && diagData.semesterEntries.map((entry) => {
                       const remaining = entry.checks.filter((c) => !dismissedDiag.has(`${entry.sem}_${entry.checks.indexOf(c)}`));
                       if (remaining.length === 0) return null;
                       return (
-                        <div key={entry.sem} className={`rounded px-2 py-1.5 text-xs ${
-                          hasError
-                            ? isDark ? "bg-red-500/10" : "bg-red-50"
-                            : isDark ? "bg-yellow-500/10" : "bg-yellow-50"
-                        } ${diagExpanded ? "w-48 shrink-0" : ""}`}>
-                          <div className={`flex items-center gap-1 font-medium ${
-                            hasError ? (isDark ? "text-red-300" : "text-red-600") : (isDark ? "text-yellow-300" : "text-yellow-700")
-                          }`}>
-                            {hasError ? "✕" : "⚠"} {locale === "zh" ? abbreviateSemester(entry.sem) : tSemester(entry.sem)}
+                        <div key={entry.sem} className={`rounded px-2 py-1.5 text-xs ${isDark ? "bg-red-500/10" : "bg-red-50"} ${diagExpanded ? "w-48 shrink-0" : ""}`}>
+                          <div className={`flex items-center gap-1 font-medium ${isDark ? "text-red-300" : "text-red-600"}`}>
+                            ✕ {locale === "zh" ? abbreviateSemester(entry.sem) : tSemester(entry.sem)}
                           </div>
-                          {remaining.map((c, i) => {
+                          {remaining.map((c) => {
                             const diagKey = `${entry.sem}_${entry.checks.indexOf(c)}`;
                             return (
-                              <div key={i} className={`ml-3 flex items-start justify-between gap-1 ${
-                                c.type === "error"
-                                  ? isDark ? "text-red-200" : "text-red-500"
-                                  : isDark ? "text-yellow-200" : "text-yellow-600"
-                              }`}>
+                              <div key={diagKey} className={`ml-3 flex items-start justify-between gap-1 ${isDark ? "text-red-200" : "text-red-500"}`}>
                                 <span>• {c.msg}</span>
                                 <button
                                   onClick={() => {
@@ -1568,9 +1765,7 @@ export const Workspace = ({onNavigate: _onNavigate, mobile = false}: WorkspacePr
                                     setDismissedDiag(next);
                                     localStorage.setItem("oc_diag_dismiss", JSON.stringify([...next]));
                                   }}
-                                  className={`shrink-0 cursor-pointer border-none text-[9px] ${
-                                    isDark ? "text-white/30 hover:text-white/60" : "text-gray-400 hover:text-gray-600"
-                                  }`}
+                                  className={`shrink-0 cursor-pointer border-none text-[9px] ${isDark ? "text-white/30 hover:text-white/60" : "text-gray-400 hover:text-gray-600"}`}
                                 >✕</button>
                               </div>
                             );
@@ -1578,33 +1773,116 @@ export const Workspace = ({onNavigate: _onNavigate, mobile = false}: WorkspacePr
                         </div>
                       );
                     })}
-                    {/* Choice conflict box — separate from semester entries */}
-                    {diagExpanded && diagData.choiceConflicts.length > 0 && (
-                      <div className={`rounded px-2 py-1.5 text-xs ${isDark ? "bg-orange-500/10" : "bg-orange-50"} ${diagExpanded ? "w-48 shrink-0" : ""}`}>
-                        <div className={`flex items-center gap-1 font-medium ${isDark ? "text-orange-300" : "text-orange-700"}`}>
-                          ⚠ {locale === "zh" ? "多选一冲突" : "Mutual Exclusion"}
+
+                    {/* 超学分上限 — fold across semesters when > 2 */}
+                    {diagExpanded && diagData.overMax.length > 0 && (() => {
+                      const list = diagData.overMax;
+                      const folded = list.length > 2;
+                      const foldId = "overmax";
+                      const open = foldOpen.has(foldId);
+                      const dismiss = (key: string) => {
+                        const next = new Set(dismissedDiag);
+                        next.add(key);
+                        setDismissedDiag(next);
+                        localStorage.setItem("oc_diag_dismiss", JSON.stringify([...next]));
+                      };
+                      return (
+                        <div className={`rounded px-2 py-1.5 text-xs ${isDark ? "bg-yellow-500/10" : "bg-yellow-50"} ${diagExpanded ? "w-48 shrink-0" : ""}`}>
+                          <button
+                            onClick={() => folded && toggleFold(foldId)}
+                            className={`flex items-center gap-1 font-medium ${isDark ? "text-yellow-300" : "text-yellow-700"} ${folded ? "cursor-pointer" : "cursor-default"}`}
+                          >
+                            {folded && <span>{open ? "▾" : "▸"}</span>}
+                            {folded
+                              ? (locale === "zh" ? `⚠ ${abbreviateSemester(list[0].sem)}等${list.length}个学期超过了学分限制` : `⚠ ${tSemester(list[0].sem)} and ${list.length - 1} more term(s) exceed the credit limit`)
+                              : (locale === "zh" ? "⚠ 学分超限" : "⚠ Credit limit exceeded")}
+                          </button>
+                          {(open || !folded) && list.map((o) => {
+                            const key = `overmax_${o.sem}`;
+                            if (dismissedDiag.has(key)) return null;
+                            return (
+                              <div key={o.sem} className={`ml-3 flex items-start justify-between gap-1 ${isDark ? "text-yellow-200" : "text-yellow-600"}`}>
+                                <span>• {locale === "zh" ? `${abbreviateSemester(o.sem)}：学分 ${o.total} > 上限 ${o.max}` : `${tSemester(o.sem)}: ${o.total} > ${o.max}`}</span>
+                                <button onClick={() => dismiss(key)} className={`shrink-0 cursor-pointer border-none text-[9px] ${isDark ? "text-white/30 hover:text-white/60" : "text-gray-400 hover:text-gray-600"}`}>✕</button>
+                              </div>
+                            );
+                          })}
                         </div>
-                        {diagData.choiceConflicts.map((c, i) => {
-                          const diagKey = `choice_${i}`;
-                          return (
-                            <div key={i} className={`ml-3 flex items-start justify-between gap-1 ${isDark ? "text-yellow-200" : "text-yellow-600"}`}>
-                              <span>• {c.msg}</span>
-                              <button
-                                onClick={() => {
-                                  const next = new Set(dismissedDiag);
-                                  next.add(diagKey);
-                                  setDismissedDiag(next);
-                                  localStorage.setItem("oc_diag_dismiss", JSON.stringify([...next]));
-                                }}
-                                className={`shrink-0 cursor-pointer border-none text-[9px] ${
-                                  isDark ? "text-white/30 hover:text-white/60" : "text-gray-400 hover:text-gray-600"
-                                }`}
-                              >✕</button>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
+                      );
+                    })()}
+
+                    {/* 强先修缺失 — fold by prereq course when > 2 */}
+                    {diagExpanded && diagData.prereqGroups.map((g) => {
+                      const folded = g.courses.length > 2;
+                      const foldId = `prereq_${g.prereq}`;
+                      const open = foldOpen.has(foldId);
+                      const dismiss = (key: string) => {
+                        const next = new Set(dismissedDiag);
+                        next.add(key);
+                        setDismissedDiag(next);
+                        localStorage.setItem("oc_diag_dismiss", JSON.stringify([...next]));
+                      };
+                      return (
+                        <div key={g.prereq} className={`rounded px-2 py-1.5 text-xs ${isDark ? "bg-yellow-500/10" : "bg-yellow-50"} ${diagExpanded ? "w-48 shrink-0" : ""}`}>
+                          <button
+                            onClick={() => folded && toggleFold(foldId)}
+                            className={`flex items-center gap-1 font-medium ${isDark ? "text-yellow-300" : "text-yellow-700"} ${folded ? "cursor-pointer" : "cursor-default"}`}
+                          >
+                            {folded && <span>{open ? "▾" : "▸"}</span>}
+                            {folded
+                              ? (locale === "zh" ? `⚠ ${g.courses[0]}等${g.courses.length}门课程需先修${g.prereq}` : `⚠ ${g.courses.length} course(s) incl. ${g.courses[0]} require ${g.prereq} first`)
+                              : (locale === "zh" ? "⚠ 先修缺失" : "⚠ Missing prerequisites")}
+                          </button>
+                          {(open || !folded) && g.courses.map((course) => {
+                            const key = `prereq_${g.prereq}_${course}`;
+                            if (dismissedDiag.has(key)) return null;
+                            return (
+                              <div key={course} className={`ml-3 flex items-start justify-between gap-1 ${isDark ? "text-yellow-200" : "text-yellow-600"}`}>
+                                <span>• {locale === "zh" ? `「${course}」需先修「${g.prereq}」` : `"${course}" needs prereq "${g.prereq}"`}</span>
+                                <button onClick={() => dismiss(key)} className={`shrink-0 cursor-pointer border-none text-[9px] ${isDark ? "text-white/30 hover:text-white/60" : "text-gray-400 hover:text-gray-600"}`}>✕</button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    })}
+
+                    {/* 多选一冲突 — fold across sets when > 2 */}
+                    {diagExpanded && diagData.choiceConflicts.length > 0 && (() => {
+                      const list = diagData.choiceConflicts;
+                      const folded = list.length > 2;
+                      const foldId = "choice";
+                      const open = foldOpen.has(foldId);
+                      const dismiss = (key: string) => {
+                        const next = new Set(dismissedDiag);
+                        next.add(key);
+                        setDismissedDiag(next);
+                        localStorage.setItem("oc_diag_dismiss", JSON.stringify([...next]));
+                      };
+                      return (
+                        <div className={`rounded px-2 py-1.5 text-xs ${isDark ? "bg-orange-500/10" : "bg-orange-50"} ${diagExpanded ? "w-48 shrink-0" : ""}`}>
+                          <button
+                            onClick={() => folded && toggleFold(foldId)}
+                            className={`flex items-center gap-1 font-medium ${isDark ? "text-orange-300" : "text-orange-700"} ${folded ? "cursor-pointer" : "cursor-default"}`}
+                          >
+                            {folded && <span>{open ? "▾" : "▸"}</span>}
+                            {folded
+                              ? (locale === "zh" ? `⚠ ${list[0].setName}等${list.length}个组别超出二选一上限` : `⚠ ${list.length} group(s) incl. ${list[0].setName} exceed the mutual-exclusion limit`)
+                              : (locale === "zh" ? "⚠ 多选一冲突" : "⚠ Mutual exclusion conflict")}
+                          </button>
+                          {(open || !folded) && list.map((c) => {
+                            const key = `choice_${c.setName}`;
+                            if (dismissedDiag.has(key)) return null;
+                            return (
+                              <div key={c.setName} className={`ml-3 flex items-start justify-between gap-1 ${isDark ? "text-yellow-200" : "text-yellow-600"}`}>
+                                <span>• {locale === "zh" ? `「${c.setName}」可只选 ${c.max} 门` : `"${c.setName}" max ${c.max}`}</span>
+                                <button onClick={() => dismiss(key)} className={`shrink-0 cursor-pointer border-none text-[9px] ${isDark ? "text-white/30 hover:text-white/60" : "text-gray-400 hover:text-gray-600"}`}>✕</button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    })()}
                     {!diagExpanded && (
                       <div className={`text-xs ${textMuted} px-2 py-2 text-left`}>
                         {(() => {
@@ -1702,47 +1980,76 @@ export const Workspace = ({onNavigate: _onNavigate, mobile = false}: WorkspacePr
 
               {/* Selected course list (scrollable middle) */}
               <div className="flex-1 overflow-auto px-3 py-1" style={{minHeight: "4.5rem"}}>
-                {selectedCourses.size === 0 ? (
-                  <div className={`flex h-full items-center justify-center text-xs ${textMuted}`}>
-                    {t("workspace.stagingEmpty")}
-                  </div>
-                ) : (
-                  [...selectedCourses].map((cid) => {
+                {(() => {
+                  // 编辑态：原课程列表在前（含被软删除的——划线展示、可恢复），新增课程在后；
+                  // 普通态：仅当前预选课程。
+                  const isEditing = editingFromHistory !== null;
+                  const addedIds = [...selectedCourses].filter((cid) => !editingSavedSet.has(cid));
+                  const rows: Array<{ cid: string; removed: boolean }> = isEditing
+                    ? [
+                        ...(savedHistory[editingFromHistory] ?? []).map((cid) => ({ cid, removed: removedIds.has(cid) })),
+                        ...addedIds.map((cid) => ({ cid, removed: false })),
+                      ]
+                    : [...selectedCourses].map((cid) => ({ cid, removed: false }));
+                  if (rows.length === 0) {
+                    return (
+                      <div className={`flex h-full items-center justify-center text-xs ${textMuted}`}>
+                        {t("workspace.stagingEmpty")}
+                      </div>
+                    );
+                  }
+                  return rows.map(({ cid, removed }) => {
                     const c = courseMap.get(cid);
                     if (!c) return null;
                     // Check if this course has siblings in same choice sets
                     const csInfo = courseChoiceSets.get(cid);
+                    const isSavedCourse = editingSavedSet.has(cid); // 编辑学期原有课 → 软删除语义
                     return (
                       <div
                         key={cid}
                         className={`flex items-center justify-between gap-1 rounded px-1.5 py-1 text-xs ${hoverBg}`}
                       >
-                        <span className={`flex-1 min-w-0 truncate ${textBody}`} title={tName(cid, c.name)}>
+                        <span
+                          className={`flex-1 min-w-0 truncate ${removed ? "line-through opacity-50" : textBody}`}
+                          title={tName(cid, c.name)}
+                        >
                           {tName(cid, c.name)}
                         </span>
                         <span className={`shrink-0 ${textMuted} mr-1`}>{c.credits}</span>
-                        {csInfo && csInfo.length > 0 && (
+                        {csInfo && csInfo.length > 0 && !removed && (
                           <span className={`shrink-0 text-[9px] mr-1 ${isDark ? "text-yellow-400" : "text-yellow-600"}`}>
-                            {csInfo.map((cs) => `${cs.maxSelect}选1`).join(" ")}
+                            {csInfo.map((cs) => (locale === "zh" ? `${cs.maxSelect}选1` : `pick 1 of ${cs.maxSelect}`)).join(" ")}
                           </span>
                         )}
-                        <button
-                          onClick={() => toggleSelected(cid)}
-                          className={`flex h-4 w-4 shrink-0 cursor-pointer items-center justify-center rounded border-none text-[10px] transition-colors ${
-                            isDark
-                              ? "bg-red-500/15 text-red-400 hover:bg-red-500/30"
-                              : "bg-red-500/10 text-red-500 hover:bg-red-500/20"
-                          }`}
-                          title={t("workspace.stagingRemove")}
-                        >✕</button>
+                        {removed ? (
+                          <button
+                            onClick={() => restoreCourse(cid)}
+                            className={`flex h-4 w-4 shrink-0 cursor-pointer items-center justify-center rounded border-none text-[10px] transition-colors ${
+                              isDark
+                                ? "bg-green-500/15 text-green-400 hover:bg-green-500/30"
+                                : "bg-green-500/10 text-green-600 hover:bg-green-500/20"
+                            }`}
+                            title={locale === "zh" ? "恢复选择" : "Restore"}
+                          >↻</button>
+                        ) : (
+                          <button
+                            onClick={() => (isEditing && isSavedCourse ? softRemoveCourse(cid) : toggleSelected(cid))}
+                            className={`flex h-4 w-4 shrink-0 cursor-pointer items-center justify-center rounded border-none text-[10px] transition-colors ${
+                              isDark
+                                ? "bg-red-500/15 text-red-400 hover:bg-red-500/30"
+                                : "bg-red-500/10 text-red-500 hover:bg-red-500/20"
+                            }`}
+                            title={t("workspace.stagingRemove")}
+                          >✕</button>
+                        )}
                       </div>
                     );
-                  })
-                )}
+                  });
+                })()}
               </div>
 
               {/* Summary + Save button */}
-              {selectedCourses.size > 0 && (
+              {(selectedCourses.size > 0 || removedIds.size > 0) && (
                 <div className={`flex flex-col border-t shrink-0 ${borderCls}`}>
                   {stagingSemester && (() => {
                     const limit = getCreditLimit(stagingSemester);
@@ -1752,20 +2059,32 @@ export const Workspace = ({onNavigate: _onNavigate, mobile = false}: WorkspacePr
                     const customCreditsCount = customList.reduce((s, c) => s + c.credits, 0);
                     return limit ? (
                       <div className={`flex flex-col px-3 pt-1.5 pb-0.5 text-[10px] ${textMuted}`}>
-                        <span>{total}/{limit.max} 学分{limit.min > 0 && ` 每学期至少6学分（军训/暑期除外）`}</span>
+                        <span>{total}/{limit.max} {locale === "zh" ? "学分" : "cr."}{limit.min > 0 && (locale === "zh" ? ` 每学期至少6学分（军训/暑期除外）` : ` (min 6 credits per term, excluding boot camp & summer)`)}</span>
                         {customCount > 0 && (
-                          <span>已添加{customCount}门自定义课程，占{customCreditsCount}学分</span>
+                          <span>{locale === "zh" ? `已添加${customCount}门自定义课程，占${customCreditsCount}学分` : `${customCount} custom course(s) added, ${customCreditsCount} cr.`}</span>
                         )}
                       </div>
                     ) : null;
                   })()}
-                  <div className={`flex items-center justify-between px-3 py-2 text-xs`}>
+                  <div className={`flex items-center justify-between gap-2 px-3 pt-2 pb-1 text-xs`}>
                     <span className={textMuted}>
                     {locale === "zh"
                       ? `共${selectedCourses.size + ((customCourses[stagingSemester] ?? []).length)}门，${calcSemesterCredits(stagingSemester, [...selectedCourses])}学分`
                       : `${selectedCourses.size} courses, ${calcSemesterCredits(stagingSemester, [...selectedCourses])} cr.`}
                   </span>
+                  </div>
+                  <div className="flex items-stretch gap-1.5 px-3 pb-2">
+                    <button
+                      onClick={() => setCancelConfirm(true)}
+                      className={`flex-1 cursor-pointer whitespace-nowrap rounded px-2 py-1.5 text-xs transition-colors border-none ${
+                        isDark
+                          ? "bg-white/10 text-white/70 hover:bg-white/20"
+                          : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                      }`}
+                    >{editingFromHistory ? (locale === "zh" ? "取消修改" : "Discard") : (locale === "zh" ? "清空" : "Clear")}</button>
                   <Button
+                    className="flex-1"
+                    style={{flex: "1 1 0%"}}
                     onClick={() => {
                       if (!stagingSemester) return;
                       const selected = [...selectedCourses];
@@ -1778,6 +2097,8 @@ export const Workspace = ({onNavigate: _onNavigate, mobile = false}: WorkspacePr
                       const next = {...savedHistory, [stagingSemester]: selected};
                       persistHistory(next);
                       setSelectedCourses(new Set());
+                      setRemovedIds(new Set());
+                      setEditingFromHistory(null);
                       setValidationErrors(null);
                       setForceSaveData(null);
                       // Auto-advance to next available semester
@@ -1789,8 +2110,8 @@ export const Workspace = ({onNavigate: _onNavigate, mobile = false}: WorkspacePr
                       }
                     }}
                   >{t("workspace.stagingSave")}</Button>
-                    </div>
                   </div>
+                </div>
                 )}
 
               {/* Force-save button when validation errors exist */}
@@ -1837,15 +2158,16 @@ export const Workspace = ({onNavigate: _onNavigate, mobile = false}: WorkspacePr
                       onChange={(e) => { setCustomName(e.target.value); setCustomDuplicateMsg(null); }}
                     />
                     <input
-                      className="w-16 rounded border px-1.5 py-0.5 text-xs outline-none"
+                      className="w-16 rounded border px-1.5 py-0.5 text-xs outline-none disabled:cursor-not-allowed disabled:opacity-50"
                       style={
                         isDark
                           ? {background: "rgba(255,255,255,0.05)", borderColor: "rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.8)"}
                           : {background: "#f9fafb", borderColor: "#e5e7eb", color: "#374151"}
                       }
                       placeholder={t("workspace.customCourseCredits")}
-                      value={customCredits}
+                      value={customProperty === "思政限选" ? "1" : customCredits}
                       onChange={(e) => setCustomCredits(e.target.value)}
+                      disabled={customProperty === "思政限选"}
                       type="number"
                       min="0"
                       step="0.5"
@@ -1867,15 +2189,20 @@ export const Workspace = ({onNavigate: _onNavigate, mobile = false}: WorkspacePr
                         value={customProperty}
                         options={[
                           {key: "无", label: locale === "zh" ? "无" : "None"},
-                          {key: "通识-艺术", label: "通识-艺术"},
-                          {key: "通识-社科", label: "通识-社科"},
-                          {key: "通识-人文", label: "通识-人文"},
-                          {key: "通识-科学", label: "通识-科学"},
+                          {key: "通识-艺术", label: geLabelFor("通识-艺术", locale)},
+                          {key: "通识-社科", label: geLabelFor("通识-社科", locale)},
+                          {key: "通识-人文", label: geLabelFor("通识-人文", locale)},
+                          {key: "通识-科学", label: geLabelFor("通识-科学", locale)},
                           {key: "SRT", label: "SRT"},
+                          {key: "思政限选", label: locale === "zh" ? "思政限选（1学分）" : "Pol. Elective (1 cr)"},
                           {key: "重修", label: locale === "zh" ? "重修" : "Retake"},
                           {key: "其他", label: locale === "zh" ? "其他" : "Other"},
                         ]}
-                        onChange={(key) => setCustomProperty(key)}
+                        onChange={(key) => {
+                          setCustomProperty(key);
+                          // 思政限选固定 1 学分：选中时锁定学分输入框
+                          if (key === "思政限选") setCustomCredits("1");
+                        }}
                         dark={isDark}
                         borderCls={isDark ? "border-white/10" : "border-gray-200"}
                         textMuted={textMuted}
@@ -1909,7 +2236,7 @@ export const Workspace = ({onNavigate: _onNavigate, mobile = false}: WorkspacePr
                   {/* 五类通识自定义课程总学分统计 */}
                   <div className={`mt-1 text-[9px] leading-tight ${textMuted}`}>
                     {t("workspace.geCredits")}
-                    {geLabelFor("通识-艺术", locale)} {customStats["通识-艺术"]} / {geLabelFor("通识-社科", locale)} {customStats["通识-社科"]} / {geLabelFor("通识-人文", locale)} {customStats["通识-人文"]} / {geLabelFor("通识-科学", locale)} {customStats["通识-科学"]} / {geLabelFor("SRT", locale)} {customStats["SRT"]}
+                    {geLabelFor("通识-艺术", locale)} {customStats["通识-艺术"]} / {geLabelFor("通识-社科", locale)} {customStats["通识-社科"]} / {geLabelFor("通识-人文", locale)} {customStats["通识-人文"]} / {geLabelFor("通识-科学", locale)} {customStats["通识-科学"]} / {geLabelFor("SRT", locale)} {customStats["SRT"]} / {geLabelFor("思政限选", locale)} {customStats["思政限选"]}
                   </div>
                 </div>
               </div>
@@ -1950,6 +2277,8 @@ export const Workspace = ({onNavigate: _onNavigate, mobile = false}: WorkspacePr
                     const next = {...savedHistory, [stagingSemester]: selected};
                     persistHistory(next);
                     setSelectedCourses(new Set());
+                    setRemovedIds(new Set());
+                    setEditingFromHistory(null);
                     setValidationErrors(null);
                     setShowForceConfirm(false);
                     setForceSaveData(null);
@@ -2031,6 +2360,9 @@ export const Workspace = ({onNavigate: _onNavigate, mobile = false}: WorkspacePr
                   <Button onClick={() => {
                     persistHistory({});
                     persistCustom({});
+                    setEditingFromHistory(null);
+                    setRemovedIds(new Set());
+                    setSelectedCourses(new Set());
                     setClearConfirm(false);
                   }}>
                     {locale === "zh" ? "确定清除" : "Clear All"}
@@ -2039,6 +2371,86 @@ export const Workspace = ({onNavigate: _onNavigate, mobile = false}: WorkspacePr
               </div>
             </div>
           )}
+
+          {/* ===== Cancel-edit confirmation modal ===== */}
+          {cancelConfirm && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center" style={{background: "rgba(0,0,0,0.4)"}}>
+              <div className={`w-80 rounded-xl shadow-2xl border p-4 ${isDark ? "bg-[#1e1e2a] border-white/10" : "bg-white border-gray-200"}`}>
+                <div className={`text-sm font-semibold mb-2 ${textDark}`}>
+                  {editingFromHistory ? (locale === "zh" ? "取消修改" : "Discard Changes") : (locale === "zh" ? "清空预选" : "Clear Staging")}
+                </div>
+                <div className={`text-xs mb-3 leading-relaxed ${textBody}`}>
+                  {editingFromHistory
+                    ? (locale === "zh"
+                      ? `确定放弃对「${abbreviateSemester(editingFromHistory)}」的修改吗？未保存的改动将丢失。`
+                      : `Discard unsaved changes to ${tSemester(editingFromHistory)}?`)
+                    : (locale === "zh"
+                      ? "确定清空当前预选的课程吗？"
+                      : "Clear all preselected courses?")}
+                </div>
+                <div className="flex gap-2 justify-end">
+                  <Button onClick={() => setCancelConfirm(false)}>
+                    {locale === "zh" ? "继续编辑" : "Keep Editing"}
+                  </Button>
+                  <Button onClick={() => {
+                    cancelStaging();
+                    setCancelConfirm(false);
+                  }} primary>
+                    {locale === "zh" ? "确定取消" : "Discard"}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ===== Switch-editing-semester confirmation modal ===== */}
+          {pendingEditSwitch && (() => {
+            const fromSem = editingFromHistory ?? "";
+            const target = pendingEditSwitch;
+            return (
+              <div className="fixed inset-0 z-50 flex items-center justify-center" style={{background: "rgba(0,0,0,0.4)"}}>
+                <div className={`w-80 rounded-xl shadow-2xl border p-4 ${isDark ? "bg-[#1e1e2a] border-white/10" : "bg-white border-gray-200"}`}>
+                  <div className={`text-sm font-semibold mb-2 ${textDark}`}>
+                    {locale === "zh" ? "切换编辑学期" : "Switch Editing Semester"}
+                  </div>
+                  <div className={`text-xs mb-3 leading-relaxed ${textBody}`}>
+                    {locale === "zh"
+                      ? `正在编辑「${abbreviateSemester(fromSem)}」的选课且尚未保存。切换到编辑「${abbreviateSemester(target.sem)}」前，要保存对「${abbreviateSemester(fromSem)}」的修改吗？`
+                      : `You have unsaved changes in ${tSemester(fromSem)}. Save them before editing ${tSemester(target.sem)}?`}
+                  </div>
+                  <div className="flex gap-2 justify-end">
+                    <Button onClick={() => setPendingEditSwitch(null)}>
+                      {locale === "zh" ? "取消" : "Cancel"}
+                    </Button>
+                    <Button onClick={() => {
+                      // 放弃 A 的修改，直接进 B
+                      setStagingSemester(target.sem);
+                      setSelectedCourses(new Set(target.savedIds));
+                      setRemovedIds(new Set());
+                      setEditingFromHistory(target.sem);
+                      setPendingEditSwitch(null);
+                      if (mobile) setDrawerOpen(true);
+                    }}>
+                      {locale === "zh" ? "不保存" : "Discard"}
+                    </Button>
+                    <Button primary onClick={() => {
+                      // 保存 A 的当前预选，再进 B
+                      const next = {...savedHistory, [fromSem]: [...selectedCourses]};
+                      persistHistory(next);
+                      setStagingSemester(target.sem);
+                      setSelectedCourses(new Set(target.savedIds));
+                      setRemovedIds(new Set());
+                      setEditingFromHistory(target.sem);
+                      setPendingEditSwitch(null);
+                      if (mobile) setDrawerOpen(true);
+                    }}>
+                      {locale === "zh" ? "保存并切换" : "Save & Switch"}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
 
           {/* ===== History Detail Popup ===== */}
           {historyDetail && (() => {
@@ -2093,7 +2505,7 @@ export const Workspace = ({onNavigate: _onNavigate, mobile = false}: WorkspacePr
                           <div className={`flex flex-col gap-1 mt-1 text-sm ${textMuted}`}>
                             <div className="flex justify-between">
                               <span>{locale === "zh" ? "编号" : "Code"}</span>
-                              <span className={`font-mono ${textDark}`}>{c.course_id.startsWith("NEW") ? "新开课" : c.course_id}</span>
+                              <span className={`font-mono ${textDark}`}>{c.course_id.startsWith("NEW") ? (locale === "zh" ? "新开课" : "New") : c.course_id}</span>
                             </div>
                             <div className="flex justify-between">
                               <span>{locale === "zh" ? "学分" : "Credits"}</span>
@@ -2103,6 +2515,18 @@ export const Workspace = ({onNavigate: _onNavigate, mobile = false}: WorkspacePr
                               <span>{locale === "zh" ? "类别" : "Category"}</span>
                               <span className={`text-right ${textDark}`} style={{maxWidth: "65%"}}>
                                 {categories.length > 0 ? categories.join(", ") : "—"}
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span>{locale === "zh" ? "修读属性" : "Attribute"}</span>
+                              <span className={`text-right ${textDark}`} style={{maxWidth: "65%"}}>
+                            {(() => {
+                              const key = c.course_attr ?? "";
+                              if (!key) return "—";
+                              const label = locale === "zh" ? (ATTR_LABELS[key] ?? key) : (ATTR_LABELS_EN[key] ?? key);
+                              if (key === "prof_required") return locale === "zh" ? `${label}（${c.prof_note ?? ""}）` : `${label} (${c.prof_note ?? ""})`;
+                              return label;
+                            })()}
                               </span>
                             </div>
                             <div className="flex justify-between">
@@ -2124,7 +2548,7 @@ export const Workspace = ({onNavigate: _onNavigate, mobile = false}: WorkspacePr
                                 <span className={`text-xs ${textMuted}`}>{locale === "zh" ? "多选一关系" : "Mutual Exclusion"}</span>
                                 {csInfo.map((cs) => (
                                   <span key={cs.setId} className={`pl-2 text-xs ${isDark ? "text-yellow-300" : "text-yellow-700"}`}>
-                                    {cs.setName}（{cs.maxSelect}选1）：{cs.siblings.map((s) => tName(s.courseId, s.name)).join("、")}
+                                    {cs.setName}（{locale === "zh" ? `${cs.maxSelect}选1` : `pick 1 of ${cs.maxSelect}`}）：{cs.siblings.map((s) => tName(s.courseId, s.name)).join("、")}
                                   </span>
                                 ))}
                               </div>
@@ -2156,56 +2580,30 @@ export const Workspace = ({onNavigate: _onNavigate, mobile = false}: WorkspacePr
             );
           })()}
 
-          {/* ===== Import/Export modal ===== */}
-          {showImportModal && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center" style={{background: "rgba(0,0,0,0.4)"}}
-                 onClick={cancelImport}>
-              <div className={`w-80 rounded-xl shadow-2xl border p-4 ${isDark ? "bg-[#1e1e2a] border-white/10" : "bg-white border-gray-200"}`}
-                   onClick={(e) => e.stopPropagation()}>
-                <div className={`text-sm font-semibold mb-3 ${textDark}`}>{t("workspace.importTitle")}</div>
-                <div className={`text-[10px] mb-2 ${textBody}`}>
-                  {locale === "zh" ? "请选择本地 JSON 文件导入历史记录。" : "Select a local JSON file to import history records."}
-                </div>
-                <div className="flex gap-2 mb-3">
-                  <Button onClick={() => fileInputRef.current?.click()}>{t("workspace.importBtn")}</Button>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept=".json"
-                    className="hidden"
-                    onChange={(e) => {
-                      const f = e.target.files?.[0];
-                      if (f) handleImport(f);
-                    }}
-                  />
-                </div>
-                <div className={`text-[10px] mb-2 font-medium ${textDark}`}>
-                  {locale === "zh" ? "云端导入" : "Cloud Import"}
-                </div>
-                <div className={`text-[10px] mb-2 ${textBody}`}>
-                  {locale === "zh" ? "云端导入功能正在开发中，敬请期待。" : "Cloud import is under development. Coming soon."}
-                </div>
-                <Button disabled>{locale === "zh" ? "云端导入（未启用）" : "Cloud Import (disabled)"}</Button>
-                {importPreview && (
-                  <div className={`mt-2 rounded px-2 py-1.5 text-[10px] ${isDark ? "bg-white/5 text-white/70" : "bg-gray-50 text-gray-600"}`}>
-                    <pre className="whitespace-pre-wrap">{importPreview}</pre>
-                    {pendingImport && (
-                      <>
-                        <div className="mt-1 opacity-70 text-[10px]">
-                          {t("workspace.importMergeHint")}
-                        </div>
-                        <div className="mt-2 flex flex-wrap gap-2">
-                          <Button onClick={confirmImport}>{t("workspace.importConfirmMerge")}</Button>
-                          <Button onClick={confirmImportOverwrite}>{t("workspace.importConfirmOverwrite")}</Button>
-                          <Button onClick={cancelImport}>{t("workspace.importCancel")}</Button>
-                        </div>
-                      </>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
+          {/* ===== 方案管理浮窗（云端方案 + 本地导入导出；导入面板内嵌于浮窗） ===== */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".json"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) handleImport(f);
+              e.target.value = ""; // 允许重复选择同一文件
+            }}
+          />
+          <SchemeManageModal
+            open={schemeModalOpen}
+            onClose={() => setSchemeModalOpen(false)}
+            onExport={handleExport}
+            mobile={mobile}
+            importPreview={importPreview}
+            hasPending={!!pendingImport}
+            onPickFile={() => fileInputRef.current?.click()}
+            onConfirmMerge={confirmImport}
+            onConfirmOverwrite={confirmImportOverwrite}
+            onCancelImport={cancelImport}
+          />
 
           {/* ========== RIGHT: Catalog ========== */}
         <section
@@ -2236,8 +2634,16 @@ export const Workspace = ({onNavigate: _onNavigate, mobile = false}: WorkspacePr
 
           <Island className={`flex ${mobile ? "flex-1 min-h-0" : "h-full"} flex-col ${bgCard}`}>
             {!mobile && (
-              <Header border>
-                <span className={`text-sm font-semibold ${textDark}`}>{t("workspace.catalog")}</span>
+              <Header border wrapWithTitle={false}>
+                <div className="flex w-full items-center justify-between gap-2">
+                  <span className={`text-sm font-semibold ${textDark}`}>{t("workspace.catalog")}</span>
+                  {/* 当前学期显示（自动判定后仅作展示，不再手动切换） */}
+                  <span className={`flex items-baseline gap-1 text-xs ${textBody}`}>
+                    {locale === "zh" ? "当前学期：" : "Current semester: "}
+                    <span className={`font-medium ${textDark}`}>{tSemester(currentSemester)}</span>
+                    {semesterAuto && <span className={`text-[9px] ${isDark ? "text-white/35" : "text-gray-400"}`}>{locale === "zh" ? "（自动）" : "(auto)"}</span>}
+                  </span>
+                </div>
               </Header>
             )}
 
@@ -2349,6 +2755,15 @@ export const Workspace = ({onNavigate: _onNavigate, mobile = false}: WorkspacePr
                         </div>
                       )}
                     </div>
+                  </div>
+                  {/* 底部【完成】：筛选条件实时生效，此按钮用于引导用户收起抽屉、查看已筛选的课程列表 */}
+                  <div className={`shrink-0 border-t px-3 py-2 ${borderCls}`}>
+                    <button
+                      onClick={() => setFiltersCollapsed(true)}
+                      className={`w-full cursor-pointer rounded-lg border py-2.5 text-sm font-medium transition-colors ${isDark ? "border-blue-500/30 bg-blue-500/20 text-blue-300 hover:bg-blue-500/30" : "border-blue-500/30 bg-blue-500/10 text-blue-600 hover:bg-blue-500/20"}`}
+                    >
+                      {t("workspace.doneFilters")}
+                    </button>
                   </div>
                 </div>
               </>
@@ -2463,7 +2878,7 @@ export const Workspace = ({onNavigate: _onNavigate, mobile = false}: WorkspacePr
                       }
                       if (shownMods.length > 0) {
                         idx++;
-                        const modStr = shownMods.map(([id]) => `模块${id}`).join("、");
+                        const modStr = shownMods.map(([id]) => (locale === "zh" ? `模块${id}` : `Module ${id}`)).join(", ");
                         lines.push(`${idx}.${t("workspace.blueRec")}${modStr}`);
                       }
                     }
@@ -2571,9 +2986,9 @@ export const Workspace = ({onNavigate: _onNavigate, mobile = false}: WorkspacePr
                   >
                     <button
                       onClick={() => setFiltersCollapsed(false)}
-                      className={`flex items-center gap-1 rounded border px-2 py-1 text-[10px] transition-colors ${isDark ? "border-white/10 bg-white/5 text-white/70 hover:text-white" : "border-gray-200 bg-gray-50 text-gray-600 hover:text-gray-900"}`}
+                      className={`flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-[11px] font-semibold transition-colors ${isDark ? "border-blue-500/40 bg-blue-500/15 text-blue-300 hover:bg-blue-500/25" : "border-blue-500/40 bg-blue-500/10 text-blue-600 hover:bg-blue-500/20"}`}
                     >
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
                       {t("workspace.expandSearchFilter")}
                     </button>
                     <span className="flex items-center gap-2">
@@ -2597,13 +3012,15 @@ export const Workspace = ({onNavigate: _onNavigate, mobile = false}: WorkspacePr
                           : "—";
                       const isSelected = selectedCourses.has(c.course_id);
                       const isInHistory = Object.values(savedHistory).some((ids) => ids.includes(c.course_id));
+                      const inEditSem = isEditingSemesterCourse(c.course_id);
+                      const boostLabel = targetedBoostLabel(c.course_id);
 
                       return (
                         <div
                           key={c.course_id}
                           className={`flex items-start gap-3 px-3 py-2.5 border-b ${borderLight} ${hoverBg} ${textBody}`}
                         >
-                          {isInHistory ? (
+                          {isInHistory && !inEditSem ? (
                             <button
                               onClick={() => {
                                 let foundSem = "";
@@ -2614,7 +3031,7 @@ export const Workspace = ({onNavigate: _onNavigate, mobile = false}: WorkspacePr
                                 setChoiceConflict({
                                   courseId: c.course_id,
                                   courseName: tName(c.course_id, c.name),
-                                  setName: locale === "zh" ? "历史已选课程" : "Already Taken",
+                                  setName: "历史已选课程", // 固定哨兵值（自冲突场景不对外显示；勿按语言改动，冲突弹窗靠它判断）
                                   conflictId: c.course_id,
                                   conflictName: locale === "zh"
                                     ? `该课程已在${semLabel}的历史记录中。如需特殊原因重复选择，请点击"仍然选课"`
@@ -2655,10 +3072,37 @@ export const Workspace = ({onNavigate: _onNavigate, mobile = false}: WorkspacePr
                             </div>
                             <div className={`flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-1 text-[11px] ${textMuted}`}>
                               <span className="font-mono">
-                                {c.course_id.startsWith("NEW") ? "新开课" : c.course_id}
+                                {c.course_id.startsWith("NEW") ? (locale === "zh" ? "新开课" : "New") : c.course_id}
                               </span>
                               <span>{c.credits} {locale === "zh" ? "学分" : "cr"}</span>
                               <span>{semDisplay}</span>
+                              {boostLabel && (
+                                <span
+                                  className={`w-full font-medium ${isDark ? "text-blue-300" : "text-blue-600"}`}
+                                  title={boostLabel}
+                                >
+                                  ⓘ {boostLabel}
+                                </span>
+                              )}
+                              {(() => {
+                                const key = c.course_attr ?? "";
+                                if (!key) return null;
+                                const label = locale === "zh" ? (ATTR_LABELS[key] ?? key) : (ATTR_LABELS_EN[key] ?? key);
+                                const cls =
+                                  key === "required"
+                                    ? isDark ? "bg-sky-500/20 text-sky-300" : "bg-sky-100 text-sky-700"
+                                    : key === "prof_required"
+                                      ? isDark ? "bg-violet-500/20 text-violet-300" : "bg-violet-100 text-violet-700"
+                                      : isDark ? "bg-white/10 text-white/50" : "bg-gray-100 text-gray-500";
+                                return (
+                                  <span
+                                    className={`rounded px-1 font-medium ${cls}`}
+                                    title={key === "prof_required" ? c.prof_note ?? label : label}
+                                  >
+                                    {label}
+                                  </span>
+                                );
+                              })()}
                             </div>
                             {categories.length > 0 && (
                               <div className="mt-1 text-[11px] leading-tight break-words" style={{wordBreak: "break-word"}}>
@@ -2699,13 +3143,15 @@ export const Workspace = ({onNavigate: _onNavigate, mobile = false}: WorkspacePr
                           : "—";
                       const isSelected = selectedCourses.has(c.course_id);
                       const isInHistory = Object.values(savedHistory).some((ids) => ids.includes(c.course_id));
+                      const inEditSem = isEditingSemesterCourse(c.course_id);
+                      const boostLabel = targetedBoostLabel(c.course_id);
 
                       return (
                         <div
                           key={c.course_id}
                           className={`flex items-start gap-2 px-3 py-1.5 text-xs border-b ${borderLight} ${hoverBg} ${textBody}`}
                         >
-                          {isInHistory ? (
+                          {isInHistory && !inEditSem ? (
                             <button
                               onClick={() => {
                                 let foundSem = "";
@@ -2716,7 +3162,7 @@ export const Workspace = ({onNavigate: _onNavigate, mobile = false}: WorkspacePr
                                 setChoiceConflict({
                                   courseId: c.course_id,
                                   courseName: tName(c.course_id, c.name),
-                                  setName: locale === "zh" ? "历史已选课程" : "Already Taken",
+                                  setName: "历史已选课程", // 固定哨兵值（自冲突场景不对外显示；勿按语言改动，冲突弹窗靠它判断）
                                   conflictId: c.course_id,
                                   conflictName: locale === "zh"
                                     ? `该课程已在${semLabel}的历史记录中。如需特殊原因重复选择，请点击"仍然选课"`
@@ -2748,7 +3194,7 @@ export const Workspace = ({onNavigate: _onNavigate, mobile = false}: WorkspacePr
                             </button>
                           )}
                           <span className={`w-20 shrink-0 truncate font-mono pt-0.5 ${textMuted}`} title={c.course_id}>
-                            {c.course_id.startsWith("NEW") ? "新开课" : c.course_id}
+                            {c.course_id.startsWith("NEW") ? (locale === "zh" ? "新开课" : "New") : c.course_id}
                           </span>
                           <span
                             className="flex-1 min-w-0 truncate whitespace-nowrap pt-0.5 cursor-pointer"
@@ -2757,6 +3203,14 @@ export const Workspace = ({onNavigate: _onNavigate, mobile = false}: WorkspacePr
                           >
                             {tName(c.course_id, c.name)}
                           </span>
+                          {boostLabel && (
+                            <span
+                              className={`shrink-0 pt-0.5 text-[10px] font-bold ${isDark ? "text-blue-300" : "text-blue-600"}`}
+                              title={boostLabel}
+                            >
+                              ⓘ
+                            </span>
+                          )}
                           <span className={`w-10 shrink-0 text-right pt-0.5 ${textMuted}`}>{c.credits}</span>
                           <span className="w-36 shrink-0 text-right pt-0.5 break-words leading-tight" style={{wordBreak: "break-word"}}>
                             {categories.length > 0 ? categories.join(", ") : "—"}
@@ -2820,7 +3274,7 @@ export const Workspace = ({onNavigate: _onNavigate, mobile = false}: WorkspacePr
                       </div>
                       <div className="flex flex-col gap-2 px-4 py-3 text-xs">
                         <div className="flex justify-between">
-                          <span className={`font-mono ${textMuted}`}>{dc.course_id.startsWith("NEW") ? "新开课" : dc.course_id}</span>
+                          <span className={`font-mono ${textMuted}`}>{dc.course_id.startsWith("NEW") ? (locale === "zh" ? "新开课" : "New") : dc.course_id}</span>
                         </div>
                         {locale === "zh" && enName && (
                           <div className="flex justify-between">
@@ -2837,6 +3291,18 @@ export const Workspace = ({onNavigate: _onNavigate, mobile = false}: WorkspacePr
                             {(getCourseCategories(dc.course_id).length > 0
                               ? getCourseCategories(dc.course_id).join(", ")
                               : "—")}
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className={textMuted}>{locale === "zh" ? "修读属性" : "Attribute"}</span>
+                          <span className={`text-right ${textDark}`} style={{maxWidth: "70%"}}>
+                            {(() => {
+                              const key = dc.course_attr ?? "";
+                              if (!key) return "—";
+                              const label = locale === "zh" ? (ATTR_LABELS[key] ?? key) : (ATTR_LABELS_EN[key] ?? key);
+                              if (key === "prof_required") return locale === "zh" ? `${label}（${dc.prof_note ?? ""}）` : `${label} (${dc.prof_note ?? ""})`;
+                              return label;
+                            })()}
                           </span>
                         </div>
                         <div className="flex justify-between">

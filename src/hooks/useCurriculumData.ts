@@ -1,7 +1,7 @@
 import { useMemo } from "react";
-import structuredData from "@/data/structured_data.json";
 import enData from "@/data/courses_en.json";
 import { useLocale } from "@/i18n/LocaleContext";
+import { useSchemeData, type SchemeData } from "@/data/schemeStore";
 import type {
   Course,
   CourseGroup,
@@ -31,8 +31,10 @@ interface UseResult<T> {
   error: Error | null;
 }
 
-function useFrom<T>(getData: () => T[]): UseResult<T> {
-  return useMemo(() => ({ data: getData(), loading: false, error: null }), []);
+function useFrom<T>(getData: (sd: SchemeData) => T[]): UseResult<T> {
+  const { structuredData } = useSchemeData();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  return useMemo(() => ({ data: getData(structuredData), loading: false, error: null }), [structuredData]);
 }
 
 // ---- i18n helpers ----
@@ -84,13 +86,16 @@ export function useTName(): {
 }
 
 export function useCourses(): UseResult<Course> {
-  return useFrom(() =>
-    structuredData.courses.map((c) => ({
+  return useFrom((sd) =>
+    sd.courses.map((c) => ({
       course_id: c.course_id,
       name: c.name,
       credits: c.credits,
       module_type: c.module_type ?? null,
       is_new: c.course_id.startsWith("NEW"),
+      // 修读属性（培养方案第五项）必须透传：工作台详情面板/课程地图底栏都依赖它
+      course_attr: c.course_attr ?? null,
+      prof_note: c.prof_note ?? null,
     }))
   );
 }
@@ -108,11 +113,11 @@ export function useCourse(courseId: string): {
 }
 
 export function useModules(): UseResult<Module> {
-  return useFrom(() => structuredData.modules);
+  return useFrom((sd) => sd.modules);
 }
 
 export function useCourseGroups(): UseResult<CourseGroup> {
-  return useFrom(() => structuredData.course_groups);
+  return useFrom((sd) => sd.course_groups);
 }
 
 export function useModuleGroups(moduleId: number): UseResult<CourseGroup> {
@@ -129,7 +134,7 @@ export function useModuleGroups(moduleId: number): UseResult<CourseGroup> {
 
 export function useGroupCourses(groupId: number): UseResult<Course> {
   const { data: allGroupCourses } = useFrom<GroupCourses>(
-    () => structuredData.group_courses
+    (sd) => sd.group_courses
   );
   const { data: allCourses } = useCourses();
 
@@ -157,7 +162,7 @@ export function useFoundationGroups(): UseResult<CourseGroup> {
 }
 
 export function useSemesterCourses(): UseResult<SemesterCourse> {
-  return useFrom(() => structuredData.semester_courses);
+  return useFrom((sd) => sd.semester_courses);
 }
 
 export function useSemesterCoursesBySemester(semester: string): UseResult<Course> {
@@ -185,11 +190,11 @@ export function useAllSemesters(): UseResult<string> {
 }
 
 export function useDegreeTracks(): UseResult<DegreeTrack> {
-  return useFrom(() => structuredData.degree_tracks);
+  return useFrom((sd) => sd.degree_tracks);
 }
 
 export function useDegreeGroupRequirements(): UseResult<DegreeGroupReq> {
-  return useFrom(() => structuredData.degree_group_requirements);
+  return useFrom((sd) => sd.degree_group_requirements);
 }
 
 export function useTrackGroups(trackCode: string): UseResult<DegreeGroupReq & { group: CourseGroup | null }> {
@@ -210,11 +215,11 @@ export function useTrackGroups(trackCode: string): UseResult<DegreeGroupReq & { 
 }
 
 export function useDegreeCourseRequirements(): UseResult<DegreeCourseReq> {
-  return useFrom(() => structuredData.degree_course_requirements);
+  return useFrom((sd) => sd.degree_course_requirements);
 }
 
 export function usePrerequisites(): UseResult<CoursePrereq> {
-  return useFrom(() => structuredData.course_prerequisites);
+  return useFrom((sd) => sd.course_prerequisites);
 }
 
 export function useCoursePrerequisites(courseId: string): UseResult<Course> {
@@ -234,7 +239,7 @@ export function useCoursePrerequisites(courseId: string): UseResult<Course> {
 }
 
 export function useChoiceSets(): UseResult<ChoiceSet> {
-  return useFrom(() => structuredData.choice_sets);
+  return useFrom((sd) => sd.choice_sets);
 }
 
 export function useGroupChoiceSets(groupId: number): UseResult<
@@ -242,7 +247,7 @@ export function useGroupChoiceSets(groupId: number): UseResult<
 > {
   const { data: allSets } = useChoiceSets();
   const { data: allSetCourses } = useFrom<ChoiceSetCourse>(
-    () => structuredData.choice_set_courses
+    (sd) => sd.choice_set_courses
   );
   const { data: allCourses } = useCourses();
 
