@@ -21,8 +21,8 @@ export const TOUR_STEPS: TourStep[] = [
         },
         title: {zh: "导入你的选课历史", en: "Import your course history"},
         body: {
-            zh: "点击「历史记录」区域的「导入」按钮可载入选课历史 JSON。新同学可先下载教学示例数据熟悉流程，操作熟练后即可尝试手动编辑自己的选课历史和预选数据了。完成后，记得点击「导出」保存到本地哦；登录后还可把方案存为云端方案，多设备同步。",
-            en: "Click the “Import” button in the “History” area to load a course-history JSON. New users can download the teaching sample data first to get familiar with the flow; once you’re comfortable, you can try manually editing your own course history and pre-selection data. When done, remember to click “Export” to save it locally. Signed-in users can also save the plan to the cloud and sync it across devices.",
+            zh: "点击「历史记录」栏中的「方案管理」，即可在弹窗中导入或导出选课数据 JSON。第一次使用可以先下载示例数据熟悉流程；登录后还可在方案管理中使用云端方案。",
+            en: "Open “Plans” in the Course History panel to import or export course data as JSON. You can start with the sample file; signed-in users can also manage cloud plans there.",
         },
     },
     {
@@ -31,8 +31,8 @@ export const TOUR_STEPS: TourStep[] = [
         selectors: ["[data-tour='history']", "[data-tour='staging']", "[data-tour='catalog']"],
         title: {zh: "三栏工作台", en: "The three-column workspace"},
         body: {
-            zh: "工作台分为「选课记录」「预选课程」和「课程目录」三栏。页面会自动识别当前学期；后续可在中栏选择计划学期，从右栏添加课程，再保存到历史记录或导出备份。",
-            en: "The workspace has Course History, Pre-selected Courses, and the Course Catalog. The current semester is detected automatically. You can choose a planning semester in the middle column, add courses from the catalog, then save to history or export a backup.",
+            zh: "工作台分为「选课记录」「预选课程」和「课程目录」三栏。页面自动显示当前学期；在中栏选择计划学期，再从右栏课程目录点击「+」加入预选。检查后按页面提供的保存操作写入记录，也可通过「方案管理」导出备份。",
+            en: "The workspace has Course History, Pre-selected Courses, and the Course Catalog. The current semester is detected automatically. Choose a planning semester in the middle column, click “+” beside a catalog course, then use the available save action or export a backup from Plans.",
         },
     },
     {
@@ -41,8 +41,8 @@ export const TOUR_STEPS: TourStep[] = [
         selector: "[data-tour='recommend']",
         title: {zh: "智能推荐与提示", en: "Smart recommendation & blue hints"},
         body: {
-            zh: "「推荐」开关开启后，课程目录会按你的选课历史智能排序。下方蓝字会提示须选课程、推荐模块等重要信息。你也可以通过搜索、添加筛选项进行个性化选择。",
-            en: "After turning on the “Recommend” switch, the course catalog is intelligently sorted by your course history. The blue text below shows important info such as required courses and recommended modules. You can also use search and add filters for personalized selection.",
+            zh: "课程目录中的「推荐」开关会依据当前关联的选课记录调整课程排序；关闭后可按常规顺序浏览。也可以用搜索框和筛选条件缩小课程范围。",
+            en: "The catalog’s “Recommend” control uses the linked course history to adjust course ordering. Turn it off to browse the regular order, or narrow the list with search and filters.",
         },
     },
     {
@@ -51,8 +51,8 @@ export const TOUR_STEPS: TourStep[] = [
         cardPos: "below-nav",
         title: {zh: "学位评定与培养方案", en: "Degree check & curriculum"},
         body: {
-            zh: "点击顶部导航的「综合工具」进入综合工具页：「学位评定」可查看七条学位轨道的获取进度（含交叉工程双学位，可手动指定专业对/主修模块），「AI 推荐助手」能结合你的选课数据回答规划问题；点击「培养方案」可查看培养方案、教学计划与解读PPT（由于时效性，仅供参考，请以书院官方最新文件为准）。如果你忘记了本教程内容，可以点右上角的「?」重看本引导。",
-            en: "Click “Tools” in the top navigation to open the tools page: “Degree Evaluation” shows your progress across all 7 degree tracks (including the Cross-Engineering double degree, with manual major-pair/module selection), and the “AI Assistant” answers planning questions based on your course record. Click “Curriculum” to view the training plan, teaching schedule, and explanatory slides (for reference only — please follow the college’s latest official documents). If you forget this tutorial, click “?” in the top-right corner to replay it.",
+            zh: "「综合工具」包含学位评定、AI 推荐助手和课程评价。学位评定关联课程记录后显示进度；AI 助手的额度和模型说明以页面实时提示为准；课程评价可搜索条目并查看同学分享。培养方案页提供方案、教学计划、资料和导图。导航栏中的「?」可重新打开教程入口，选择交互引导或 Wiki。",
+            en: "Tools contains Degree Evaluation, the AI Assistant, and Course Reviews. Link course data to see degree progress; check the AI page for current model and quota details; search reviews by course. Curriculum offers plans, schedules, reference materials, and a map. The “?” in the navigation opens the tutorial hub for the walkthrough or Wiki.",
         },
     },
 ];

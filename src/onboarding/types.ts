@@ -7,6 +7,8 @@ export interface TourStep {
     id: string;
     /** 显示该步前需要切换到的页面（跨页高亮必须先把目标页切到可见） */
     targetPage?: NavPage;
+    /** 页面内引导切换到对应子页/标签后再测量目标元素 */
+    beforeShow?: () => void;
     /** 单个目标元素选择器（data-tour）；多目标请用 selectors */
     selector?: string;
     /** 多个目标元素选择器（同时框出，如导航栏两项）；不填则为居中卡片（如欢迎页） */

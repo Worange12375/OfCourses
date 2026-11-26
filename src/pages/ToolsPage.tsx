@@ -11,6 +11,9 @@ import CourseReviews from "../components/CourseReviews";
 import {getSchemeData, useSchemeData} from "@/data/schemeStore";
 import {useAccount} from "@/account/AccountContext";
 import enData from "@/data/courses_en.json";
+import {useOnboarding} from "../onboarding/OnboardingContext";
+import {TutorialEntryModal} from "../onboarding/TutorialEntryModal";
+import type {TourStep} from "../onboarding/types";
 
 type HistoryData = Record<string, string[]>;
 
@@ -163,7 +166,9 @@ export const ToolsPage = ({mobile}: ToolsPageProps) => {
   // 云端方案选择弹窗：「导入云端方案」时列出账号下全部方案供用户挑选
   const [cloudPickOpen, setCloudPickOpen] = useState(false);
   const {theme} = useAppTheme();
+  const {startTour, navigateTo} = useOnboarding();
   const isDark = theme === "dark";
+  const [tutorialEntryOpen, setTutorialEntryOpen] = useState(false);
   const {data: allGroups} = useCourseGroups();
 
   const [toolPage, setToolPage] = useState<"degree" | "ai" | "review">(() => {
@@ -175,6 +180,52 @@ export const ToolsPage = ({mobile}: ToolsPageProps) => {
   useEffect(() => {
     try { sessionStorage.setItem(TOOL_PAGE_RESTORE_KEY, toolPage); } catch { /* 隐私模式忽略 */ }
   }, [toolPage]);
+  const toolTourSteps = useMemo<TourStep[]>(() => [
+    {
+      id: "tools-degree-data",
+      targetPage: "tools",
+      beforeShow: () => setToolPage("degree"),
+      selector: "[data-tour='degree-import']",
+      title: {zh: "先关联课程数据", en: "Start with your course data"},
+      body: {
+        zh: "学位评定页支持导入工作台导出的本地 JSON；云端方案入口登录后可选择方案，未登录时会回退为读取本浏览器的工作台数据。导入后再查看下方进度。",
+        en: "Degree Evaluation accepts a local JSON exported from Workspace. Signed-in users can choose a cloud plan; when signed out, that action falls back to this browser's Workspace data. Review the progress below after importing.",
+      },
+    },
+    {
+      id: "tools-ai-question",
+      targetPage: "tools",
+      beforeShow: () => setToolPage("ai"),
+      selector: "[data-tour='ai-assistant-composer']",
+      title: {zh: "向 AI 助手提问", en: "Ask the AI assistant"},
+      body: {
+        zh: "先检查输入区上方的课程数据关联面板，再描述目标学期和具体问题。额度与模型可用状态看输入区上方的实时提示；AI 回答仅供规划参考。",
+        en: "Check the course-data panel above the composer, then state your target semester and question. Follow the live model and quota notices above the input. Treat responses as planning references.",
+      },
+    },
+    {
+      id: "tools-review-search",
+      targetPage: "tools",
+      beforeShow: () => setToolPage("review"),
+      selector: "[data-tour='review-search']",
+      title: {zh: "按课程查找评价", en: "Find reviews by course"},
+      body: {
+        zh: "输入课程名称后选择匹配条目即可查看评价；也可以按首字母浏览。发布评价需要登录，发布前请查看页面的规则说明。",
+        en: "Search by course name and select a matching topic, or browse by initial. Posting requires signing in; review the posting rules first.",
+      },
+    },
+    {
+      id: "tools-review-write",
+      targetPage: "tools",
+      beforeShow: () => setToolPage("review"),
+      selector: "[data-tour='review-write']",
+      title: {zh: "分享课程体验", en: "Share a course experience"},
+      body: {
+        zh: "登录后点击「我要评价」打开发布表单。按规则选择课程并描述真实上课体验；发布后可在「我的评价」中查看状态。",
+        en: "After signing in, choose “Write a review” to open the form. Select a course and describe your real class experience; check the post in My Reviews afterward.",
+      },
+    },
+  ], [locale]);
   const [historyData, setHistoryData] = useState<HistoryData | null>(null);
   const [fileName, setFileName] = useState("");
   const [selectedModules, setSelectedModules] = useState<Record<string, string>>({});
@@ -1109,9 +1160,15 @@ export const ToolsPage = ({mobile}: ToolsPageProps) => {
       <div className={`${mobile ? "grid grid-cols-3 border-b p-2 gap-1" : "flex w-44 shrink-0 flex-col border-r p-3 gap-1.5"} ${borderCls} ${isDark ? "bg-[#14141e]" : "bg-white"}`}>
         {mobile ? (
           <>
+            <button
+              type="button"
+              onClick={() => setTutorialEntryOpen(true)}
+              className={`col-span-3 justify-self-end rounded-md border px-2.5 py-1 text-[11px] font-medium ${isDark ? "border-white/10 text-white/65" : "border-gray-200 text-gray-600"}`}
+            >{locale === "zh" ? "页面引导与 Wiki" : "Guide & Wiki"}</button>
             {TOOL_ITEMS.map((t) => (
               <button
                 key={t.key}
+                data-tour={`tool-tab-${t.key}`}
                 onClick={() => setToolPage(t.key)}
                 className={`cursor-pointer rounded border-none py-2 font-medium text-center whitespace-nowrap transition-colors ${mobile ? "min-w-0 px-1 text-[11px]" : "flex-1 px-3 text-xs"} ${
                   toolPage === t.key
@@ -1123,14 +1180,18 @@ export const ToolsPage = ({mobile}: ToolsPageProps) => {
           </>
         ) : (
           <>
-            <div className={`px-2 pb-1.5 text-[10px] font-semibold uppercase tracking-widest ${isDark ? "text-white/35" : "text-gray-400"}`}>
-              {locale === "zh" ? "综合工具" : "Tools"}
+            <div className="flex items-center justify-between px-2 pb-1.5">
+              <span className={`text-[10px] font-semibold uppercase tracking-widest ${isDark ? "text-white/35" : "text-gray-400"}`}>
+                {locale === "zh" ? "综合工具" : "Tools"}
+              </span>
+              <button type="button" onClick={() => setTutorialEntryOpen(true)} aria-label={locale === "zh" ? "打开综合工具引导" : "Open Tools guide"} className={`flex h-6 w-6 items-center justify-center rounded-full border text-xs ${isDark ? "border-white/15 text-white/60 hover:bg-white/10" : "border-gray-200 text-gray-500 hover:bg-gray-100"}`}>?</button>
             </div>
             {TOOL_ITEMS.map((t) => {
               const active = toolPage === t.key;
               return (
                 <button
                   key={t.key}
+                  data-tour={`tool-tab-${t.key}`}
                   onClick={() => setToolPage(t.key)}
                   className={`relative flex cursor-pointer items-center gap-2 rounded-lg border-none px-3 py-2.5 text-left text-[13px] font-medium transition-all ${
                     active
@@ -1168,7 +1229,7 @@ export const ToolsPage = ({mobile}: ToolsPageProps) => {
                 ? "「导入本地数据」读取工作台导出的 JSON 文件；「导入云端方案」从账号下的云端方案列表中任选一份导入（未登录时自动改为导入本浏览器的工作台数据）。导入后系统将自动计算各专业学位的获取进度。"
                 : "\"Import Local Data\" reads a JSON file exported from the Workspace; \"Import Cloud Plan\" lets you pick any cloud plan under your account (falls back to this browser's workspace data when signed out). Degree progress is computed automatically after import."}
             </div>
-            <div className="flex flex-wrap items-center gap-2">
+            <div data-tour="degree-import" className="flex flex-wrap items-center gap-2">
               <Button onClick={() => fileInputRef.current?.click()}>
                 {locale === "zh" ? "导入本地数据" : "Import Local Data"}
               </Button>
@@ -1673,6 +1734,15 @@ export const ToolsPage = ({mobile}: ToolsPageProps) => {
         )
       )}
     </div>
+    {tutorialEntryOpen && (
+      <TutorialEntryModal
+        title={locale === "zh" ? "综合工具" : "Tools"}
+        description={locale === "zh" ? "依次了解学位评定、AI 助手和课程评价的主要入口。" : "Walk through Degree Evaluation, the AI Assistant, and Course Reviews."}
+        onStart={() => { setTutorialEntryOpen(false); startTour(toolTourSteps); }}
+        onOpenWiki={() => { setTutorialEntryOpen(false); navigateTo("guide", "tools-overview"); }}
+        onClose={() => setTutorialEntryOpen(false)}
+      />
+    )}
     </div>
   );
 };

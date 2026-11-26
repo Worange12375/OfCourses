@@ -1133,6 +1133,7 @@ export default function AiAssistant({
       {/* 输入区 */}
       <div className="flex items-end gap-2">
         <textarea
+          data-tour="ai-assistant-composer"
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => {
@@ -1235,45 +1236,45 @@ function TutorialModal({
     ? [
         {
           h: "① 它能做什么",
-          body: "基于本站收录的培养方案与课程数据：解释选课规则与学位评定口径；结合你的选课历史评估进度；推荐下学期课程；模拟多学期规划；分析退课、推迟与换向的影响。",
+          body: "结合本站的课程与培养方案信息，辅助理解选课要求、查看课程建议，并讨论学期规划。复杂结论请继续核对培养方案和官方通知。",
         },
         {
-          h: "② 三步上手",
-          body: "1）建议先在工作台录入或核对课程，并导出 JSON；2）回到本页自动关联工作台数据（也可在“学位评定”页用「导入本地数据」上传 JSON 文件，或登录后用「导入云端方案」读取云端方案），并按需调整“推荐目标学期”；3）直接提问即可。对话不保留历史（仅本地 30 分钟），重要结论请及时“导出对话 txt”。",
+          h: "② 检查关联数据",
+          body: "先查看输入区上方的选课数据关联面板，确认显示的数据来源和范围。若没有关联到需要的数据，可使用面板提供的本地文件或云端方案入口。",
         },
         {
-          h: "③ 两个模型怎么选",
-          body: `${tierLabel("flash", true)}：限额宽松，但响应稍慢，且模型质量平平，适合规则查询、课程信息等日常问题。${tierLabel("strong", true)}：响应更快，准确性更高，支持在对话中直接换方向重新规划；但额度按 token 计费，每人每天大约可以问 3~4 个问题（全站还有共享总量），建议留给复杂的规划与体检类问题。`,
+          h: "③ 选择模型并提问",
+          body: `可在输入区上方切换 ${tierLabel("flash", true)} 与 ${tierLabel("strong", true)}。额度和可用状态会显示在模型区域，请以页面实时提示为准。描述年级、目标学期和具体问题；Enter 发送，Shift+Enter 换行。`,
         },
         {
           h: "④ 提问技巧",
-          body: "需求表达清晰、适当降低问题的开放性；复杂问题拆开分多次问；推荐/规划类回答基于站内推荐算法计算出的候选列表，可以追问每一门课的推荐理由。",
+          body: "一次聚焦一个目标；复杂规划分几轮讨论。对课程建议可以继续追问依据，或补充自己的时间、学分和兴趣限制。重要对话可用「导出对话 txt」保存。",
         },
         {
           h: "⑤ 注意事项",
-          body: "所有输出仅供参考，选课以教务与书院的最新官方通知为准。遇到明显的分析错误，欢迎通过“关于我们”页的联系方式反馈。",
+          body: "使用前请阅读页面上的《使用声明》。不要输入不必要的敏感信息；AI 输出仅供参考，选课以教务和书院的最新官方通知为准。",
         },
       ]
     : [
         {
           h: "① What it can do",
-          body: "Based on the curriculum data on this site: explain registration rules and degree-evaluation logic; assess your progress from your course record; recommend courses for next term; simulate multi-term plans; analyze the impact of dropping, deferring, or switching directions.",
+          body: "Use the site's course and curriculum information to understand requirements, review course suggestions, and discuss semester plans. Verify important conclusions against official documents and notices.",
         },
         {
-          h: "② Three steps to start",
-          body: "1) (Recommended) Record or review your courses in the Workspace and export the JSON; 2) Come back here and your Workspace data is linked automatically (you can also upload the JSON file via “Import local data” on the Degree Evaluation page, or use “Import cloud plan” when signed in), and adjust the target semester if needed; 3) Just ask. Conversations are not kept (local only, 30 minutes) — export important conclusions as txt.",
+          h: "② Check linked course data",
+          body: "Review the course-data panel above the message box and confirm its source and scope. If the needed data is missing, use the local-file or cloud-plan options shown in that panel.",
         },
         {
           h: "③ Which model to pick",
-          body: `${tierLabel("flash", false)}: generous quota but slower response and average model quality — good for rule lookups and quick course info. ${tierLabel("strong", false)}: faster response and higher accuracy, can re-plan with a different direction in conversation; but it is metered by tokens — roughly 3-4 questions per person per day (plus a site-wide shared cap). Save it for complex planning questions.`,
+          body: `Switch between ${tierLabel("flash", false)} and ${tierLabel("strong", false)} above the input. Current availability and quota are shown beside the model selector; follow the live notice because limits can change.`,
         },
         {
           h: "④ Asking tips",
-          body: "State your needs clearly and keep questions focused; split complex problems into several asks; recommendation/planning answers are based on this site's recommendation algorithm — you can ask why each course was recommended.",
+          body: "Focus on one goal at a time. Break complex plans into several questions and include your cohort, target semester, and constraints. Ask follow-up questions when you need the reason for a suggestion. Export important conversations as txt.",
         },
         {
           h: "⑤ Notes",
-          body: "All output is for reference only; registration follows the latest official notices. If you spot an obvious analysis error, feedback is welcome via the contact info on the About page.",
+          body: "Read the Terms of Use before chatting. Avoid entering unnecessary sensitive information. AI responses are references; follow the latest official registration notices.",
         },
       ];
   return (

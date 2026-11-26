@@ -1053,7 +1053,8 @@ export default function CourseReviews({locale, isDark, mobile = false}: {locale:
     }`;
 
     const renderDesktopWriteButton = () => (
-        <button
+            <button
+            data-tour="review-write"
             type="button"
             className="inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-lg border border-blue-400/20 bg-blue-600 px-3 text-xs font-semibold text-white shadow-sm shadow-blue-950/15 transition-colors hover:bg-blue-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400"
             onClick={() => { setIdOpen(false); openCompose(activeTopic ?? undefined); }}
@@ -1185,6 +1186,7 @@ export default function CourseReviews({locale, isDark, mobile = false}: {locale:
             <div className="flex items-center gap-2">
                 <div className="relative min-w-0 flex-1">
                     <input
+                        data-tour="review-search"
                         className={`${inputCls} pr-10`}
                         value={query}
                         onChange={(e) => setQuery(e.target.value)}

@@ -2,7 +2,6 @@ import {useEffect, useLayoutEffect, useRef, useState} from "react";
 import {useOnboarding} from "./OnboardingContext";
 import {useLocale} from "../i18n/LocaleContext";
 import {useAppTheme} from "../theme/ThemeContext";
-import {TOUR_STEPS} from "./tourSteps";
 import type {TourStep} from "./types";
 
 const CARD_MAX_WIDTH = 360;
@@ -100,30 +99,33 @@ function focusRect(rect: DOMRect) {
 }
 
 export const TourOverlay = () => {
-    const {tourActive, stepIndex, next, prev, finish, navigateTo} = useOnboarding();
+    const {tourActive, stepIndex, activeSteps, tourSessionId, next, prev, finish, navigateTo} = useOnboarding();
     const {locale} = useLocale();
     const {theme} = useAppTheme();
     const isDark = theme === "dark";
     const accent = isDark ? "#a78bfa" : "#7542d8";
     const [displayIndex, setDisplayIndex] = useState(-1);
+    const [displayedSessionId, setDisplayedSessionId] = useState(-1);
     const [rects, setRects] = useState<DOMRect[]>([]);
     const [position, setPosition] = useState<CardPosition | null>(null);
     const cardRef = useRef<HTMLDivElement>(null);
-    const target = TOUR_STEPS[stepIndex] ?? TOUR_STEPS[0];
-    const step = TOUR_STEPS[displayIndex] ?? target;
-    const isLast = stepIndex === TOUR_STEPS.length - 1;
+    const target = activeSteps[stepIndex] ?? activeSteps[0];
+    const step = activeSteps[displayIndex] ?? target;
+    const isLast = stepIndex === activeSteps.length - 1;
 
     // Switch the page first, then measure the target in its visible layout.
     useEffect(() => {
-        if (!tourActive || stepIndex === displayIndex) return;
+        if (!tourActive || (stepIndex === displayIndex && tourSessionId === displayedSessionId)) return;
         setPosition(null);
+        target.beforeShow?.();
         if (target.targetPage) navigateTo(target.targetPage);
         const timer = window.setTimeout(() => {
             setRects(readTargetRects(target));
             setDisplayIndex(stepIndex);
+            setDisplayedSessionId(tourSessionId);
         }, target.targetPage ? 180 : 0);
         return () => window.clearTimeout(timer);
-    }, [tourActive, stepIndex, displayIndex, target, navigateTo]);
+    }, [tourActive, stepIndex, displayIndex, target, activeSteps, tourSessionId, displayedSessionId, navigateTo]);
 
     // Place the card after its content has been measured; keep it outside every highlighted target.
     useLayoutEffect(() => {
@@ -157,7 +159,7 @@ export const TourOverlay = () => {
                     isDark ? "border-white/10 bg-[#1c1c28] text-white/90" : "border-gray-200 bg-white text-gray-800"
                 }`}>
                     <div className={`mb-2 text-[11px] font-semibold uppercase tracking-wide ${isDark ? "text-violet-300" : "text-violet-600"}`}>
-                        {locale === "zh" ? `交互引导 · ${stepIndex + 1}/${TOUR_STEPS.length}` : `Guided tour · ${stepIndex + 1}/${TOUR_STEPS.length}`}
+                        {locale === "zh" ? `交互引导 · ${stepIndex + 1}/${activeSteps.length}` : `Guided tour · ${stepIndex + 1}/${activeSteps.length}`}
                     </div>
                     <h2 className="mb-2 text-base font-semibold">{step.title[locale]}</h2>
                     <p className="text-sm leading-6 opacity-75">{step.body[locale]}</p>
@@ -227,9 +229,9 @@ export const TourOverlay = () => {
             >
                 {arrowStyle && <span aria-hidden="true" className={`absolute h-3 w-3 ${notchClass} ${isDark ? "border-white/10 bg-[#1c1c28]" : "border-gray-200 bg-white"}`} style={arrowStyle} />}
                 <div className={`mb-2 h-1 overflow-hidden rounded-full ${isDark ? "bg-white/10" : "bg-gray-100"}`}>
-                    <div className="h-full rounded-full transition-[width] duration-300" style={{width: `${((stepIndex + 1) / TOUR_STEPS.length) * 100}%`, background: accent}} />
+                    <div className="h-full rounded-full transition-[width] duration-300" style={{width: `${((stepIndex + 1) / activeSteps.length) * 100}%`, background: accent}} />
                 </div>
-                <div className="mb-1 text-[10px] font-medium opacity-50">{locale === "zh" ? `第 ${stepIndex + 1} 步，共 ${TOUR_STEPS.length} 步` : `Step ${stepIndex + 1} of ${TOUR_STEPS.length}`}</div>
+                <div className="mb-1 text-[10px] font-medium opacity-50">{locale === "zh" ? `第 ${stepIndex + 1} 步，共 ${activeSteps.length} 步` : `Step ${stepIndex + 1} of ${activeSteps.length}`}</div>
                 <h2 className="mb-2 text-sm font-semibold">{step.title[locale]}</h2>
                 <p className="mb-3 text-xs leading-relaxed opacity-75">{step.body[locale]}</p>
 

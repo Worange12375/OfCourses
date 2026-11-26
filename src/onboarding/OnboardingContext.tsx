@@ -9,6 +9,7 @@ import {
 } from "react";
 import type {NavPage} from "../components/Navbar";
 import {TOUR_STEPS} from "./tourSteps";
+import type {TourStep} from "./types";
 
 const ONBOARDED_KEY = "oc_onboarded_v1";
 
@@ -28,8 +29,10 @@ function hasExistingData(): boolean {
 interface OnboardingContextValue {
     tourActive: boolean;
     stepIndex: number;
+    activeSteps: TourStep[];
+    tourSessionId: number;
     helpOpen: boolean;
-    startTour: () => void;
+    startTour: (steps?: TourStep[]) => void;
     openHelp: () => void;
     closeHelp: () => void;
     next: () => void;
@@ -47,6 +50,8 @@ export const OnboardingProvider = ({children}: {children: ReactNode}) => {
     const [helpOpen, setHelpOpen] = useState(false);
     const [tourActive, setTourActive] = useState(false);
     const [stepIndex, setStepIndex] = useState(0);
+    const [activeSteps, setActiveSteps] = useState<TourStep[]>(TOUR_STEPS);
+    const [tourSessionId, setTourSessionId] = useState(0);
     const navigateRef = useRef<((p: NavPage, guideSection?: string) => void) | null>(null);
 
     // 新用户判定：仅依赖浏览器缓存（无账号/无云端）
@@ -70,7 +75,9 @@ export const OnboardingProvider = ({children}: {children: ReactNode}) => {
         navigateRef.current?.(page, guideSection);
     }, []);
 
-    const startTour = useCallback(() => {
+    const startTour = useCallback((steps: TourStep[] = TOUR_STEPS) => {
+        setActiveSteps(steps.length ? steps : TOUR_STEPS);
+        setTourSessionId((id) => id + 1);
         setStepIndex(0);
         setHelpOpen(false);
         setTourActive(true);
@@ -89,13 +96,13 @@ export const OnboardingProvider = ({children}: {children: ReactNode}) => {
 
     const next = useCallback(() => {
         setStepIndex((i) => {
-            if (i >= TOUR_STEPS.length - 1) {
+            if (i >= activeSteps.length - 1) {
                 finish();
                 return i;
             }
             return i + 1;
         });
-    }, [finish]);
+    }, [activeSteps, finish]);
 
     const prev = useCallback(() => {
         setStepIndex((i) => Math.max(0, i - 1));
@@ -106,6 +113,8 @@ export const OnboardingProvider = ({children}: {children: ReactNode}) => {
             value={{
                 tourActive,
                 stepIndex,
+                activeSteps,
+                tourSessionId,
                 helpOpen,
                 startTour,
                 openHelp,

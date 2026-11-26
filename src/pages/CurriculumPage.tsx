@@ -6,6 +6,8 @@ import {CurriculumTreeMap} from "../components/CurriculumTreeMap";
 import {CurriculumRelationMap} from "../components/CurriculumRelationMap";
 import {CurriculumMapTutorial} from "../components/CurriculumMapTutorial";
 import {useOnboarding} from "../onboarding/OnboardingContext";
+import {TutorialEntryModal} from "../onboarding/TutorialEntryModal";
+import type {TourStep} from "../onboarding/types";
 import crossMd from "@/assets/doc/交叉培养指南.md?raw";
 // 三版本培养方案/教学计划文档（按当前用户年级加载；2024 沿用人工整理版，2025/2026 由 Word 自动转换）
 const yearDocs = import.meta.glob("/src/assets/doc/{2024,2025,2026}/培养方案.md", {eager: true, query: "?raw", import: "default"}) as Record<string, string>;
@@ -275,7 +277,7 @@ const SimpleMarkdown = ({
 export const CurriculumPage = ({mobile}: CurriculumPageProps) => {
   const {locale} = useLocale();
   const {theme} = useAppTheme();
-  const {navigateTo} = useOnboarding();
+  const {navigateTo, startTour} = useOnboarding();
   // 当前年级的培养方案版本（未登录回落 2024）；文档 tabs 与之联动
   const {schemeYear} = useSchemeData();
   const TABS = useMemo(() => buildTabs(schemeYear), [schemeYear]);
@@ -284,9 +286,46 @@ export const CurriculumPage = ({mobile}: CurriculumPageProps) => {
   const [leftWidth, setLeftWidth] = useState(40);
   const [mapView, setMapView] = useState<MapView>("list");
   const [showTutorial, setShowTutorial] = useState(false);
+  const [showPageTutorial, setShowPageTutorial] = useState(false);
   const [mobileTab, setMobileTab] = useState<"map" | "doc">("map");
   const isDragging = useRef(false);
   const [showFeishuLinks, setShowFeishuLinks] = useState(false);
+
+  const curriculumTourSteps = useMemo<TourStep[]>(() => [
+    {
+      id: "curriculum-map-views",
+      targetPage: "curriculum",
+      beforeShow: () => setMobileTab("map"),
+      selector: "[data-tour='curriculum-map-views']",
+      title: {zh: "切换导图视图", en: "Choose a map view"},
+      body: {
+        zh: "列表图适合按模块、课组逐层查找；树状图展示整体结构；关系图用于查看课程与课组之间的关联。点击这里切换，数据仍跟随当前年级方案。",
+        en: "Use List to browse modules and groups, Tree to see the overall structure, and Graph to explore course-group relationships. Switch views here; the map follows the selected cohort scheme.",
+      },
+    },
+    {
+      id: "curriculum-document-tabs",
+      targetPage: "curriculum",
+      beforeShow: () => setMobileTab("doc"),
+      selector: "[data-tour='curriculum-document-tabs']",
+      title: {zh: "切换方案资料", en: "Browse curriculum documents"},
+      body: {
+        zh: "资料栏顶部可以切换培养方案、教学计划和其他已添加资料。不同年级对应不同版本；涉及最新要求时，请以书院正式文件为准。",
+        en: "Use the document tabs to switch between the curriculum, teaching plan, and other added materials. Documents vary by cohort; follow the college's official files for current requirements.",
+      },
+    },
+    {
+      id: "curriculum-document-search",
+      targetPage: "curriculum",
+      beforeShow: () => setMobileTab("doc"),
+      selector: "[data-tour='curriculum-document-search']",
+      title: {zh: "在资料中搜索", en: "Search the documents"},
+      body: {
+        zh: "输入课程名、课组或关键词查看匹配位置；若其他资料中也有结果，可以从结果提示切换到对应资料。",
+        en: "Search for a course, group, or keyword. If other documents also contain matches, use the result notice to switch to them.",
+      },
+    },
+  ], [locale]);
 
   // ---- Document search state ----
   const [searchTerm, setSearchTerm] = useState("");
@@ -388,7 +427,7 @@ export const CurriculumPage = ({mobile}: CurriculumPageProps) => {
             {locale === "zh" ? "培养方案导图" : "Curriculum Map"}
           </span>
           {/* 三视图切换器 */}
-          <div className={`flex rounded-lg border p-0.5 ${borderCls} ${isDark ? "bg-white/5" : "bg-gray-100"}`}>
+          <div data-tour="curriculum-map-views" className={`flex rounded-lg border p-0.5 ${borderCls} ${isDark ? "bg-white/5" : "bg-gray-100"}`}>
             {MAP_VIEWS.map((v) => {
               const active = mapView === v.id;
               const color = active
@@ -440,6 +479,7 @@ export const CurriculumPage = ({mobile}: CurriculumPageProps) => {
       {/* Search bar (persistent, top of document area) */}
       <div className={`flex items-center gap-2 px-3 py-2 border-b shrink-0 ${borderCls} ${bgPanel}`}>
         <input
+          data-tour="curriculum-document-search"
           value={searchTerm}
           onChange={(e) => {
             setSearchTerm(e.target.value);
@@ -486,7 +526,7 @@ export const CurriculumPage = ({mobile}: CurriculumPageProps) => {
         </div>
       )}
 
-      <div className={`flex items-center border-b shrink-0 ${borderCls} ${bgPanel}`}>
+      <div data-tour="curriculum-document-tabs" className={`flex items-center border-b shrink-0 ${borderCls} ${bgPanel}`}>
         <div className="flex items-center overflow-x-auto flex-1 px-1">
           {TABS.map((tab) => (
             <button
@@ -506,6 +546,13 @@ export const CurriculumPage = ({mobile}: CurriculumPageProps) => {
           }`}>
             +
           </button>
+          <button
+            type="button"
+            onClick={() => setShowPageTutorial(true)}
+            title={locale === "zh" ? "培养方案页面引导" : "Curriculum page guide"}
+            aria-label={locale === "zh" ? "培养方案页面引导" : "Curriculum page guide"}
+            className={`mx-2 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-[11px] font-semibold ${isDark ? "border-white/15 text-white/60 hover:bg-white/10" : "border-gray-200 text-gray-500 hover:bg-gray-100"}`}
+          >?</button>
           {showFeishuLinks && (
             <div className="fixed inset-0 z-50 flex items-center justify-center" style={{background: "rgba(0,0,0,0.4)"}} onClick={() => setShowFeishuLinks(false)}>
               <div className={`w-80 rounded-xl shadow-2xl border px-5 py-4 ${isDark ? "bg-[#1e1e2a] border-white/10" : "bg-white border-gray-200"}`} onClick={(e) => e.stopPropagation()}>
@@ -618,6 +665,13 @@ export const CurriculumPage = ({mobile}: CurriculumPageProps) => {
             >
               {locale === "zh" ? "方案" : "Docs"}
             </button>
+            <button
+              type="button"
+              onClick={() => setShowPageTutorial(true)}
+              title={locale === "zh" ? "培养方案页面引导" : "Curriculum page guide"}
+              aria-label={locale === "zh" ? "培养方案页面引导" : "Curriculum page guide"}
+              className={`shrink-0 px-4 text-sm font-medium ${isDark ? "text-white/50" : "text-gray-500"}`}
+            >?</button>
           </nav>
         </div>
       ) : (
@@ -637,7 +691,18 @@ export const CurriculumPage = ({mobile}: CurriculumPageProps) => {
         </div>
       )}
 
-      {showTutorial && <CurriculumMapTutorial onClose={() => setShowTutorial(false)} onOpenWiki={() => { setShowTutorial(false); navigateTo("guide", "curriculum-map"); }} />}
+      {showTutorial && <CurriculumMapTutorial
+        onClose={() => setShowTutorial(false)}
+        onStart={() => { setShowTutorial(false); startTour(curriculumTourSteps.slice(0, 1)); }}
+        onOpenWiki={() => { setShowTutorial(false); navigateTo("guide", "curriculum-map"); }}
+      />}
+      {showPageTutorial && <TutorialEntryModal
+        title={locale === "zh" ? "培养方案页面" : "Curriculum page"}
+        description={locale === "zh" ? "了解导图视图、方案资料和文档搜索。" : "Learn about map views, curriculum documents, and document search."}
+        onStart={() => { setShowPageTutorial(false); startTour(curriculumTourSteps); }}
+        onOpenWiki={() => { setShowPageTutorial(false); navigateTo("guide", "curriculum"); }}
+        onClose={() => setShowPageTutorial(false)}
+      />}
     </div>
   );
 };
