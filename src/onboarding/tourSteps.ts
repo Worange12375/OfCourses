@@ -31,8 +31,8 @@ export const TOUR_STEPS: TourStep[] = [
         selectors: ["[data-tour='history']", "[data-tour='staging']", "[data-tour='catalog']"],
         title: {zh: "三栏工作台", en: "The three-column workspace"},
         body: {
-            zh: "工作台分为「选课记录」「预选课程」和「课程目录」三栏。页面会自动识别当前学期；先在中栏选择计划学期，再从右栏课程目录添加课程。检查完预选课程后，可保存到历史记录，或导出文件留作本地备份。",
-            en: "The workspace has Course History, Pre-selected Courses, and the Course Catalog. The current semester is detected automatically. Choose a planning semester in the middle column, then add courses from the catalog on the right. Review your plan and save it to history or export a local backup.",
+            zh: "工作台分为「选课记录」「预选课程」和「课程目录」三栏。页面会自动识别当前学期；后续可在中栏选择计划学期，从右栏添加课程，再保存到历史记录或导出备份。",
+            en: "The workspace has Course History, Pre-selected Courses, and the Course Catalog. The current semester is detected automatically. You can choose a planning semester in the middle column, add courses from the catalog, then save to history or export a backup.",
         },
     },
     {

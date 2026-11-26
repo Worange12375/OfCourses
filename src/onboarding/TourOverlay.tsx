@@ -82,8 +82,11 @@ function chooseCardPosition(step: TourStep, rects: DOMRect[], cardWidth: number,
 
     const chosen = best!;
     const anchor = chosen.candidate.target;
+    const arrowCenterX = chosen.candidate.side === "top" || chosen.candidate.side === "bottom"
+        ? (bounds.left + bounds.right) / 2
+        : anchor.left + anchor.width / 2;
     const arrowOffset = chosen.candidate.side === "top" || chosen.candidate.side === "bottom"
-        ? clamp((anchor.left + anchor.width / 2) - chosen.left - 6, 18, cardWidth - 18)
+        ? clamp(arrowCenterX - chosen.left - 6, 18, cardWidth - 18)
         : clamp((anchor.top + anchor.height / 2) - chosen.top - 6, 18, cardHeight - 18);
     return {...chosen, side: chosen.candidate.side, arrowOffset};
 }
