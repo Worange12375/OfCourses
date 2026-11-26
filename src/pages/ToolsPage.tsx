@@ -1,4 +1,4 @@
-import {Fragment, useRef, useMemo, useState} from "react";
+import {Fragment, useEffect, useRef, useMemo, useState} from "react";
 import Island, {Content, Header} from "@jetbrains/ring-ui-built/components/island/island";
 import Button from "@jetbrains/ring-ui-built/components/button/button";
 import {MiniSelect} from "../components/MiniSelect";
@@ -149,6 +149,7 @@ const CED_CREDITS_PCT = 48;            // CED 两模块合计学分占比（%，
 const CED_SECOND_A_REQ = 9;            // CED 第二专业 A 课组最低学分（用户 2026-11-15 定稿）
 const CED_PICK_KEY = "oc_ced_pick";    // CED 手动指定的专业对（localStorage 持久化）
 const CE_PICK_KEY = "oc_ce_pick";      // CE 手动指定的主修模块（localStorage 持久化）
+const TOOL_PAGE_RESTORE_KEY = "oc_tool_page_restore";
 
 interface ToolsPageProps {
   mobile?: boolean;
@@ -165,7 +166,15 @@ export const ToolsPage = ({mobile}: ToolsPageProps) => {
   const isDark = theme === "dark";
   const {data: allGroups} = useCourseGroups();
 
-  const [toolPage, setToolPage] = useState<string>("degree");
+  const [toolPage, setToolPage] = useState<"degree" | "ai" | "review">(() => {
+    try {
+      const saved = sessionStorage.getItem(TOOL_PAGE_RESTORE_KEY);
+      return saved === "ai" || saved === "review" ? saved : "degree";
+    } catch { return "degree"; }
+  });
+  useEffect(() => {
+    try { sessionStorage.setItem(TOOL_PAGE_RESTORE_KEY, toolPage); } catch { /* 隐私模式忽略 */ }
+  }, [toolPage]);
   const [historyData, setHistoryData] = useState<HistoryData | null>(null);
   const [fileName, setFileName] = useState("");
   const [selectedModules, setSelectedModules] = useState<Record<string, string>>({});
