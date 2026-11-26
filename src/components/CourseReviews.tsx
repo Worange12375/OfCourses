@@ -57,8 +57,8 @@ const REACTIONS: Array<{key: string; zh: string; en: string; icon: "like" | "use
 const ReactionIcon = ({kind}: {kind: typeof REACTIONS[number]["icon"]}) => {
     if (kind === "unuseful") {
         return (
-            <svg width="15" height="15" viewBox="0 0 1106 1024" fill="currentColor" aria-hidden="true">
-                <path d="M1105.482847 538.795736L992.604812 50.860742A65.626764 65.626764 0 0 0 928.618717 0H346.509316a32.813382 32.813382 0 0 0-32.813382 32.813382v670.049265a32.813382 32.813382 0 0 0 32.813382 32.813382h103.690288c72.189441 48.235672 88.924266 146.347685 91.221203 160.785573 12.140951 82.689723 48.563806 131.253529 98.440146 127.315923a98.440147 98.440147 0 0 0 70.220638-32.813382 194.91149 194.91149 0 0 0 32.813382-131.253529l-17.062958-122.722049 182.770539a196.880293 196.880293 0 0 0 196.880293-198.192829z m-65.626764 6.89081a131.253529 131.253529 0 0 1-131.253529 124.362719h-193.927089a436.417984 436.417984 0 0 0-58.079687 0c-6.234543 0-4.593874 12.140951-3.609472 18.703628l6.562677 46.923136 18.375494 131.253529a133.222332 133.222332 0 0 1-17.391093 81.049054 32.813382 32.813382 0 0 1-23.953769 11.15655c-6.89081 0-23.625635-22.969368-30.516445-71.205039a328.133822 328.133822 0 0 0-62.67356-151.269692 241.834627 241.834627 0 0 0-68.579969-61.361025 32.813382 32.813382 0 0 0-17.062959-4.26574h-78.752117V65.626764H928.618717zM242.162761 668.080462V65.626764a65.626764 65.626764 0 0 0-65.626765-65.626764H65.626764a65.626764 65.626764 0 0 0-65.626764 65.626764v602.453698a65.626764 65.626764 0 0 0 65.626764 65.626764h110.909232a65.626764 65.626764 0 0 0 65.626765-65.626764z m-65.626765 0H65.626764V65.626764h110.909232z" />
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <path d="M9.40017 16H3C1.89543 16 1 15.1046 1 14V11.8957C1 11.6344 1.05118 11.3757 1.15064 11.1342L4.24501 3.61925C4.3993 3.24455 4.76447 3 5.16969 3H22C22.5523 3 23 3.44772 23 4V14C23 14.5523 22.5523 15 22 15H18.5182C18.1932 15 17.8886 15.1579 17.7012 15.4233L12.2478 23.149C12.1053 23.3508 11.8367 23.4184 11.6157 23.3078L9.80163 22.4008C8.74998 21.875 8.20687 20.6874 8.49694 19.548L9.40017 16ZM17 13.4125V5H5.83939L3 11.8957V14H9.40017C10.7049 14 11.6602 15.229 11.3384 16.4934L10.4351 20.0414C10.3771 20.2693 10.4857 20.5068 10.6961 20.612L11.3572 20.9425L16.0673 14.27C16.3172 13.9159 16.6366 13.6257 17 13.4125ZM19 13H21V5H19V13Z" />
             </svg>
         );
     }
@@ -1077,18 +1077,16 @@ export default function CourseReviews({locale, isDark, mobile = false}: {locale:
 
                 {/* 我的评价 */}
                 {user && (
-                    <button className={`inline-flex min-h-8 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-colors ${
-                        isDark
-                            ? "border-blue-400/25 bg-blue-500/10 text-blue-200 hover:bg-blue-500/20"
-                            : "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100"
-                    }`}
+                    <button className={mobileLayout
+                        ? `inline-flex min-h-8 items-center gap-1.5 border-0 bg-transparent px-2 py-1 text-xs font-medium transition-colors ${isDark ? "text-gray-300 hover:text-white" : "text-gray-600 hover:text-gray-900"}`
+                        : `inline-flex min-h-8 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-colors ${isDark ? "border-blue-400/25 bg-blue-500/10 text-blue-200 hover:bg-blue-500/20" : "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100"}`}
                             onClick={() => { loadMine(); setIdOpen(false); openDetailPanel("mine"); }}>
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                             <path d="M6 3.5h8l4 4V20a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1Z" />
                             <path d="M14 3.5V8h4M8 12h8M8 16h5" />
                         </svg>
                         {zh ? "我的评价" : "My reviews"}
-                        {mine && mine.length > 0 && <span className={`ml-0.5 rounded-full px-1.5 py-0.5 text-[9px] tabular-nums ${isDark ? "bg-blue-400/15 text-blue-100" : "bg-white text-blue-700"}`}>{mine.length}</span>}
+                        {!mobileLayout && mine && mine.length > 0 && <span className={`ml-0.5 rounded-full px-1.5 py-0.5 text-[9px] tabular-nums ${isDark ? "bg-blue-400/15 text-blue-100" : "bg-white text-blue-700"}`}>{mine.length}</span>}
                     </button>
                 )}
 
@@ -1349,7 +1347,7 @@ export default function CourseReviews({locale, isDark, mobile = false}: {locale:
 
     const renderWriteButton = () => mobileLayout ? (
         <button
-            className="group flex min-h-[68px] w-full items-center gap-2 rounded-xl border border-blue-300/25 bg-gradient-to-r from-blue-600 to-indigo-600 px-3 py-2.5 text-left text-white shadow-md shadow-blue-950/15 transition hover:from-blue-500 hover:to-indigo-500 active:scale-[0.99]"
+            className="group flex min-h-[68px] w-full items-center gap-2 rounded-xl border border-white/15 bg-gradient-to-r from-blue-500/90 via-blue-500/85 to-indigo-500/85 px-3 py-2.5 text-left text-white shadow-sm shadow-blue-950/10 transition hover:from-blue-500 hover:to-indigo-500 active:scale-[0.99]"
             onClick={() => openCompose(activeTopic ?? undefined)}
         >
             <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/15 ring-1 ring-white/20">
@@ -1437,7 +1435,7 @@ export default function CourseReviews({locale, isDark, mobile = false}: {locale:
 
     /* —— 移动端快捷操作与折叠辅助信息 —— */
     const renderMobileExtras = () => (
-        <div className={`flex flex-col gap-2 ${mobileLayout ? "" : "lg:hidden"}`}>
+        <div className={mobileLayout ? "flex flex-col gap-2" : "hidden"}>
             <div className={`grid gap-2 ${mobileLayout ? "grid-cols-4" : "grid-cols-2"}`}>
                 <div className={filterActive ? (mobileLayout ? "col-span-4" : "col-span-2") : mobileLayout ? "col-span-3" : ""}>{renderWriteButton()}</div>
                 {!filterActive && <div className={mobileLayout ? "col-span-1" : ""}>{renderRulesButton()}</div>}
@@ -1476,7 +1474,7 @@ export default function CourseReviews({locale, isDark, mobile = false}: {locale:
                 <div className="fixed inset-0 z-20" onClick={() => setIdOpen(false)} />
             )}
 
-            <div className={`grid min-w-0 grid-cols-1 gap-3 ${mobileLayout ? "" : "lg:grid-cols-[minmax(0,1fr)_300px] lg:gap-4"}`}>
+            <div className={`grid min-w-0 ${mobileLayout ? "grid-cols-1 gap-3" : "grid-cols-[minmax(0,1fr)_300px] gap-4"}`}>
                 {/* 左栏：内容主体 */}
                 <div className="flex min-w-0 flex-col gap-3">
                     {renderMobileExtras()}
@@ -1549,7 +1547,7 @@ export default function CourseReviews({locale, isDark, mobile = false}: {locale:
                 </div>
 
                 {/* 右栏：辅助信息 */}
-                <div className={mobileLayout ? "hidden" : "hidden min-w-0 lg:block"}>
+                <div className={mobileLayout ? "hidden" : "min-w-0"}>
                     {renderRightCol()}
                 </div>
             </div>
