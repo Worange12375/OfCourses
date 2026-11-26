@@ -5,6 +5,7 @@ import {AppThemeProvider, useAppTheme} from "./theme/ThemeContext";
 import {SemesterProvider} from "./hooks/SemesterContext";
 import {MobileModeProvider, useMobileMode} from "./hooks/useMobileMode";
 import {MobilePrompt} from "./components/MobilePrompt";
+import {UpdateNotice} from "./components/UpdateNotice";
 import {Navbar, type NavPage} from "./components/Navbar";
 import {MobileNavbar, MobileTopBar} from "./components/MobileNavbar";
 import {HomePage} from "./pages/HomePage";
@@ -57,6 +58,7 @@ const AppShell = () => {
 
     return (
         <div className={`flex h-full w-full flex-col transition-colors duration-300 ${baseBg}`}>
+            <UpdateNotice />
             {/* 移动端顶部简化栏（含 logo/主题/用户） */}
             {isMobile && <MobileTopBar onNavigate={setPage} />}
 

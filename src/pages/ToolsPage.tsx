@@ -1641,7 +1641,7 @@ export const ToolsPage = ({mobile}: ToolsPageProps) => {
             </span>
           </Header>
           <Content className={mobile ? "p-0" : ""}>
-            <div className={`flex flex-col gap-4 ${mobile ? "px-3" : "px-4"} py-3`}>
+            <div className={`flex flex-col gap-4 ${mobile ? "px-1" : "px-4"} py-3`}>
               <AiAssistant locale={locale} isDark={isDark} />
               <div className={`rounded-lg border p-3 ${borderCls} ${isDark ? "bg-white/[0.02]" : "bg-gray-50"}`}>
                 <div className={`mb-1 text-xs font-semibold ${textDark}`}>

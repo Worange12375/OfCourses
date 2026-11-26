@@ -2,10 +2,25 @@ import {defineConfig} from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 
+const buildId = Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8)
+
 export default defineConfig({
+    define: {
+        __APP_BUILD_ID__: JSON.stringify(buildId),
+    },
     plugins: [
         react(),
         tailwindcss(),
+        {
+            name: 'emit-app-build-version',
+            generateBundle() {
+                this.emitFile({
+                    type: 'asset',
+                    fileName: 'version.json',
+                    source: JSON.stringify({version: buildId}),
+                })
+            },
+        },
     ],
     resolve: {
         alias: {

@@ -1,51 +1,103 @@
+import {useLocale} from "../i18n/LocaleContext";
+import {useAppTheme} from "../theme/ThemeContext";
 import {useMobileMode} from "../hooks/useMobileMode";
 
 export const MobilePrompt = () => {
-  const {showPrompt, chooseMode} = useMobileMode();
+  const {showPrompt, isMobileDevice, mobileMode, forcedMode, chooseMode, dismissPrompt} = useMobileMode();
+  const {locale} = useLocale();
+  const {theme} = useAppTheme();
+  const isDark = theme === "dark";
+  const recommendedMode = isMobileDevice ? "mobile" : "pc";
+  const currentMode = forcedMode ?? mobileMode ?? "pc";
 
   if (!showPrompt) return null;
 
+  const title = locale === "zh"
+    ? (isMobileDevice ? "要切换到移动端布局吗？" : "要切换到电脑端布局吗？")
+    : (isMobileDevice ? "Switch to the mobile layout?" : "Switch to the desktop layout?");
+  const description = locale === "zh"
+    ? (isMobileDevice
+      ? "检测到你正在使用手机或平板浏览器，但页面目前按电脑布局显示。移动端布局针对触屏和窄屏做了调整。"
+      : "检测到你正在使用电脑，但页面目前按移动端布局显示。电脑端布局会更充分利用屏幕空间。")
+    : (isMobileDevice
+      ? "This looks like a phone or tablet, while the page is using the desktop layout. The mobile layout is tuned for touch and smaller screens."
+      : "This looks like a computer, while the page is using the mobile layout. The desktop layout makes better use of your screen.");
+  const recommendedLabel = locale === "zh"
+    ? (recommendedMode === "mobile" ? "切换到移动端" : "切换到电脑端")
+    : (recommendedMode === "mobile" ? "Use mobile layout" : "Use desktop layout");
+  const currentLabel = locale === "zh"
+    ? "继续使用" + (currentMode === "mobile" ? "移动端" : "电脑端") + "布局"
+    : "Keep the " + (currentMode === "mobile" ? "mobile" : "desktop") + " layout";
+
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-6 backdrop-blur-sm">
-      <div className="w-full max-w-sm rounded-2xl bg-white p-6 text-center shadow-2xl dark:bg-[#16161f]">
-        <div className="mb-4 flex justify-center">
-          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-100 text-blue-600 dark:bg-blue-500/20 dark:text-blue-300">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="2" y="3" width="20" height="14" rx="2" />
-              <line x1="8" y1="21" x2="16" y2="21" />
-              <line x1="12" y1="17" x2="12" y2="21" />
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/55 p-4 backdrop-blur-sm">
+      <section
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="device-mode-title"
+        aria-describedby="device-mode-description"
+        className={"relative max-h-[85vh] w-full max-w-sm overflow-y-auto rounded-2xl border p-5 shadow-2xl " +
+          (isDark ? "border-white/10 bg-[#1a1a22] text-white" : "border-gray-200 bg-white text-gray-800")}
+      >
+        <button
+          type="button"
+          onClick={dismissPrompt}
+          aria-label={locale === "zh" ? "关闭提示" : "Close suggestion"}
+          title={locale === "zh" ? "暂不切换" : "Keep current layout"}
+          className={"absolute right-3 top-3 flex h-8 w-8 cursor-pointer items-center justify-center rounded-full border-none transition-colors " +
+            (isDark ? "bg-white/5 text-white/65 hover:bg-white/10" : "bg-gray-100 text-gray-500 hover:bg-gray-200")}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+            <path d="m18 6-12 12M6 6l12 12" />
+          </svg>
+        </button>
+
+        <div className={"mb-4 flex h-11 w-11 items-center justify-center rounded-xl " +
+          (isDark ? "bg-white/8 text-white/75" : "bg-gray-100 text-gray-600")}>
+          {isMobileDevice ? (
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <rect x="6" y="2" width="12" height="20" rx="2" />
+              <path d="M11 18h2" />
             </svg>
-          </div>
+          ) : (
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <rect x="2" y="3" width="20" height="14" rx="2" />
+              <path d="M8 21h8m-4-4v4" />
+            </svg>
+          )}
         </div>
-        <h2 className="mb-2 text-lg font-semibold text-gray-900 dark:text-white">
-          本网站建议在 PC 端使用
+
+        <h2 id="device-mode-title" className="mb-2 pr-9 text-lg font-semibold">
+          {title}
         </h2>
-        <p className="mb-3 text-sm text-gray-500 dark:text-white/60">
-          为获得最佳体验，推荐使用电脑浏览器访问。你也可以选择当前设备的显示方式。
+        <p id="device-mode-description" className={"mb-5 text-sm leading-relaxed " + (isDark ? "text-white/60" : "text-gray-600")}>
+          {description}
         </p>
-        <p className="mb-6 text-xs leading-relaxed text-gray-400 dark:text-white/40">
-          提示：部分手机浏览器可能会出现按钮、标签等颜色显示不全的情况。如遇此问题，建议切换到 PC 端、更换浏览器或开启暗色模式。也欢迎前往「关于我们」页的问题反馈区留下你的机型和浏览器信息，帮助我们提升兼容性。
-        </p>
-        <div className="flex flex-col gap-3">
+
+        <div className="flex flex-col gap-2.5">
           <button
             type="button"
-            onClick={() => chooseMode("pc")}
-            className="w-full rounded-xl bg-blue-600 px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-blue-700"
+            onClick={() => chooseMode(recommendedMode)}
+            className={"w-full cursor-pointer rounded-xl border-none px-4 py-3 text-sm font-semibold transition-colors " +
+              (isDark ? "bg-blue-500 text-white hover:bg-blue-400" : "bg-blue-600 text-white hover:bg-blue-700")}
           >
-            使用 PC 模式
+            {recommendedLabel}
           </button>
           <button
             type="button"
-            onClick={() => chooseMode("mobile")}
-            className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 dark:border-white/10 dark:bg-transparent dark:text-white/80 dark:hover:bg-white/5"
+            onClick={() => chooseMode(currentMode)}
+            className={"w-full cursor-pointer rounded-xl border px-4 py-3 text-sm font-medium transition-colors " +
+              (isDark ? "border-white/10 bg-white/5 text-white/80 hover:bg-white/10" : "border-gray-200 bg-gray-50 text-gray-700 hover:bg-gray-100")}
           >
-            使用移动端模式
+            {currentLabel}
           </button>
         </div>
-        <p className="mt-4 text-xs text-gray-400 dark:text-white/40">
-          选择后会记住你的偏好，可随时在右上角菜单切换。
+        <p className={"mb-0 mt-4 text-xs leading-relaxed " + (isDark ? "text-white/40" : "text-gray-400")}>
+          {locale === "zh"
+            ? "此设备类型下不会重复显示这条提示；你之后仍可在导航栏更改页面模式。"
+            : "This suggestion will not repeat for this device type. You can change the layout later from the navigation bar."}
         </p>
-      </div>
+      </section>
     </div>
   );
 };
