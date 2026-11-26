@@ -1052,6 +1052,19 @@ export default function CourseReviews({locale, isDark, mobile = false}: {locale:
         isDark ? "bg-gray-900" : "bg-white"
     }`;
 
+    const renderDesktopWriteButton = () => (
+        <button
+            type="button"
+            className="inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-lg border border-blue-400/20 bg-blue-600 px-3 text-xs font-semibold text-white shadow-sm shadow-blue-950/15 transition-colors hover:bg-blue-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400"
+            onClick={() => { setIdOpen(false); openCompose(activeTopic ?? undefined); }}
+        >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L8 18l-4 1 1-4Z" />
+            </svg>
+            {zh ? "我要评价" : "Write a review"}
+        </button>
+    );
+
     const renderTopBar = () => (
         <div className={`relative mb-3 flex flex-wrap items-center gap-y-2 border-b pb-3 ${mobileLayout ? "" : "sm:mb-4"} ${borderCls}`}>
             <span className={`shrink-0 text-sm font-semibold ${textMain}`}>{zh ? "课程评价" : "Course Reviews"}</span>
@@ -1074,6 +1087,8 @@ export default function CourseReviews({locale, isDark, mobile = false}: {locale:
                         </span>
                     </button>
                 )}
+
+                {!mobileLayout && renderDesktopWriteButton()}
 
                 {/* 我的评价 */}
                 {user && (
@@ -1424,8 +1439,6 @@ export default function CourseReviews({locale, isDark, mobile = false}: {locale:
     /* —— PC 右栏 —— */
     const renderRightCol = () => (
         <div className="flex flex-col gap-3">
-            {renderWriteButton()}
-
             {/* 热度排行榜（月榜/年榜 前 10） */}
             {!filterActive && (
                 <div className={`rounded-lg border p-3 ${borderCls}`}>
