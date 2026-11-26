@@ -54,15 +54,23 @@ const REACTIONS: Array<{key: string; zh: string; en: string; icon: "like" | "use
     {key: "unuseful", zh: "不实用", en: "Not useful", icon: "unuseful"},
 ];
 
-const ReactionIcon = ({kind}: {kind: typeof REACTIONS[number]["icon"]}) => (
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-        {kind === "like" && <><path d="M7 10v11" /><path d="M15 5.9 14 10h5.2a2 2 0 0 1 1.9 2.6l-2.1 6.8a2 2 0 0 1-1.9 1.4H7" /><path d="M7 10 11 3a2 2 0 0 1 3.8.9v2" /><path d="M3 10h4v11H3a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1Z" /></>}
-        {kind === "useful" && <><path d="m12 3 1.8 5.2 5.2 1.8-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8L12 3Z" /><path d="m19 14 .9 2.1L22 17l-2.1.9L19 20l-.9-2.1L16 17l2.1-.9L19 14Z" /></>}
-        {kind === "watch" && <><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7Z" /><circle cx="12" cy="12" r="3" /></>}
-        {kind === "doubt" && <><circle cx="12" cy="12" r="9" /><path d="M9.6 9a2.5 2.5 0 1 1 4.6 1.3c-.7 1-2.2 1.2-2.2 2.7" /><path d="M12 16.5h.01" /></>}
-        {kind === "unuseful" && <><path d="M7 14V3" /><path d="m15 18 1-4H10a2 2 0 0 1-1.9-2.6l2.1-6.8A2 2 0 0 1 12.1 3H19" /><path d="M17 14 13 21a2 2 0 0 1-3.8-.9v-2" /><path d="M21 14h-4V3h4a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1Z" /></>}
-    </svg>
-);
+const ReactionIcon = ({kind}: {kind: typeof REACTIONS[number]["icon"]}) => {
+    if (kind === "unuseful") {
+        return (
+            <svg width="15" height="15" viewBox="0 0 1106 1024" fill="currentColor" aria-hidden="true">
+                <path d="M1105.482847 538.795736L992.604812 50.860742A65.626764 65.626764 0 0 0 928.618717 0H346.509316a32.813382 32.813382 0 0 0-32.813382 32.813382v670.049265a32.813382 32.813382 0 0 0 32.813382 32.813382h103.690288c72.189441 48.235672 88.924266 146.347685 91.221203 160.785573 12.140951 82.689723 48.563806 131.253529 98.440146 127.315923a98.440147 98.440147 0 0 0 70.220638-32.813382 194.91149 194.91149 0 0 0 32.813382-131.253529l-17.062958-122.722049 182.770539a196.880293 196.880293 0 0 0 196.880293-198.192829z m-65.626764 6.89081a131.253529 131.253529 0 0 1-131.253529 124.362719h-193.927089a436.417984 436.417984 0 0 0-58.079687 0c-6.234543 0-4.593874 12.140951-3.609472 18.703628l6.562677 46.923136 18.375494 131.253529a133.222332 133.222332 0 0 1-17.391093 81.049054 32.813382 32.813382 0 0 1-23.953769 11.15655c-6.89081 0-23.625635-22.969368-30.516445-71.205039a328.133822 328.133822 0 0 0-62.67356-151.269692 241.834627 241.834627 0 0 0-68.579969-61.361025 32.813382 32.813382 0 0 0-17.062959-4.26574h-78.752117V65.626764H928.618717zM242.162761 668.080462V65.626764a65.626764 65.626764 0 0 0-65.626765-65.626764H65.626764a65.626764 65.626764 0 0 0-65.626764 65.626764v602.453698a65.626764 65.626764 0 0 0 65.626764 65.626764h110.909232a65.626764 65.626764 0 0 0 65.626765-65.626764z m-65.626765 0H65.626764V65.626764h110.909232z" />
+            </svg>
+        );
+    }
+    return (
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            {kind === "like" && <><path d="M7 10v11" /><path d="M15 5.9 14 10h5.2a2 2 0 0 1 1.9 2.6l-2.1 6.8a2 2 0 0 1-1.9 1.4H7" /><path d="M7 10 11 3a2 2 0 0 1 3.8.9v2" /><path d="M3 10h4v11H3a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1Z" /></>}
+            {kind === "useful" && <><path d="m12 3 1.8 5.2 5.2 1.8-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8L12 3Z" /><path d="m19 14 .9 2.1L22 17l-2.1.9L19 20l-.9-2.1L16 17l2.1-.9L19 14Z" /></>}
+            {kind === "watch" && <><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7Z" /><circle cx="12" cy="12" r="3" /></>}
+            {kind === "doubt" && <><circle cx="12" cy="12" r="9" /><path d="M9.6 9a2.5 2.5 0 1 1 4.6 1.3c-.7 1-2.2 1.2-2.2 2.7" /><path d="M12 16.5h.01" /></>}
+        </svg>
+    );
+};
 
 const RULES_ZH =
     "本评价社区初衷是为了让大家能有一个平台，能向大家推荐一下自己上过的好课，帮助后来的同学能有更好的课程选择。" +
@@ -1069,9 +1077,18 @@ export default function CourseReviews({locale, isDark, mobile = false}: {locale:
 
                 {/* 我的评价 */}
                 {user && (
-                    <button className={navBtn}
+                    <button className={`inline-flex min-h-8 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-colors ${
+                        isDark
+                            ? "border-blue-400/25 bg-blue-500/10 text-blue-200 hover:bg-blue-500/20"
+                            : "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100"
+                    }`}
                             onClick={() => { loadMine(); setIdOpen(false); openDetailPanel("mine"); }}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                            <path d="M6 3.5h8l4 4V20a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1Z" />
+                            <path d="M14 3.5V8h4M8 12h8M8 16h5" />
+                        </svg>
                         {zh ? "我的评价" : "My reviews"}
+                        {mine && mine.length > 0 && <span className={`ml-0.5 rounded-full px-1.5 py-0.5 text-[9px] tabular-nums ${isDark ? "bg-blue-400/15 text-blue-100" : "bg-white text-blue-700"}`}>{mine.length}</span>}
                     </button>
                 )}
 
@@ -1315,13 +1332,16 @@ export default function CourseReviews({locale, isDark, mobile = false}: {locale:
             <div role="region" className="h-5 min-w-0 flex-1 overflow-hidden" aria-label={zh ? "热度榜热门评价轮播" : "Rotating popular reviews"} aria-live="off">
                 <div className={`will-change-transform ${boardTickerJump ? "transition-none" : "transition-transform duration-500 ease-in-out motion-reduce:transition-none"}`}
                      style={{transform: `translateY(-${tickerIndex * 1.25}rem)`}}>
-                    {[...items, items[0]].map((it, i) => (
-                        <div key={`${it.id}-${i}`} aria-hidden={i === items.length || undefined} className="flex h-5 min-w-0 items-center gap-1.5 whitespace-nowrap text-[11px]">
-                            <span className={`shrink-0 font-bold ${i < 3 ? "text-orange-400" : textSub}`}>#{i + 1}</span>
-                            <span className={`shrink-0 font-medium ${textMain}`}>{it.topic.name}</span>
-                            <span className={`min-w-0 truncate ${textSub}`}>{it.content.replace(/\s+/g, " ").slice(0, 30)}</span>
-                        </div>
-                    ))}
+                    {[...items, items[0]].map((it, i) => {
+                        const rank = i === items.length ? 1 : i + 1;
+                        return (
+                            <div key={`${it.id}-${i}`} aria-hidden={i === items.length || undefined} className="flex h-5 min-w-0 items-center gap-1.5 whitespace-nowrap text-[11px]">
+                                <span className={`shrink-0 font-bold ${rank <= 3 ? "text-orange-400" : textSub}`}>#{rank}</span>
+                                <span className={`shrink-0 font-medium ${textMain}`}>{it.topic.name}</span>
+                                <span className={`min-w-0 truncate ${textSub}`}>{it.content.replace(/\s+/g, " ").slice(0, 30)}</span>
+                            </div>
+                        );
+                    })}
                 </div>
             </div>
         );
@@ -1339,8 +1359,8 @@ export default function CourseReviews({locale, isDark, mobile = false}: {locale:
             </span>
             <span className="min-w-0 flex-1">
                 <span className="block whitespace-nowrap text-xs font-semibold">{zh ? "我要评价" : "Write a review"}</span>
-                <span className="mt-0.5 block truncate text-[10px] text-blue-100/90">
-                    {zh ? "分享课程体验，帮同学选课" : "Share your experience and help others"}
+                    <span className="mt-0.5 block whitespace-nowrap text-[10px] text-blue-100/90">
+                    {zh ? "分享真实体验" : "Rate a course"}
                 </span>
             </span>
         </button>
@@ -1351,17 +1371,19 @@ export default function CourseReviews({locale, isDark, mobile = false}: {locale:
     );
 
     const renderRulesButton = () => (
-        <button className={`group flex w-full items-center gap-2.5 rounded-xl border px-3 text-left transition-colors ${mobileLayout ? "min-h-[68px]" : "min-h-10 py-2"} ${borderCls} ${
+        <button className={`group flex w-full rounded-xl border text-left transition-colors ${mobileLayout ? "min-h-[68px] flex-col items-center justify-center gap-1.5 px-1" : "min-h-10 items-center gap-2.5 px-3 py-2"} ${borderCls} ${
             isDark ? "bg-white/[0.03] hover:bg-white/[0.07]" : "bg-white hover:bg-amber-50"
         }`} onClick={() => { setIdOpen(false); openDetailPanel("rules"); }}>
-            <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${isDark ? "bg-amber-400/10 text-amber-300" : "bg-amber-50 text-amber-600"}`}>
-                <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 4.5A2.5 2.5 0 0 1 6.5 2H20v17H6.5A2.5 2.5 0 0 0 4 21.5Z" /><path d="M8 7h8M8 11h8M8 15h5" /></svg>
+            <span className={`flex shrink-0 items-center justify-center rounded-xl ${mobileLayout ? "h-7 w-7" : "h-9 w-9"} ${isDark ? "bg-amber-400/10 text-amber-300" : "bg-amber-50 text-amber-600"}`}>
+                <svg width={mobileLayout ? "16" : "19"} height={mobileLayout ? "16" : "19"} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 4.5A2.5 2.5 0 0 1 6.5 2H20v17H6.5A2.5 2.5 0 0 0 4 21.5Z" /><path d="M8 7h8M8 11h8M8 15h5" /></svg>
             </span>
-            <span className="min-w-0 flex-1">
-                <span className={`block truncate text-xs font-semibold ${textMain}`}>{zh ? "规则说明" : "Guidelines"}</span>
-                <span className={`mt-0.5 block truncate text-[10px] ${textSub}`}>{zh ? "发布前了解社区约定" : "Before you post"}</span>
+            <span className={`min-w-0 ${mobileLayout ? "text-center text-[10px] font-semibold leading-none" : "flex-1 text-xs font-semibold"} ${textMain}`}>
+                {zh ? "规则说明" : "Rules"}
             </span>
-            <svg className={`shrink-0 transition-transform group-hover:translate-x-0.5 ${textSub}`} width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6" /></svg>
+            {!mobileLayout && <>
+                <span className={`ml-auto hidden text-[10px] font-normal sm:inline ${textSub}`}>{zh ? "查看约定" : "View rules"}</span>
+                <svg className={`shrink-0 transition-transform group-hover:translate-x-0.5 ${textSub}`} width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6" /></svg>
+            </>}
         </button>
     );
 
@@ -1395,9 +1417,9 @@ export default function CourseReviews({locale, isDark, mobile = false}: {locale:
     /* —— PC 右栏 —— */
     const renderRightCol = () => (
         <div className="flex flex-col gap-3">
-            <div className="grid grid-cols-2 gap-2">
-                <div className={filterActive ? "col-span-2" : ""}>{renderWriteButton()}</div>
-                {!filterActive && renderRulesButton()}
+            <div className={`grid gap-2 ${mobileLayout ? "grid-cols-4" : "grid-cols-2"}`}>
+                <div className={filterActive ? (mobileLayout ? "col-span-4" : "col-span-2") : mobileLayout ? "col-span-3" : ""}>{renderWriteButton()}</div>
+                {!filterActive && <div className={mobileLayout ? "col-span-1" : ""}>{renderRulesButton()}</div>}
             </div>
 
             {/* 热度排行榜（月榜/年榜 前 10） */}
@@ -1416,9 +1438,9 @@ export default function CourseReviews({locale, isDark, mobile = false}: {locale:
     /* —— 移动端快捷操作与折叠辅助信息 —— */
     const renderMobileExtras = () => (
         <div className={`flex flex-col gap-2 ${mobileLayout ? "" : "lg:hidden"}`}>
-            <div className="grid grid-cols-2 gap-2">
-                <div className={filterActive ? "col-span-2" : ""}>{renderWriteButton()}</div>
-                {!filterActive && renderRulesButton()}
+            <div className={`grid gap-2 ${mobileLayout ? "grid-cols-4" : "grid-cols-2"}`}>
+                <div className={filterActive ? (mobileLayout ? "col-span-4" : "col-span-2") : mobileLayout ? "col-span-3" : ""}>{renderWriteButton()}</div>
+                {!filterActive && <div className={mobileLayout ? "col-span-1" : ""}>{renderRulesButton()}</div>}
             </div>
             {!filterActive && (
                 <details className={`overflow-hidden rounded-xl border ${borderCls} ${cardBg}`}>
