@@ -221,7 +221,8 @@ export const Workspace = ({onNavigate: _onNavigate, mobile = false}: WorkspacePr
   const {user, syncState, lastSyncTs, dirtyHistory} = useAccount();
   const [schemeModalOpen, setSchemeModalOpen] = useState(false);
   const [cloudBubble, setCloudBubble] = useState(false);
-  const cloudBubbleTimer = useRef<number | null>(null);
+  const [cloudBubbleMounted, setCloudBubbleMounted] = useState(false);
+  const cloudStatusRef = useRef<HTMLSpanElement>(null);
   const cloudOn = !!user && syncState !== "off";
   const cloudText = (() => {
     if (!user) return locale === "zh" ? "未登录" : "Signed out";
@@ -235,6 +236,63 @@ export const Workspace = ({onNavigate: _onNavigate, mobile = false}: WorkspacePr
     }
     return locale === "zh" ? "自动同步" : "Auto-sync";
   })();
+  const cloudDetail = (() => {
+    if (!user) return locale === "zh"
+      ? "目前只保存在这台设备。登录后可在多台设备间同步方案。"
+      : "Your plans are stored on this device. Sign in to sync them across devices.";
+    if (syncState === "off") return locale === "zh"
+      ? "云端同步尚未开启，本地方案仍可正常使用。"
+      : "Cloud sync is off. Your local plans are still available.";
+    if (syncState === "syncing") return locale === "zh"
+      ? "正在同步方案，请稍候。"
+      : "Your plans are syncing. Please wait.";
+    if (syncState === "conflict") return locale === "zh"
+      ? "本地和云端方案有差异，请打开方案管理检查并处理。"
+      : "Local and cloud plans differ. Open plan management to review them.";
+    if (syncState === "error") return locale === "zh"
+      ? "同步没有完成，本地数据仍保留。稍后可在方案管理中重试。"
+      : "Sync did not complete. Your local data is safe; try again in plan management.";
+    if (dirtyHistory) return locale === "zh"
+      ? "有尚未同步的修改，联网后会自动保存到云端。"
+      : "Changes are waiting to sync and will be saved when a connection is available.";
+    if (syncState === "saved" && lastSyncTs) return locale === "zh"
+      ? "最近一次同步已完成。"
+      : "The latest sync completed successfully.";
+    return locale === "zh"
+      ? "云端自动同步已开启，方案有修改时会自动保存。"
+      : "Cloud sync is on. Changes to your plans are saved automatically.";
+  })();
+
+  useEffect(() => {
+    if (!cloudBubbleMounted || cloudBubble) return;
+    const timer = window.setTimeout(() => setCloudBubbleMounted(false), 180);
+    return () => window.clearTimeout(timer);
+  }, [cloudBubble, cloudBubbleMounted]);
+
+  useEffect(() => {
+    if (!cloudBubble) return;
+    const closeOnOutsidePointer = (event: PointerEvent) => {
+      if (!cloudStatusRef.current?.contains(event.target as Node)) setCloudBubble(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setCloudBubble(false);
+    };
+    document.addEventListener("pointerdown", closeOnOutsidePointer);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeOnOutsidePointer);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [cloudBubble]);
+
+  const toggleCloudBubble = () => {
+    if (cloudBubble) {
+      setCloudBubble(false);
+      return;
+    }
+    setCloudBubbleMounted(true);
+    window.requestAnimationFrame(() => setCloudBubble(true));
+  };
   const toggleFold = (id: string) =>
     setFoldOpen((prev) => {
       const next = new Set(prev);
@@ -1480,31 +1538,64 @@ export const Workspace = ({onNavigate: _onNavigate, mobile = false}: WorkspacePr
                       )}
                     </span>
                     <Button onClick={() => setClearConfirm(true)} className={mobile ? "text-[10px] px-2 py-1" : ""}>{locale === "zh" ? "清除" : "Clear"}</Button>
-                    {/* 移动端：云同步状态气泡按钮（点击显示状态，5s 自动渐隐） */}
+                    {/* 移动端：云同步状态卡片，可点外部关闭 */}
                     {mobile && (
-                      <button
-                        onClick={() => {
-                          setCloudBubble(true);
-                          if (cloudBubbleTimer.current) window.clearTimeout(cloudBubbleTimer.current);
-                          cloudBubbleTimer.current = window.setTimeout(() => setCloudBubble(false), 5000);
-                        }}
-                        className={`flex h-6 w-6 cursor-pointer items-center justify-center rounded-full border text-[10px] transition-colors ${
-                          cloudOn
-                            ? isDark ? "border-blue-500/40 bg-blue-500/15 text-blue-300" : "border-blue-500/40 bg-blue-500/10 text-blue-600"
-                            : isDark ? "border-white/10 text-white/35" : "border-gray-200 text-gray-400"
-                        }`}
-                        title={locale === "zh" ? "云同步状态" : "Cloud sync"}
-                      >☁</button>
-                    )}
-                    {/* 移动端：云同步状态气泡（点击 ☁ 按钮后显示 5s 渐隐） */}
-                    {mobile && cloudBubble && (
-                      <div
-                        className={`absolute right-0 top-full z-30 mt-1.5 whitespace-nowrap rounded-lg border px-2.5 py-1.5 text-[10px] shadow-lg ${
-                          isDark ? "border-white/10 bg-[#1e1e2a] text-white/80" : "border-gray-200 bg-white text-gray-700"
-                        }`}
-                      >
-                        {cloudText}
-                      </div>
+                      <span ref={cloudStatusRef} className="relative inline-flex">
+                        <button
+                          type="button"
+                          aria-expanded={cloudBubble}
+                          aria-label={locale === "zh" ? "查看云端同步状态" : "View cloud sync status"}
+                          onClick={toggleCloudBubble}
+                          className={"flex h-7 w-7 cursor-pointer items-center justify-center rounded-full border text-xs transition-colors " +
+                            (cloudOn
+                              ? isDark ? "border-blue-500/40 bg-blue-500/15 text-blue-300" : "border-blue-500/40 bg-blue-500/10 text-blue-600"
+                              : isDark ? "border-white/10 text-white/45 hover:bg-white/5" : "border-gray-200 text-gray-500 hover:bg-gray-50")}
+                          title={locale === "zh" ? "云同步状态" : "Cloud sync"}
+                        >☁</button>
+                        {cloudBubbleMounted && (
+                          <div
+                            role="dialog"
+                            aria-label={locale === "zh" ? "云端同步状态" : "Cloud sync status"}
+                            aria-hidden={!cloudBubble}
+                            className={"absolute right-0 top-full z-40 mt-2 w-[min(18rem,calc(100vw-2rem))] origin-top-right rounded-xl border p-3 shadow-xl transition-[opacity,transform] duration-200 ease-out " +
+                              (isDark ? "border-white/10 bg-[#1e1e2a] text-white/85" : "border-gray-200 bg-white text-gray-800") +
+                              (cloudBubble ? " translate-y-0 scale-100 opacity-100" : " pointer-events-none -translate-y-1 scale-95 opacity-0")}
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <div className={"text-xs font-semibold " + (isDark ? "text-white/90" : "text-gray-900")}>
+                                  {locale === "zh" ? "云端同步" : "Cloud sync"}
+                                </div>
+                                <div className={"mt-1 text-xs font-medium " + (cloudOn ? (isDark ? "text-blue-300" : "text-blue-700") : (isDark ? "text-white/65" : "text-gray-600"))}>
+                                  {cloudText}
+                                </div>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => setCloudBubble(false)}
+                                aria-label={locale === "zh" ? "关闭" : "Close"}
+                                className={"-mr-1 -mt-1 flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-full border-none bg-transparent text-sm " +
+                                  (isDark ? "text-white/45 hover:bg-white/10" : "text-gray-400 hover:bg-gray-100")}
+                              >×</button>
+                            </div>
+                            <p className={"mb-3 mt-2 text-[11px] leading-relaxed " + (isDark ? "text-white/55" : "text-gray-500")}>
+                              {cloudDetail}
+                            </p>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setCloudBubble(false);
+                                setSchemeModalOpen(true);
+                              }}
+                              className={"w-full cursor-pointer rounded-lg border px-2.5 py-2 text-left text-[11px] font-medium transition-colors " +
+                                (isDark ? "border-white/10 bg-white/5 text-white/80 hover:bg-white/10" : "border-gray-200 bg-gray-50 text-gray-700 hover:bg-gray-100")}
+                            >
+                              {locale === "zh" ? "打开方案管理" : "Open plan management"}
+                              <span className="float-right" aria-hidden="true">›</span>
+                            </button>
+                          </div>
+                        )}
+                      </span>
                     )}
                     {/* 历史展开/折叠仅对 PC 三栏布局生效；移动端该 section 恒为 w-full，此按钮无效，故仅在 PC 渲染 */}
                     {!mobile && (

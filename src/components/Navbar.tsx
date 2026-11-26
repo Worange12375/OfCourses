@@ -86,64 +86,65 @@ export const Navbar = ({currentPage, onNavigate}: NavbarProps) => {
                     <AccountButton />
                 </div>
 
-                {/* Theme toggle: sun/moon */}
+                {/* Theme switch: the thumb shows the currently active mode. */}
                 <button
+                    type="button"
+                    role="switch"
+                    aria-checked={isDark}
                     onClick={toggleTheme}
-                    className={
-                        `flex h-7 w-7 cursor-pointer items-center justify-center rounded-full border-none text-xs transition-all duration-300 ${
-                            isDark
-                                ? "bg-white/10 text-yellow-400 hover:bg-white/20"
-                                : "bg-[rgba(0,0,0,0.06)] text-gray-500 hover:bg-[rgba(0,0,0,0.1)]"
-                        }`
-                    }
+                    className={"relative flex h-8 w-[62px] cursor-pointer items-center justify-between overflow-hidden rounded-full border px-1 transition-colors duration-300 " +
+                        (isDark ? "border-indigo-700 bg-indigo-950" : "border-amber-200 bg-amber-50")}
                     title={isDark ? "Switch to light mode" : "Switch to dark mode"}
+                    aria-label={isDark ? "Dark mode is on. Switch to light mode" : "Light mode is on. Switch to dark mode"}
                 >
-                    {isDark ? (
-                        /* Sun icon */
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <circle cx="12" cy="12" r="5" />
-                            <line x1="12" y1="1" x2="12" y2="3" />
-                            <line x1="12" y1="21" x2="12" y2="23" />
-                            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
-                            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
-                            <line x1="1" y1="12" x2="3" y2="12" />
-                            <line x1="21" y1="12" x2="23" y2="12" />
-                            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
-                            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
-                        </svg>
-                    ) : (
-                        /* Moon icon */
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
-                        </svg>
-                    )}
+                    <svg className={"relative z-0 h-3.5 w-3.5 " + (isDark ? "text-amber-200/45" : "text-amber-500")} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <circle cx="12" cy="12" r="4" />
+                        <path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42" />
+                    </svg>
+                    <svg className={"relative z-0 h-3.5 w-3.5 " + (isDark ? "text-indigo-200" : "text-indigo-400/50")} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <path d="M20.9 13A8.5 8.5 0 0 1 11 3.1 8.5 8.5 0 1 0 20.9 13Z" />
+                    </svg>
+                    <span className={"absolute left-1 top-1 flex h-6 w-6 items-center justify-center rounded-full shadow-sm transition-transform duration-300 " +
+                        (isDark ? "translate-x-[30px] bg-indigo-600 text-indigo-50" : "translate-x-0 bg-white text-amber-500")}>
+                        {isDark ? (
+                            <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                <path d="M20.9 13A8.5 8.5 0 0 1 11 3.1 8.5 8.5 0 1 0 20.9 13Z" />
+                            </svg>
+                        ) : (
+                            <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                <circle cx="12" cy="12" r="4" />
+                                <path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42" />
+                            </svg>
+                        )}
+                    </span>
                 </button>
 
-                {/* Language toggle switch */}
+                {/* Language uses a two-segment selector, visually distinct from the theme switch. */}
+                <div
+                    role="group"
+                    aria-label={locale === "zh" ? "语言" : "Language"}
+                    className={"flex h-8 w-[68px] items-center rounded-full border p-0.5 " +
+                        (isDark ? "border-white/15 bg-white/10" : "border-gray-200 bg-gray-100")}
+                >
                     <button
-                        onClick={() => setLocale(locale === "zh" ? "en" : "zh")}
-                        className={
-                            `relative flex h-7 w-14 cursor-pointer items-center rounded-full border-none transition-colors duration-300 ${
-                                isDark
-                                    ? "bg-white/15"
-                                    : "bg-gray-200"
-                            }`
-                        }
-                    >
-                        <span className={`absolute left-[7px] text-[11px] font-medium z-10 transition-colors duration-300 ${
-                            locale === "zh"
-                                ? (isDark ? "text-white" : "text-gray-800")
-                                : (isDark ? "text-white/40" : "text-gray-400")
-                        }`}>中</span>
-                        <span className={`absolute right-[7px] text-[11px] font-medium z-10 transition-colors duration-300 ${
-                            locale === "en"
-                                ? (isDark ? "text-white" : "text-gray-800")
-                                : (isDark ? "text-white/40" : "text-gray-400")
-                        }`}>EN</span>
-                        <span className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow-sm transition-transform duration-300 ${
-                            locale === "zh" ? "left-1" : "right-1"
-                        }`} />
-                    </button>
+                        type="button"
+                        aria-pressed={locale === "zh"}
+                        onClick={() => setLocale("zh")}
+                        className={"flex h-full flex-1 cursor-pointer items-center justify-center rounded-full border-none text-[11px] font-medium transition-colors " +
+                            (locale === "zh"
+                                ? "bg-white text-gray-900 shadow-sm"
+                                : isDark ? "bg-transparent text-white/60 hover:text-white/85" : "bg-transparent text-gray-500 hover:text-gray-800")}
+                    >中</button>
+                    <button
+                        type="button"
+                        aria-pressed={locale === "en"}
+                        onClick={() => setLocale("en")}
+                        className={"flex h-full flex-1 cursor-pointer items-center justify-center rounded-full border-none text-[11px] font-medium transition-colors " +
+                            (locale === "en"
+                                ? "bg-white text-gray-900 shadow-sm"
+                                : isDark ? "bg-transparent text-white/60 hover:text-white/85" : "bg-transparent text-gray-500 hover:text-gray-800")}
+                    >EN</button>
+                </div>
                     {(isMobileDevice || forcedMode) && (
                         <button
                             onClick={() => chooseMode("mobile")}

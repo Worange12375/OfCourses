@@ -1,4 +1,4 @@
-import {useState} from "react";
+import {useEffect, useRef, useState} from "react";
 import {useLocale} from "../i18n/LocaleContext";
 import {useAppTheme} from "../theme/ThemeContext";
 import {useMobileMode} from "../hooks/useMobileMode";
@@ -148,6 +148,26 @@ export const MobileTopBar = ({onNavigate}: MobileTopBarProps) => {
   const zh = locale === "zh";
   // 设置抽屉：收纳 中英切换 / 教程 / PC 切换 / 亮暗切换，点齿轮向下平滑拉出
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const settingsPanelRef = useRef<HTMLDivElement>(null);
+  const settingsButtonRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!settingsOpen) return;
+    const closeOnOutsidePointer = (event: PointerEvent) => {
+      const target = event.target as Node;
+      if (settingsPanelRef.current?.contains(target) || settingsButtonRef.current?.contains(target)) return;
+      setSettingsOpen(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setSettingsOpen(false);
+    };
+    document.addEventListener("pointerdown", closeOnOutsidePointer);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeOnOutsidePointer);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [settingsOpen]);
 
   const iconCls = "h-4 w-4";
   const strokeProps = {
@@ -184,8 +204,12 @@ export const MobileTopBar = ({onNavigate}: MobileTopBarProps) => {
           <SiteMail variant="mobile" />
           <AccountButton compact />
           <button
+            ref={settingsButtonRef}
             onClick={() => setSettingsOpen((v) => !v)}
             title={zh ? "设置" : "Settings"}
+            aria-label={zh ? "设置" : "Settings"}
+            aria-expanded={settingsOpen}
+            aria-controls="mobile-settings-panel"
             className={`flex h-7 w-7 cursor-pointer items-center justify-center rounded-full border transition-all duration-300 ${
               settingsOpen
                 ? isDark
@@ -212,6 +236,8 @@ export const MobileTopBar = ({onNavigate}: MobileTopBarProps) => {
 
       {/* 向下平滑拉出的设置面板（grid-rows 0fr→1fr 高度过渡 + 淡入） */}
       <div
+        ref={settingsPanelRef}
+        id="mobile-settings-panel"
         className={`absolute left-0 right-0 top-full z-50 grid transition-[grid-template-rows,opacity] duration-300 ease-out ${
           settingsOpen ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
         }`}

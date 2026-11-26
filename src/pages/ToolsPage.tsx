@@ -1153,7 +1153,7 @@ export const ToolsPage = ({mobile}: ToolsPageProps) => {
         )}
       </div>
       {/* ===== Content ===== */}
-      <div className={`flex-1 flex flex-col ${mobile ? "gap-2 px-2 py-2 overflow-y-auto oc-mobile-pb-nav" : "gap-3 p-3 overflow-auto"}`}>
+      <div className={"flex-1 flex flex-col " + (mobile ? (toolPage === "ai" ? "gap-0 px-0 py-0 overflow-y-auto oc-mobile-pb-nav" : "gap-2 px-2 py-2 overflow-y-auto oc-mobile-pb-nav") : "gap-3 p-3 overflow-auto")}>
       {toolPage === "degree" && <>
       <Island className={toolIslandClass}>
         <Header border>
@@ -1634,13 +1634,13 @@ export const ToolsPage = ({mobile}: ToolsPageProps) => {
       </>}
 
       {toolPage === "ai" && (
-      <Island className={toolIslandClass}>
+      <Island className={mobile ? "w-full min-w-0 oc-mobile-tool-island oc-mobile-tool-ai-island bg-transparent" : toolIslandClass}>
           <Header border>
             <span className={`text-sm font-semibold ${textDark}`}>
               {locale === "zh" ? "课程推荐 AI 助手" : "AI Course Assistant"}
             </span>
           </Header>
-          <Content>
+          <Content className={mobile ? "p-0" : ""}>
             <div className={`flex flex-col gap-4 ${mobile ? "px-3" : "px-4"} py-3`}>
               <AiAssistant locale={locale} isDark={isDark} />
               <div className={`rounded-lg border p-3 ${borderCls} ${isDark ? "bg-white/[0.02]" : "bg-gray-50"}`}>

@@ -59,6 +59,13 @@ html.oc-mobile .oc-mobile-content {
     -webkit-overflow-scrolling: touch;
 }
 
+/* AI 助手移动端使用全宽页面结构，不保留桌面端的外层卡片边框。 */
+html.oc-mobile .oc-mobile-tool-ai-island {
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    background: transparent;
+}
 /* 移动端底部导航栏占位 */
 html.oc-mobile .oc-mobile-pb-nav {
     padding-bottom: calc(64px + env(safe-area-inset-bottom));
