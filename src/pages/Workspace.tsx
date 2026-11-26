@@ -1513,7 +1513,6 @@ export const Workspace = ({onNavigate: _onNavigate, mobile = false}: WorkspacePr
 
         {/* ========== LEFT: History ========== */}
         <section
-          data-tour="history"
           className={`h-full flex flex-col overflow-hidden transition-all duration-300 ${
             mobile ? (mobileTab === "history" ? "w-full" : "hidden") : ""
           }`}
@@ -1521,7 +1520,7 @@ export const Workspace = ({onNavigate: _onNavigate, mobile = false}: WorkspacePr
         >
           <Island className={`flex h-full flex-col ${bgCard}`}>
             <Header border wrapWithTitle={false}>
-              <div className="flex w-full flex-col">
+              <div data-tour="history" className="flex w-full flex-col">
                 <div className={`flex w-full items-center gap-3 ${mobile ? "flex-wrap" : ""}`}>
                   <span className={`text-sm font-semibold text-nowrap ${textDark}`}>{t("workspace.history")}</span>
                   <div className={`relative flex items-center gap-1 ${mobile ? "flex-wrap justify-end" : ""}`}>
@@ -2049,7 +2048,7 @@ export const Workspace = ({onNavigate: _onNavigate, mobile = false}: WorkspacePr
               </div>
             )}
             <Header border>
-              <span className={`text-sm font-semibold ${textDark}`}>{t("workspace.stagingCourse")}</span>
+              <span data-tour="staging" className={`text-sm font-semibold ${textDark}`}>{t("workspace.stagingCourse")}</span>
             </Header>
             <Content className="flex flex-1 flex-col p-0" style={{minHeight: 0}}>
               {/* Semester selector (always visible at top) */}
@@ -2727,7 +2726,7 @@ export const Workspace = ({onNavigate: _onNavigate, mobile = false}: WorkspacePr
           <Island className={`flex ${mobile ? "flex-1 min-h-0" : "h-full"} flex-col ${bgCard}`}>
             {!mobile && (
               <Header border wrapWithTitle={false}>
-                <div className="flex w-full items-center justify-between gap-2">
+              <div data-tour="catalog" className="flex w-full items-center justify-between gap-2">
                   <span className={`text-sm font-semibold ${textDark}`}>{t("workspace.catalog")}</span>
                   {/* 当前学期显示（自动判定后仅作展示，不再手动切换） */}
                   <span className={`flex items-baseline gap-1 text-xs ${textBody}`}>
@@ -2780,7 +2779,7 @@ export const Workspace = ({onNavigate: _onNavigate, mobile = false}: WorkspacePr
                         onClear={() => setSearchText("")}
                       />
                       <button
-                        data-tour="recommend"
+                        data-tour="recommend-filter"
                         onClick={() => setRecommendEnabled(!recommendEnabled)}
                         className={`self-start rounded border px-3 py-1.5 text-xs font-medium leading-none transition-colors ${
                           recommendEnabled

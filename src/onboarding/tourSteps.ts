@@ -28,12 +28,11 @@ export const TOUR_STEPS: TourStep[] = [
     {
         id: "columns",
         targetPage: "workspace",
-        selectors: ["[data-tour='workspace']"],
-        cardPos: "center",
+        selectors: ["[data-tour='history']", "[data-tour='staging']", "[data-tour='catalog']"],
         title: {zh: "三栏工作台", en: "The three-column workspace"},
         body: {
-            zh: "左栏为「选课记录」，中栏为「预选课程」，右栏为「课程目录」。请先设置好自己的学期，然后在「预选课程」中选择需要选课的学期，再在「课程目录」中点击课程信息左侧的「+」即可加入选课列表。完成后请点击「保存到历史记录」进行保存。如需保存到本地，请点击「导出」。",
-            en: "The left column is your Course History, the middle is Pre-selected Courses, and the right is the Course Catalog. First set your semester (the top-right dropdown in the navigation bar), then choose the semester you want to enroll in under Pre-selected Courses, and click the “+” to the left of a course in the Course Catalog to add it to your list. When done, click “Save to History” to save. To save locally, click “Export”.",
+            zh: "工作台分为「选课记录」「预选课程」和「课程目录」三栏。页面会自动识别当前学期；先在中栏选择计划学期，再从右栏课程目录添加课程。检查完预选课程后，可保存到历史记录，或导出文件留作本地备份。",
+            en: "The workspace has Course History, Pre-selected Courses, and the Course Catalog. The current semester is detected automatically. Choose a planning semester in the middle column, then add courses from the catalog on the right. Review your plan and save it to history or export a local backup.",
         },
     },
     {
