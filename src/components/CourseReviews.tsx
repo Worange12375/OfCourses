@@ -1358,7 +1358,7 @@ export default function CourseReviews({locale, isDark, mobile = false}: {locale:
             <span className="min-w-0 flex-1">
                 <span className="block whitespace-nowrap text-xs font-semibold">{zh ? "我要评价" : "Write a review"}</span>
                     <span className="mt-0.5 block whitespace-nowrap text-[10px] text-blue-100/90">
-                    {zh ? "分享真实体验" : "Rate a course"}
+                    {zh ? "分享你的真实上课体验~" : "Share your real class experience~"}
                 </span>
             </span>
         </button>
@@ -1383,6 +1383,15 @@ export default function CourseReviews({locale, isDark, mobile = false}: {locale:
                 <svg className={`shrink-0 transition-transform group-hover:translate-x-0.5 ${textSub}`} width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6" /></svg>
             </>}
         </button>
+    );
+
+    const renderDesktopRules = () => (
+        <div className={`rounded-lg border p-3 ${borderCls} ${cardBg}`}>
+            <p className={`mb-1.5 text-xs font-semibold ${textMain}`}>
+                {zh ? "课程评价 · 规则说明" : "Course Reviews · Rules"}
+            </p>
+            <p className={`text-[11px] leading-relaxed ${textSub}`}>{zh ? RULES_ZH : RULES_EN}</p>
+        </div>
     );
 
     const renderEmptyFeed = (topicSpecific = false) => (
@@ -1415,10 +1424,7 @@ export default function CourseReviews({locale, isDark, mobile = false}: {locale:
     /* —— PC 右栏 —— */
     const renderRightCol = () => (
         <div className="flex flex-col gap-3">
-            <div className={`grid gap-2 ${mobileLayout ? "grid-cols-4" : "grid-cols-2"}`}>
-                <div className={filterActive ? (mobileLayout ? "col-span-4" : "col-span-2") : mobileLayout ? "col-span-3" : ""}>{renderWriteButton()}</div>
-                {!filterActive && <div className={mobileLayout ? "col-span-1" : ""}>{renderRulesButton()}</div>}
-            </div>
+            {renderWriteButton()}
 
             {/* 热度排行榜（月榜/年榜 前 10） */}
             {!filterActive && (
@@ -1430,6 +1436,8 @@ export default function CourseReviews({locale, isDark, mobile = false}: {locale:
                     {renderBoardItems()}
                 </div>
             )}
+
+            {!filterActive && renderDesktopRules()}
         </div>
     );
 
