@@ -1,15 +1,31 @@
+import {useState} from "react";
 import {useLocale} from "../i18n/LocaleContext";
 import {useAppTheme} from "../theme/ThemeContext";
+import {TutorialEntryModal} from "../onboarding/TutorialEntryModal";
 
 interface Props {
   onClose: () => void;
+  onOpenWiki: () => void;
 }
 
-export function CurriculumMapTutorial({onClose}: Props) {
+export function CurriculumMapTutorial({onClose, onOpenWiki}: Props) {
+  const [mode, setMode] = useState<"entry" | "guide">("entry");
   const {locale} = useLocale();
   const {theme} = useAppTheme();
   const isDark = theme === "dark";
   const zh = locale === "zh";
+
+  if (mode === "entry") {
+    return (
+      <TutorialEntryModal
+        title={zh ? "培养方案导图" : "Curriculum map"}
+        description={zh ? "选择跟随导图说明，或直接查阅使用指南中的对应章节。" : "Follow the map walkthrough or open its topic in the Wiki."}
+        onStart={() => setMode("guide")}
+        onOpenWiki={onOpenWiki}
+        onClose={onClose}
+      />
+    );
+  }
 
   const bg = isDark ? "bg-[#1e1e2a]" : "bg-white";
   const borderCls = isDark ? "border-white/10" : "border-gray-200";

@@ -28,7 +28,7 @@ export const TOUR_STEPS: TourStep[] = [
     {
         id: "columns",
         targetPage: "workspace",
-        selectors: ["[data-tour='workspace']", "[data-tour='semester']"],
+        selectors: ["[data-tour='workspace']"],
         cardPos: "center",
         title: {zh: "三栏工作台", en: "The three-column workspace"},
         body: {

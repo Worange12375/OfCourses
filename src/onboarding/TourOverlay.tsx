@@ -10,7 +10,7 @@ const NAV_H = 56; // 顶部导航栏高度（h-14 = 56px）
 
 export const TourOverlay = () => {
     const {tourActive, stepIndex, next, prev, finish, navigateTo} = useOnboarding();
-    const {locale, t} = useLocale();
+    const {locale} = useLocale();
     const {theme} = useAppTheme();
     const isDark = theme === "dark";
     const accent = isDark ? "#7c5cff" : "#863bff";
@@ -41,37 +41,30 @@ export const TourOverlay = () => {
 
     if (!tourActive) return null;
 
-    // 移动端：功能引导弹窗尺寸/定位难以适配，直接提示在 PC 端查看
+    const step = TOUR_STEPS[displayIndex] ?? target;
+    const isLast = stepIndex === TOUR_STEPS.length - 1;
     const isMobileViewport = typeof window !== "undefined" && window.innerWidth < 640;
     if (isMobileViewport) {
         return (
-            <div
-                className="fixed inset-0 z-[10000] flex items-center justify-center p-6"
-                style={{background: "rgba(0,0,0,0.55)"}}
-                role="dialog"
-                aria-modal="true"
-            >
-                <div className={`max-w-xs rounded-xl border p-5 shadow-2xl ${
+            <div className="fixed inset-0 z-[10000] flex items-end justify-center bg-black/55 p-3 sm:items-center sm:p-6" role="dialog" aria-modal="true">
+                <section className={`max-h-[82vh] w-full max-w-lg overflow-y-auto rounded-2xl border p-5 shadow-2xl ${
                     isDark ? "border-white/10 bg-[#1c1c28] text-white/90" : "border-gray-200 bg-white text-gray-800"
                 }`}>
-                    <div className="mb-2 text-sm font-semibold">{locale === "zh" ? "功能引导" : "Tutorial"}</div>
-                    <div className="mb-4 text-xs leading-relaxed opacity-80">
-                        {t("mobile.tourUsePC")}
+                    <div className={`mb-2 text-[11px] font-semibold uppercase tracking-wide ${isDark ? "text-violet-300" : "text-violet-600"}`}>
+                        {locale === "zh" ? `交互引导 · ${stepIndex + 1}/${TOUR_STEPS.length}` : `Guided tour · ${stepIndex + 1}/${TOUR_STEPS.length}`}
                     </div>
-                    <button
-                        onClick={finish}
-                        className="w-full rounded px-3 py-2 text-xs font-medium text-white"
-                        style={{background: accent}}
-                    >
-                        {locale === "zh" ? "知道了" : "Got it"}
-                    </button>
-                </div>
+                    <h2 className="mb-2 text-base font-semibold">{step.title[locale]}</h2>
+                    <p className="text-sm leading-6 opacity-75">{step.body[locale]}</p>
+                    {step.download && <a href={step.download.href} download={step.download.filename} className="mt-4 inline-flex rounded-lg border border-violet-400/30 px-3 py-2 text-xs font-medium text-violet-500">{step.download.label[locale]}</a>}
+                    <div className={`mt-5 flex items-center gap-2 border-t pt-4 ${isDark ? "border-white/10" : "border-gray-100"}`}>
+                        <button onClick={finish} className="mr-auto rounded-lg px-2 py-2 text-xs opacity-60 hover:opacity-100">{locale === "zh" ? "跳过" : "Skip"}</button>
+                        {stepIndex > 0 && <button onClick={prev} className={`rounded-lg border px-3 py-2 text-xs ${isDark ? "border-white/15" : "border-gray-200"}`}>{locale === "zh" ? "上一步" : "Back"}</button>}
+                        <button onClick={isLast ? finish : next} className="rounded-lg px-4 py-2 text-xs font-semibold text-white" style={{background: accent}}>{isLast ? (locale === "zh" ? "完成" : "Finish") : (locale === "zh" ? "下一步" : "Next")}</button>
+                    </div>
+                </section>
             </div>
         );
     }
-
-    const step = TOUR_STEPS[displayIndex] ?? target;
-    const isLast = stepIndex === TOUR_STEPS.length - 1;
 
     // 计算提示卡片位置
     let top: number;

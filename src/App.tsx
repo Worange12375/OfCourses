@@ -13,6 +13,7 @@ import {Workspace} from "./pages/Workspace";
 import {CurriculumPage} from "./pages/CurriculumPage";
 import {ToolsPage} from "./pages/ToolsPage";
 import {AboutPage} from "./pages/AboutPage";
+import {GuidePage} from "./pages/GuidePage";
 import {OnboardingProvider, useOnboarding, TourOverlay, HelpPanel} from "./onboarding";
 import {reportVisit} from "./utils/visitorId";
 import {AccountProvider, useAccount} from "./account/AccountContext";
@@ -23,14 +24,26 @@ const AppShell = () => {
     // 当前页面持久化（sessionStorage）：年级切换等整页刷新后仍停留在原页面（如培养方案页）
     const [page, setPageRaw] = useState<NavPage>(() => {
         try {
+            if (window.location.hash.startsWith("#guide/")) return "guide";
             const saved = sessionStorage.getItem("oc_page_restore");
-            return saved && ["home", "workspace", "curriculum", "tools", "about"].includes(saved) ? (saved as NavPage) : "home";
+            return saved && ["home", "workspace", "curriculum", "tools", "about", "guide"].includes(saved) ? (saved as NavPage) : "home";
         } catch { return "home"; }
+    });
+    const [guideSection, setGuideSection] = useState(() => {
+        const hash = window.location.hash;
+        return hash.startsWith("#guide/") ? hash.slice("#guide/".length) : "getting-started";
     });
     const setPage = useCallback((p: NavPage) => {
         setPageRaw(p);
+        if (p !== "guide" && window.location.hash.startsWith("#guide/")) {
+            window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}`);
+        }
         try { sessionStorage.setItem("oc_page_restore", p); } catch { /* 隐私模式忽略 */ }
     }, []);
+    const navigateApp = useCallback((p: NavPage, section?: string) => {
+        if (p === "guide" && section) setGuideSection(section);
+        setPage(p);
+    }, [setPage]);
     const {theme} = useAppTheme();
     const {registerNavigate} = useOnboarding();
     const {mobileMode, forcedMode} = useMobileMode();
@@ -41,8 +54,8 @@ const AppShell = () => {
     const isDark = theme === "dark";
 
     useEffect(() => {
-        registerNavigate(setPage);
-    }, [registerNavigate, setPage]);
+        registerNavigate(navigateApp);
+    }, [registerNavigate, navigateApp]);
 
     // 站点访问统计上报：匿名标识，随页面切换计一次 PV，服务端按 vid 去重得 UV
     useEffect(() => {
@@ -82,6 +95,9 @@ const AppShell = () => {
                 </div>
                 <div className={pageWrapClass(page === "about")}>
                     <AboutPage mobile={isMobile} />
+                </div>
+                <div className={pageWrapClass(page === "guide")}>
+                    <GuidePage mobile={isMobile} active={page === "guide"} initialSection={guideSection} onSectionChange={setGuideSection} />
                 </div>
             </div>
 

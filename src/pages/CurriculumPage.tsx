@@ -5,6 +5,7 @@ import {CurriculumMindMap} from "../components/CurriculumMindMap";
 import {CurriculumTreeMap} from "../components/CurriculumTreeMap";
 import {CurriculumRelationMap} from "../components/CurriculumRelationMap";
 import {CurriculumMapTutorial} from "../components/CurriculumMapTutorial";
+import {useOnboarding} from "../onboarding/OnboardingContext";
 import crossMd from "@/assets/doc/交叉培养指南.md?raw";
 // 三版本培养方案/教学计划文档（按当前用户年级加载；2024 沿用人工整理版，2025/2026 由 Word 自动转换）
 const yearDocs = import.meta.glob("/src/assets/doc/{2024,2025,2026}/培养方案.md", {eager: true, query: "?raw", import: "default"}) as Record<string, string>;
@@ -274,6 +275,7 @@ const SimpleMarkdown = ({
 export const CurriculumPage = ({mobile}: CurriculumPageProps) => {
   const {locale} = useLocale();
   const {theme} = useAppTheme();
+  const {navigateTo} = useOnboarding();
   // 当前年级的培养方案版本（未登录回落 2024）；文档 tabs 与之联动
   const {schemeYear} = useSchemeData();
   const TABS = useMemo(() => buildTabs(schemeYear), [schemeYear]);
@@ -635,7 +637,7 @@ export const CurriculumPage = ({mobile}: CurriculumPageProps) => {
         </div>
       )}
 
-      {showTutorial && <CurriculumMapTutorial onClose={() => setShowTutorial(false)} />}
+      {showTutorial && <CurriculumMapTutorial onClose={() => setShowTutorial(false)} onOpenWiki={() => { setShowTutorial(false); navigateTo("guide", "curriculum-map"); }} />}
     </div>
   );
 };

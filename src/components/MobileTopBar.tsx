@@ -11,7 +11,7 @@ interface MobileTopBarProps {
     currentPage: NavPage;
 }
 
-const pageTitles: Record<NavPage, string> = {
+const pageTitles: Record<Exclude<NavPage, "guide">, string> = {
     home: "nav.home",
     curriculum: "nav.curriculum",
     workspace: "nav.workspace",
@@ -38,7 +38,7 @@ export const MobileTopBar = ({currentPage}: MobileTopBarProps) => {
             >
                 <div className="flex items-center gap-2">
                     <img src={singleLogo} alt="Logo" className="h-7 w-7 rounded-lg" />
-                    <span className="text-base font-semibold">{t(pageTitles[currentPage])}</span>
+                    <span className="text-base font-semibold">{currentPage === "guide" ? (locale === "zh" ? "使用指南" : "User guide") : t(pageTitles[currentPage])}</span>
                 </div>
                 <div className="flex items-center gap-2">
                     <SiteMail variant="mobile" />

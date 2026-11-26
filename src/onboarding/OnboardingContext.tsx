@@ -36,9 +36,9 @@ interface OnboardingContextValue {
     prev: () => void;
     finish: () => void;
     /** 由 AppShell 注册页面导航函数，供跨页高亮使用 */
-    registerNavigate: (fn: (p: NavPage) => void) => void;
+    registerNavigate: (fn: (p: NavPage, guideSection?: string) => void) => void;
     /** 主动切页（教程步骤调用） */
-    navigateTo: (page: NavPage) => void;
+    navigateTo: (page: NavPage, guideSection?: string) => void;
 }
 
 const OnboardingContext = createContext<OnboardingContextValue | null>(null);
@@ -47,7 +47,7 @@ export const OnboardingProvider = ({children}: {children: ReactNode}) => {
     const [helpOpen, setHelpOpen] = useState(false);
     const [tourActive, setTourActive] = useState(false);
     const [stepIndex, setStepIndex] = useState(0);
-    const navigateRef = useRef<((p: NavPage) => void) | null>(null);
+    const navigateRef = useRef<((p: NavPage, guideSection?: string) => void) | null>(null);
 
     // 新用户判定：仅依赖浏览器缓存（无账号/无云端）
     useEffect(() => {
@@ -58,17 +58,16 @@ export const OnboardingProvider = ({children}: {children: ReactNode}) => {
             localStorage.setItem(ONBOARDED_KEY, "done");
             return;
         }
-        // 真正的新用户：首次访问自动播放
-        setTourActive(true);
-        setStepIndex(0);
+        // 新用户先看到教程入口，由用户选择交互引导或 Wiki。
+        setHelpOpen(true);
     }, []);
 
-    const registerNavigate = useCallback((fn: (p: NavPage) => void) => {
+    const registerNavigate = useCallback((fn: (p: NavPage, guideSection?: string) => void) => {
         navigateRef.current = fn;
     }, []);
 
-    const navigateTo = useCallback((page: NavPage) => {
-        navigateRef.current?.(page);
+    const navigateTo = useCallback((page: NavPage, guideSection?: string) => {
+        navigateRef.current?.(page, guideSection);
     }, []);
 
     const startTour = useCallback(() => {
@@ -78,7 +77,10 @@ export const OnboardingProvider = ({children}: {children: ReactNode}) => {
     }, []);
 
     const openHelp = useCallback(() => setHelpOpen(true), []);
-    const closeHelp = useCallback(() => setHelpOpen(false), []);
+    const closeHelp = useCallback(() => {
+        setHelpOpen(false);
+        localStorage.setItem(ONBOARDED_KEY, "done");
+    }, []);
 
     const finish = useCallback(() => {
         setTourActive(false);

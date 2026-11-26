@@ -1513,6 +1513,7 @@ export const Workspace = ({onNavigate: _onNavigate, mobile = false}: WorkspacePr
 
         {/* ========== LEFT: History ========== */}
         <section
+          data-tour="history"
           className={`h-full flex flex-col overflow-hidden transition-all duration-300 ${
             mobile ? (mobileTab === "history" ? "w-full" : "hidden") : ""
           }`}

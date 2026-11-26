@@ -6,7 +6,7 @@ import {SiteMail} from "./SiteMail";
 import {AccountButton} from "../account/AccountButton";
 import singleLogo from "../assets/OfCourses_singleLogo.ico";
 
-export type NavPage = "home" | "curriculum" | "workspace" | "tools" | "about";
+export type NavPage = "home" | "curriculum" | "workspace" | "tools" | "about" | "guide";
 
 interface NavbarProps {
     currentPage: NavPage;

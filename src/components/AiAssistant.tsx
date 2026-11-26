@@ -14,6 +14,8 @@ import { saveAiDisplay, tierLabel } from "../utils/aiTierLabels";
 import { useAccount } from "../account/AccountContext";
 import { useSemester } from "../hooks/SemesterContext";
 import { useTName } from "../hooks/useCurriculumData";
+import {useOnboarding} from "../onboarding/OnboardingContext";
+import {TutorialEntryModal} from "../onboarding/TutorialEntryModal";
 
 // AI 推荐助手：对话式 UI。
 // - 会话保存在浏览器 localStorage，仅保留 30 分钟（页内显著提示）；服务器不保存任何对话内容；
@@ -241,7 +243,8 @@ export default function AiAssistant({
       return null;
     }
   });
-  const [showTutorial, setShowTutorial] = useState(false); // 简易使用教程弹层
+  const [showTutorial, setShowTutorial] = useState<"entry" | "guide" | null>(null);
+  const {navigateTo} = useOnboarding();
   const [messages, setMessages] = useState<ChatMsg[]>(() => loadLocalHistory());
   const [input, setInput] = useState("");
   const [phase, setPhase] = useState<Phase>("idle");
@@ -753,7 +756,7 @@ export default function AiAssistant({
           {zh ? "导出对话 txt" : "Export txt"}
         </button>
         <button
-          onClick={() => setShowTutorial(true)}
+          onClick={() => setShowTutorial("entry")}
           className={`cursor-pointer rounded-lg border px-3 py-1 text-xs font-medium ${
             isDark ? "border-white/20 text-white/80 hover:bg-white/5" : "border-gray-300 text-gray-700 hover:bg-gray-50"
           }`}
@@ -1201,8 +1204,20 @@ export default function AiAssistant({
           document.body,
         )}
       {/* 简易使用教程弹窗 */}
-      {showTutorial &&
-        createPortal(<TutorialModal zh={zh} isDark={isDark} onClose={() => setShowTutorial(false)} />, document.body)}
+      {showTutorial && createPortal(
+        showTutorial === "entry" ? (
+          <TutorialEntryModal
+            title={zh ? "AI 选课助手" : "AI course assistant"}
+            description={zh ? "先了解助手的使用方法，或直接查看 Wiki 中的 AI 助手说明。" : "Read the assistant walkthrough or open its Wiki topic."}
+            onStart={() => setShowTutorial("guide")}
+            onOpenWiki={() => { setShowTutorial(null); navigateTo("guide", "ai-assistant"); }}
+            onClose={() => setShowTutorial(null)}
+          />
+        ) : (
+          <TutorialModal zh={zh} isDark={isDark} onClose={() => setShowTutorial(null)} />
+        ),
+        document.body,
+      )}
     </div>
   );
 }
