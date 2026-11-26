@@ -119,16 +119,21 @@ export default function CourseReviews({locale, isDark, mobile = false}: {locale:
     /* 热度排行榜（右栏） */
     const [boardPeriod, setBoardPeriod] = useState<"month" | "year">("month");
     const [board, setBoard] = useState<ReviewItem[] | null>(null);
+    const [boardLoading, setBoardLoading] = useState(false);
+    const boardRequestRef = useRef(0);
 
     /* 站内消息 */
     const [msgs, setMsgs] = useState<RvMsg[] | null>(null);
     const [unread, setUnread] = useState(0);
     const [msgOpen, setMsgOpen] = useState(false);
+    const [msgPanelPosition, setMsgPanelPosition] = useState<{top: number; maxHeight: number} | null>(null);
 
     /* 弹窗：发布 / 我的评价 */
     const [composeOpen, setComposeOpen] = useState(false);
     const [mineOpen, setMineOpen] = useState(false);
     const [mine, setMine] = useState<ReviewItem[] | null>(null);
+    const [mineLoading, setMineLoading] = useState(false);
+    const [mineError, setMineError] = useState<string | null>(null);
 
     /* 身份面板（实名与昵称） */
     const [idOpen, setIdOpen] = useState(false);
@@ -205,20 +210,30 @@ export default function CourseReviews({locale, isDark, mobile = false}: {locale:
     }, [zh]);
 
     const loadBoard = useCallback(async (period: "month" | "year") => {
+        const requestId = ++boardRequestRef.current;
+        setBoardLoading(true);
+        setBoard(null);
         try {
             const d = await rvGet<{items: ReviewItem[]}>(`/vote/reviews/board?period=${period}`);
-            setBoard(d.items);
+            if (requestId === boardRequestRef.current) setBoard(d.items);
         } catch {
-            setBoard(null);
+            if (requestId === boardRequestRef.current) setBoard(null);
+        } finally {
+            if (requestId === boardRequestRef.current) setBoardLoading(false);
         }
     }, []);
 
     const loadMine = useCallback(async () => {
+        setMineLoading(true);
+        setMineError(null);
         try {
             const d = await rvGet<{items: ReviewItem[]}>("/vote/reviews/mine");
             setMine(d.items);
-        } catch {
+        } catch (e) {
             setMine(null);
+            setMineError((e as Error).message);
+        } finally {
+            setMineLoading(false);
         }
     }, []);
 
@@ -233,7 +248,8 @@ export default function CourseReviews({locale, isDark, mobile = false}: {locale:
         }
     }, [user]);
 
-    useEffect(() => { loadInit(); loadFeed("time"); loadBoard("month"); }, [loadInit, loadFeed, loadBoard]);
+    useEffect(() => { loadInit(); loadFeed("time"); }, [loadInit, loadFeed]);
+    useEffect(() => { loadBoard(boardPeriod); }, [loadBoard, boardPeriod]);
     useEffect(() => {
         if (user) { loadMine(); loadMsgs(); } else { setMine(null); setMsgs(null); setUnread(0); }
     }, [user, loadMine, loadMsgs]);
@@ -416,6 +432,7 @@ export default function CourseReviews({locale, isDark, mobile = false}: {locale:
     const letterTopics = !kw && letter
         ? topics.filter((t) => t.initial === letter && t.review_count > 0)
         : [];
+    const filterActive = Boolean(activeTopic || kw || letter);
 
     /* —— 样式令牌 —— */
     const borderCls = isDark ? "border-white/10" : "border-gray-200";
@@ -766,25 +783,63 @@ export default function CourseReviews({locale, isDark, mobile = false}: {locale:
 
     /* —— 我的评价弹窗 —— */
     const renderMineModal = () => (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
+        <div className={`fixed inset-0 z-50 flex bg-black/55 ${mobileLayout ? "items-end px-0" : "items-center justify-center px-4 py-6"}`}
              onClick={() => setMineOpen(false)}>
-            <div className={`max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-xl border p-4 shadow-2xl ${borderCls} ${
+            <div className={`flex w-full flex-col overflow-hidden border shadow-2xl ${mobileLayout ? "max-h-[88dvh] rounded-t-2xl border-b-0" : "max-h-[85vh] max-w-2xl rounded-2xl"} ${borderCls} ${
                 isDark ? "bg-gray-900" : "bg-white"
             }`}
                  onClick={(e) => e.stopPropagation()}>
-                <div className="mb-3 flex items-center">
-                    <span className={`text-sm font-semibold ${textMain}`}>{zh ? "我的评价" : "My reviews"}</span>
-                    {mine && <span className={`ml-2 text-[11px] ${textSub}`}>({mine.length})</span>}
-                    <button className={`ml-auto text-lg leading-none ${textSub} hover:opacity-70`}
+                <div className={`flex shrink-0 items-center gap-3 border-b px-4 py-3 ${borderCls}`}>
+                    <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${isDark ? "bg-blue-500/15 text-blue-300" : "bg-blue-50 text-blue-600"}`}>
+                        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                            <path d="M8 6h13M8 12h13M8 18h13" /><path d="M3.5 6h.01M3.5 12h.01M3.5 18h.01" />
+                        </svg>
+                    </span>
+                    <div className="min-w-0">
+                        <div className={`text-sm font-semibold ${textMain}`}>{zh ? "我的评价" : "My reviews"}</div>
+                        <div className={`mt-0.5 text-[11px] ${textSub}`}>
+                            {mine ? (zh ? `${mine.length} 条评价` : `${mine.length} reviews`) : (zh ? "查看发布记录与审核状态" : "Reviews and moderation status")}
+                        </div>
+                    </div>
+                    <button className={`ml-auto flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-colors ${isDark ? "text-white/55 hover:bg-white/10" : "text-gray-500 hover:bg-gray-100"}`}
+                            aria-label={zh ? "关闭我的评价" : "Close my reviews"}
                             onClick={() => setMineOpen(false)}>✕</button>
                 </div>
-                {(!mine || mine.length === 0) && (
-                    <div className={`py-8 text-center text-xs ${textSub}`}>
-                        {zh ? "还没有发表过评价" : "No reviews yet"}
-                    </div>
-                )}
-                <div className="flex flex-col gap-2.5">
-                    {mine?.map((it) => renderCard(it, {showStatus: true}))}
+                <div className={`min-h-0 flex-1 overflow-y-auto p-3 ${mobileLayout ? "pb-[calc(1rem+env(safe-area-inset-bottom))]" : ""}`}>
+                    {mineLoading && !mine && (
+                        <div className={`rounded-xl border px-4 py-10 text-center text-xs ${borderCls} ${textSub}`}>
+                            {zh ? "正在加载你的评价…" : "Loading your reviews…"}
+                        </div>
+                    )}
+                    {mineError && !mine && (
+                        <div className={`rounded-xl border px-4 py-6 text-center ${borderCls}`}>
+                            <p className={`text-sm font-medium ${textMain}`}>{zh ? "评价暂时无法加载" : "Reviews could not be loaded"}</p>
+                            <button className={`${btnGhost} mt-3`} onClick={loadMine}>{zh ? "重试" : "Retry"}</button>
+                        </div>
+                    )}
+                    {mine && mine.length === 0 && (
+                        <div className={`rounded-2xl border px-5 py-7 text-center ${borderCls} ${cardBg}`}>
+                            <span className={`mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl ${isDark ? "bg-blue-500/15 text-blue-300" : "bg-blue-50 text-blue-600"}`}>
+                                <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                    <path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L8 18l-4 1 1-4Z" />
+                                </svg>
+                            </span>
+                            <p className={`text-sm font-semibold ${textMain}`}>{zh ? "还没有发布过评价" : "No reviews yet"}</p>
+                            <p className={`mx-auto mt-1.5 max-w-xs text-xs leading-relaxed ${textSub}`}>
+                                {zh ? "写下真实的课程体验，审核状态和发布记录会显示在这里。" : "Share your course experience. Your submissions and review status will appear here."}
+                            </p>
+                            <button className="mt-4 inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-blue-500"
+                                    onClick={() => { setMineOpen(false); openCompose(); }}>
+                                {zh ? "去写一条评价" : "Write a review"}
+                                <span aria-hidden="true">→</span>
+                            </button>
+                        </div>
+                    )}
+                    {mine && mine.length > 0 && (
+                        <div className="flex flex-col gap-2.5">
+                            {mine.map((it) => renderCard(it, {showStatus: true}))}
+                        </div>
+                    )}
                 </div>
             </div>
         </div>
@@ -806,7 +861,17 @@ export default function CourseReviews({locale, isDark, mobile = false}: {locale:
                 {/* 消息（铃铛 + 未读角标） */}
                 {user && (
                     <div className="relative">
-                        <button className={navBtn} onClick={() => { setMsgOpen((v) => !v); setIdOpen(false); }}>
+                        <button className={navBtn} onClick={(e) => {
+                            const nextOpen = !msgOpen;
+                            if (nextOpen && mobileLayout) {
+                                const rect = e.currentTarget.getBoundingClientRect();
+                                const top = Math.max(8, Math.min(rect.bottom + 8, window.innerHeight - 160));
+                                const maxHeight = Math.max(0, Math.min(420, window.innerHeight - top - 16));
+                                setMsgPanelPosition({top, maxHeight});
+                            }
+                            setMsgOpen(nextOpen);
+                            setIdOpen(false);
+                        }}>
                             <span className="relative inline-flex items-center gap-1">
                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                     <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
@@ -821,7 +886,12 @@ export default function CourseReviews({locale, isDark, mobile = false}: {locale:
                             </span>
                         </button>
                         {msgOpen && (
-                            <div className={`${dropPanel} z-40 max-h-96 w-80 max-w-[calc(100vw-2rem)] overflow-y-auto`}>
+                            <div
+                                className={`${mobileLayout
+                                    ? `fixed left-3 right-3 z-40 overflow-y-auto rounded-xl border p-3 shadow-xl ${borderCls} ${isDark ? "bg-gray-900" : "bg-white"}`
+                                    : `${dropPanel} z-40 max-h-96 w-80 max-w-[calc(100vw-2rem)] overflow-y-auto`}`}
+                                style={mobileLayout && msgPanelPosition ? {top: msgPanelPosition.top, maxHeight: msgPanelPosition.maxHeight} : undefined}
+                            >
                                 <div className="mb-1 flex items-center px-1">
                                     <span className={`text-[11px] font-medium ${textSub}`}>{zh ? "消息中心" : "Messages"}</span>
                                     <button className={`ml-auto text-[11px] hover:underline ${textSub}`}
@@ -944,12 +1014,17 @@ export default function CourseReviews({locale, isDark, mobile = false}: {locale:
     const renderSearchBlock = () => (
         <>
             <div className="flex items-center gap-2">
-                <input
-                    className={`${inputCls} min-w-0 flex-1`}
-                    value={query}
-                    onChange={(e) => setQuery(e.target.value)}
-                    placeholder={zh ? "搜索课程名，进入对应评价" : "Search a course to see its reviews"}
-                />
+                <div className="relative min-w-0 flex-1">
+                    <input
+                        className={`${inputCls} pr-10`}
+                        value={query}
+                        onChange={(e) => setQuery(e.target.value)}
+                        placeholder={zh ? "搜索课程名，进入对应评价" : "Search a course to see its reviews"}
+                    />
+                    <svg className={`pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 ${textSub}`} width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <circle cx="11" cy="11" r="7" /><path d="m20 20-4-4" />
+                    </svg>
+                </div>
                 {query && <button className={pillIdle} onClick={() => setQuery("")}>✕</button>}
             </div>
 
@@ -1042,7 +1117,11 @@ export default function CourseReviews({locale, isDark, mobile = false}: {locale:
         </div>
     );
 
-    const renderBoardItems = () => (!board || board.length === 0 ? (
+    const renderBoardItems = () => (boardLoading && !board ? (
+        <div className={`py-3 text-center text-[11px] ${textSub}`}>
+            {zh ? "排行榜加载中…" : "Loading rankings…"}
+        </div>
+    ) : !board || board.length === 0 ? (
         <div className={`py-3 text-center text-[11px] ${textSub}`}>
             {zh
                 ? `${boardPeriod === "month" ? "近 30 天" : "近一年"}暂无已发布的评价`
@@ -1079,10 +1158,83 @@ export default function CourseReviews({locale, isDark, mobile = false}: {locale:
         <p className={`text-[11px] leading-relaxed ${textSub}`}>{zh ? RULES_ZH : RULES_EN}</p>
     );
 
-    const renderWriteButton = () => (
+    const renderBoardTicker = () => {
+        if (!board || board.length === 0) {
+            return (
+                <span className={`block truncate text-[11px] ${textSub}`}>
+                    {!board && boardLoading
+                        ? (zh ? "排行榜加载中…" : "Loading rankings…")
+                        : !board
+                            ? (zh ? "排行榜暂时无法加载" : "Rankings unavailable")
+                        : (zh ? "暂时还没有评价上榜" : "No reviews ranked yet")}
+                </span>
+            );
+        }
+        const items = board.slice(0, 5);
+        return (
+            <div className="min-w-0 flex-1 overflow-x-auto overscroll-x-contain whitespace-nowrap" tabIndex={0} aria-label={zh ? "热度排行榜滚动预览" : "Scrolling ranking preview"}>
+                <div className="flex w-max items-center gap-5">
+                    {items.map((it, i) => (
+                        <span key={it.id} className="inline-flex shrink-0 items-center gap-1.5 text-[11px]">
+                            <span className={`font-bold ${i < 3 ? "text-orange-400" : textSub}`}>#{i + 1}</span>
+                            <span className={`font-medium ${textMain}`}>{it.topic.name}</span>
+                            <span className={textSub}>{it.content.replace(/\s+/g, " ").slice(0, 22)}</span>
+                        </span>
+                    ))}
+                </div>
+            </div>
+        );
+    };
+
+    const renderWriteButton = () => mobileLayout ? (
+        <button
+            className="group flex min-h-[68px] w-full items-center gap-3 rounded-xl border border-blue-300/25 bg-gradient-to-r from-blue-600 to-indigo-600 px-3.5 py-3 text-left text-white shadow-md shadow-blue-950/15 transition hover:from-blue-500 hover:to-indigo-500 active:scale-[0.99]"
+            onClick={() => openCompose(activeTopic ?? undefined)}
+        >
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/15 ring-1 ring-white/20">
+                <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L8 18l-4 1 1-4Z" />
+                </svg>
+            </span>
+            <span className="min-w-0 flex-1">
+                <span className="block text-sm font-semibold">{zh ? "我要评价" : "Write a review"}</span>
+                <span className="mt-0.5 block truncate text-[10px] text-blue-100/90">
+                    {zh ? "分享课程体验，帮同学选课" : "Share your experience and help others"}
+                </span>
+            </span>
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/15 text-sm transition-transform group-hover:translate-x-0.5" aria-hidden="true">→</span>
+        </button>
+    ) : (
         <button className={`${btnMain} min-h-10 w-full py-2.5 text-sm`} onClick={() => openCompose(activeTopic ?? undefined)}>
             {zh ? "我要评价" : "Write a review"}
         </button>
+    );
+
+    const renderEmptyFeed = (topicSpecific = false) => (
+        <div className={`rounded-2xl border border-dashed px-5 py-7 text-center ${borderCls} ${cardBg}`}>
+            <span className={`mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl ${isDark ? "bg-blue-500/10 text-blue-300" : "bg-blue-50 text-blue-600"}`}>
+                <svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L8 18l-4 1 1-4Z" />
+                </svg>
+            </span>
+            <p className={`text-sm font-semibold ${textMain}`}>
+                {topicSpecific
+                    ? (zh ? "这门课程还没有评价" : "No reviews for this course yet")
+                    : (zh ? "这里还没有已发布的评价" : "No published reviews yet")}
+            </p>
+            <p className={`mx-auto mt-1.5 max-w-sm text-xs leading-relaxed ${textSub}`}>
+                {topicSpecific
+                    ? (zh ? "分享你的真实体验，成为第一位帮助同学了解这门课的人。" : "Share your experience and help others learn about this course.")
+                    : (zh ? "课程评价通过审核后会显示在这里。你可以写下第一条，为同学选课提供参考。" : "Approved reviews appear here. Share the first one to help others choose courses.")}
+            </p>
+            {topicSpecific && (
+                <button className="mt-4 inline-flex min-h-9 items-center justify-center gap-2 rounded-lg bg-blue-600 px-3.5 py-2 text-xs font-semibold text-white transition-colors hover:bg-blue-500"
+                        onClick={() => openCompose(activeTopic ?? undefined)}>
+                    {zh ? "写下第一条" : "Write the first review"}
+                    <span aria-hidden="true">→</span>
+                </button>
+            )}
+        </div>
     );
 
     /* —— PC 右栏 —— */
@@ -1091,21 +1243,25 @@ export default function CourseReviews({locale, isDark, mobile = false}: {locale:
             {renderWriteButton()}
 
             {/* 热度排行榜（月榜/年榜 前 10） */}
-            <div className={`rounded-lg border p-3 ${borderCls}`}>
-                <div className="mb-2 flex items-center">
-                    <span className={`text-xs font-semibold ${textMain}`}>{zh ? "热度排行榜" : "Top rankings"}</span>
-                    {renderBoardPeriodTabs()}
-                </div>
-                {renderBoardItems()}
-            </div>
+            {!filterActive && (
+                <>
+                    <div className={`rounded-lg border p-3 ${borderCls}`}>
+                        <div className="mb-2 flex items-center">
+                            <span className={`text-xs font-semibold ${textMain}`}>{zh ? "热度排行榜" : "Top rankings"}</span>
+                            {renderBoardPeriodTabs()}
+                        </div>
+                        {renderBoardItems()}
+                    </div>
 
-            {/* 规则说明 */}
-            <div className={`rounded-lg border p-3 ${borderCls} ${cardBg}`}>
-                <p className={`mb-1.5 text-xs font-semibold ${textMain}`}>
-                    {zh ? "课程评价 · 规则说明" : "Course Reviews · Rules"}
-                </p>
-                {renderRulesText()}
-            </div>
+                    {/* 规则说明 */}
+                    <div className={`rounded-lg border p-3 ${borderCls} ${cardBg}`}>
+                        <p className={`mb-1.5 text-xs font-semibold ${textMain}`}>
+                            {zh ? "课程评价 · 规则说明" : "Course Reviews · Rules"}
+                        </p>
+                        {renderRulesText()}
+                    </div>
+                </>
+            )}
         </div>
     );
 
@@ -1113,23 +1269,37 @@ export default function CourseReviews({locale, isDark, mobile = false}: {locale:
     const renderMobileExtras = () => (
         <div className={`flex flex-col gap-2 ${mobileLayout ? "" : "lg:hidden"}`}>
             {renderWriteButton()}
-            <details className={`rounded-lg border ${borderCls} ${cardBg}`}>
-                <summary className={`cursor-pointer px-3 py-2.5 text-xs font-semibold ${textMain}`}>
-                    {zh ? "热度排行榜" : "Top rankings"}
-                </summary>
-                <div className={`border-t p-3 ${borderCls}`}>
-                    <div className="mb-2 flex items-center">{renderBoardPeriodTabs()}</div>
-                    {renderBoardItems()}
-                </div>
-            </details>
-            <details className={`rounded-lg border ${borderCls} ${cardBg}`}>
-                <summary className={`cursor-pointer px-3 py-2.5 text-xs font-semibold ${textMain}`}>
-                    {zh ? "课程评价 · 规则说明" : "Course Reviews · Rules"}
-                </summary>
-                <div className={`border-t p-3 ${borderCls}`}>
-                    {renderRulesText()}
-                </div>
-            </details>
+            {!filterActive && (
+                <>
+                    <details className={`overflow-hidden rounded-xl border ${borderCls} ${cardBg}`}>
+                        <summary className={`flex cursor-pointer list-none marker:hidden items-center gap-2.5 px-3 py-2.5 ${textMain}`}>
+                            <svg className="shrink-0 text-amber-500" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                <path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0Z" /><path d="M7 6H4v2a4 4 0 0 0 4 4M17 6h3v2a4 4 0 0 1-4 4" />
+                            </svg>
+                            <span className="shrink-0 text-xs font-semibold">{zh ? "热度榜" : "Rankings"}</span>
+                            <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[9px] ${isDark ? "bg-white/10 text-white/60" : "bg-gray-100 text-gray-500"}`}>
+                                {boardPeriod === "month" ? (zh ? "月榜" : "Month") : (zh ? "年榜" : "Year")}
+                            </span>
+                            {renderBoardTicker()}
+                            <svg className={`shrink-0 ${isDark ? "text-white/50" : "text-gray-400"}`} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                <path d="m6 9 6 6 6-6" />
+                            </svg>
+                        </summary>
+                        <div className={`border-t p-3 ${borderCls}`}>
+                            <div className="mb-2 flex items-center">{renderBoardPeriodTabs()}</div>
+                            {renderBoardItems()}
+                        </div>
+                    </details>
+                    <details className={`rounded-lg border ${borderCls} ${cardBg}`}>
+                        <summary className={`cursor-pointer px-3 py-2.5 text-xs font-semibold ${textMain}`}>
+                            {zh ? "课程评价 · 规则说明" : "Course Reviews · Rules"}
+                        </summary>
+                        <div className={`border-t p-3 ${borderCls}`}>
+                            {renderRulesText()}
+                        </div>
+                    </details>
+                </>
+            )}
         </div>
     );
 
@@ -1156,7 +1326,14 @@ export default function CourseReviews({locale, isDark, mobile = false}: {locale:
                                     {activeTopic.name}
                                 </span>
                                 <button className={`${pillIdle} ml-auto`}
-                                        onClick={() => { setActiveTopic(null); setTopicItems([]); setTopicTotal(0); setTopicError(null); }}>
+                                        onClick={() => {
+                                            setActiveTopic(null);
+                                            setQuery("");
+                                            setLetter(null);
+                                            setTopicItems([]);
+                                            setTopicTotal(0);
+                                            setTopicError(null);
+                                        }}>
                                     ✕ {zh ? "取消筛选" : "Clear filter"}
                                 </button>
                             </div>
@@ -1175,9 +1352,7 @@ export default function CourseReviews({locale, isDark, mobile = false}: {locale:
                                 </div>
                             )}
                             {!topicLoading && !topicError && topicItems.length === 0 && (
-                                <div className={`rounded-lg border p-6 text-center text-xs ${borderCls} ${textSub}`}>
-                                    {zh ? "这个课程还没有已发布的评价，来写第一条吧" : "No published reviews yet — be the first!"}
-                                </div>
+                                renderEmptyFeed(true)
                             )}
                             <div className="flex flex-col gap-2.5">
                                 {topicItems.map((it) => renderCard(it))}
@@ -1200,9 +1375,7 @@ export default function CourseReviews({locale, isDark, mobile = false}: {locale:
                                 </div>
                             )}
                             {initReady && !feedLoading && !feedError && feed.length === 0 && (
-                                <div className={`rounded-lg border p-6 text-center text-xs ${borderCls} ${textSub}`}>
-                                    {zh ? "还没有已发布的评价，第一条由你来写" : "No reviews yet — write the first one!"}
-                                </div>
+                                renderEmptyFeed()
                             )}
                             <div className="flex flex-col gap-2.5">
                                 {feed.map((it) => renderCard(it))}
