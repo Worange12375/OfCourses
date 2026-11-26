@@ -205,6 +205,7 @@ export const ToolsPage = ({mobile}: ToolsPageProps) => {
   const textBody = isDark ? "text-white/75" : "text-gray-700";
   const textMuted = isDark ? "text-white/50" : "text-gray-500";
   const bgCard = isDark ? "bg-white/5" : "bg-white";
+  const toolIslandClass = `${bgCard} ${mobile ? "oc-mobile-tool-island" : ""}`;
   const borderCls = isDark ? "border-white/10" : "border-gray-200";
   const progressBgCss = isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)";
   const progressFillCss = "linear-gradient(90deg, #60a5fa, #93c5fd)";
@@ -1096,14 +1097,14 @@ export const ToolsPage = ({mobile}: ToolsPageProps) => {
   return (
     <div className={`flex flex-1 ${mobile ? "flex-col h-full" : "flex-row h-full"} ${isDark ? "bg-[#0e0e14]" : "bg-gray-50"}`}>
       {/* ===== Sidebar ===== */}
-      <div className={`${mobile ? "flex flex-row border-b p-2 gap-1 overflow-x-auto" : "flex w-44 shrink-0 flex-col border-r p-3 gap-1.5"} ${borderCls} ${isDark ? "bg-[#14141e]" : "bg-white"}`}>
+      <div className={`${mobile ? "grid grid-cols-3 border-b p-2 gap-1" : "flex w-44 shrink-0 flex-col border-r p-3 gap-1.5"} ${borderCls} ${isDark ? "bg-[#14141e]" : "bg-white"}`}>
         {mobile ? (
           <>
             {TOOL_ITEMS.map((t) => (
               <button
                 key={t.key}
                 onClick={() => setToolPage(t.key)}
-                className={`cursor-pointer rounded border-none px-3 py-2 text-xs font-medium flex-1 text-center whitespace-nowrap transition-colors ${
+                className={`cursor-pointer rounded border-none py-2 font-medium text-center whitespace-nowrap transition-colors ${mobile ? "min-w-0 px-1 text-[11px]" : "flex-1 px-3 text-xs"} ${
                   toolPage === t.key
                     ? isDark ? "bg-blue-500/20 text-blue-300" : "bg-blue-100 text-blue-600"
                     : isDark ? "text-white/60 hover:bg-white/5" : "text-gray-600 hover:bg-gray-100"
@@ -1143,16 +1144,16 @@ export const ToolsPage = ({mobile}: ToolsPageProps) => {
         )}
       </div>
       {/* ===== Content ===== */}
-      <div className={`flex-1 flex flex-col gap-3 p-3 ${mobile ? "overflow-y-auto oc-mobile-pb-nav" : "overflow-auto"}`}>
+      <div className={`flex-1 flex flex-col ${mobile ? "gap-2 px-2 py-2 overflow-y-auto oc-mobile-pb-nav" : "gap-3 p-3 overflow-auto"}`}>
       {toolPage === "degree" && <>
-      <Island className={`${bgCard}`}>
+      <Island className={toolIslandClass}>
         <Header border>
           <span className={`text-sm font-semibold ${textDark}`}>
             {locale === "zh" ? "学位评定" : "Degree Evaluation"}
           </span>
         </Header>
         <Content>
-          <div className="px-4 py-3 flex flex-col gap-3">
+          <div className={`${mobile ? "px-3" : "px-4"} py-3 flex flex-col gap-3`}>
             <div className={`text-xs ${textBody}`}>
               {locale === "zh"
                 ? "「导入本地数据」读取工作台导出的 JSON 文件；「导入云端方案」从账号下的云端方案列表中任选一份导入（未登录时自动改为导入本浏览器的工作台数据）。导入后系统将自动计算各专业学位的获取进度。"
@@ -1237,14 +1238,14 @@ export const ToolsPage = ({mobile}: ToolsPageProps) => {
 
       {/* ===== 空态引导（未导入数据时展示，导入后隐藏）===== */}
       {!historyData && (
-        <Island className={`${bgCard}`}>
+        <Island className={toolIslandClass}>
           <Header border>
             <span className={`text-sm font-semibold ${textDark}`}>
               {locale === "zh" ? "七个学位轨道的评定规则" : "Evaluation rules of the seven degree tracks"}
             </span>
           </Header>
           <Content>
-            <div className="flex flex-col gap-4 px-4 py-3">
+            <div className={`flex flex-col gap-4 ${mobile ? "px-3" : "px-4"} py-3`}>
               {/* 轨道规则卡（每轨道：精简解读 + 培养方案原文 + 主修/选修结构） */}
               {DEGREE_TRACK_RULES.map((r) => {
                 const chip = degreeTrackChips().find((c) => c.code === r.code);
@@ -1281,14 +1282,14 @@ export const ToolsPage = ({mobile}: ToolsPageProps) => {
       {historyData && trackProgresses.length > 0 && (
         <>
           {/* Overview cards */}
-          <Island className={`${bgCard}`}>
+          <Island className={toolIslandClass}>
             <Header border>
               <span className={`text-sm font-semibold ${textDark}`}>
                 {locale === "zh" ? "学位获取进度" : "Degree Progress"}
               </span>
             </Header>
             <Content>
-              <div className="px-4 py-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className={`${mobile ? "px-3" : "px-4"} py-3 grid grid-cols-1 md:grid-cols-2 gap-3`}>
                 {trackProgresses.slice(0, 8).map((tp) => (
                   <div
                     key={tp.trackCode}
@@ -1534,14 +1535,14 @@ export const ToolsPage = ({mobile}: ToolsPageProps) => {
           </Island>
 
           {/* ===== Detail query ===== */}
-          <Island className={`${bgCard}`}>
+          <Island className={toolIslandClass}>
             <Header border>
               <span className={`text-sm font-semibold ${textDark}`}>
                 {locale === "zh" ? "模块级详细查询" : "Module-Level Detail Query"}
               </span>
             </Header>
             <Content>
-              <div className="px-4 py-3 flex flex-col gap-3">
+              <div className={`${mobile ? "px-3" : "px-4"} py-3 flex flex-col gap-3`}>
                 {/* Industrial Engineering (III类 模块9-13) */}
                 <div className={`rounded-lg border p-3 ${borderCls}`}>
                   <div className={`text-xs font-semibold mb-2 ${textDark}`}>
@@ -1624,14 +1625,14 @@ export const ToolsPage = ({mobile}: ToolsPageProps) => {
       </>}
 
       {toolPage === "ai" && (
-      <Island className={`${bgCard}`}>
+      <Island className={toolIslandClass}>
           <Header border>
             <span className={`text-sm font-semibold ${textDark}`}>
               {locale === "zh" ? "课程推荐 AI 助手" : "AI Course Assistant"}
             </span>
           </Header>
           <Content>
-            <div className="flex flex-col gap-4 px-4 py-3">
+            <div className={`flex flex-col gap-4 ${mobile ? "px-3" : "px-4"} py-3`}>
               <AiAssistant locale={locale} isDark={isDark} />
               <div className={`rounded-lg border p-3 ${borderCls} ${isDark ? "bg-white/[0.02]" : "bg-gray-50"}`}>
                 <div className={`mb-1 text-xs font-semibold ${textDark}`}>
@@ -1650,13 +1651,17 @@ export const ToolsPage = ({mobile}: ToolsPageProps) => {
       )}
 
       {toolPage === "review" && (
-      <Island className={`${bgCard}`}>
-          <Content>
-            <div className="px-4 py-3">
-              <CourseReviews locale={locale} isDark={isDark} mobile={mobile} />
-            </div>
-          </Content>
-        </Island>
+        mobile ? (
+          <CourseReviews locale={locale} isDark={isDark} mobile={mobile} />
+        ) : (
+          <Island className={bgCard}>
+            <Content>
+              <div className="px-4 py-3">
+                <CourseReviews locale={locale} isDark={isDark} mobile={mobile} />
+              </div>
+            </Content>
+          </Island>
+        )
       )}
     </div>
     </div>
