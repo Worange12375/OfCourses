@@ -12,7 +12,6 @@ import {getSchemeData, useSchemeData} from "@/data/schemeStore";
 import {useAccount} from "@/account/AccountContext";
 import enData from "@/data/courses_en.json";
 import {useOnboarding} from "../onboarding/OnboardingContext";
-import {TutorialEntryModal} from "../onboarding/TutorialEntryModal";
 import type {TourStep} from "../onboarding/types";
 
 type HistoryData = Record<string, string[]>;
@@ -166,9 +165,8 @@ export const ToolsPage = ({mobile}: ToolsPageProps) => {
   // 云端方案选择弹窗：「导入云端方案」时列出账号下全部方案供用户挑选
   const [cloudPickOpen, setCloudPickOpen] = useState(false);
   const {theme} = useAppTheme();
-  const {startTour, navigateTo} = useOnboarding();
+  const {registerPageHelp} = useOnboarding();
   const isDark = theme === "dark";
-  const [tutorialEntryOpen, setTutorialEntryOpen] = useState(false);
   const {data: allGroups} = useCourseGroups();
 
   const [toolPage, setToolPage] = useState<"degree" | "ai" | "review">(() => {
@@ -226,6 +224,27 @@ export const ToolsPage = ({mobile}: ToolsPageProps) => {
       },
     },
   ], [locale]);
+  const toolPageHelp = useMemo(() => {
+    if (toolPage === "degree") return {
+      title: {zh: "学位评定帮助", en: "Degree Evaluation Help"},
+      description: {zh: "先关联课程记录，再查看不同评定轨道的进度。", en: "Link your course records, then review progress across evaluation tracks."},
+      wikiSection: "degree",
+      steps: toolTourSteps.slice(0, 1),
+    };
+    if (toolPage === "ai") return {
+      title: {zh: "AI 助手帮助", en: "AI Assistant Help"},
+      description: {zh: "确认关联数据，了解模型状态，再开始提问。", en: "Check linked data and model status before asking a question."},
+      wikiSection: "ai-assistant",
+      steps: toolTourSteps.slice(1, 2),
+    };
+    return {
+      title: {zh: "课程评价帮助", en: "Course Reviews Help"},
+      description: {zh: "从搜索课程、阅读评价到发布和管理自己的评价。", en: "Find a course, read reviews, and publish or manage your own."},
+      wikiSection: "course-reviews",
+      steps: toolTourSteps.slice(2),
+    };
+  }, [toolPage, toolTourSteps]);
+  useEffect(() => registerPageHelp("tools", toolPageHelp), [registerPageHelp, toolPageHelp]);
   const [historyData, setHistoryData] = useState<HistoryData | null>(null);
   const [fileName, setFileName] = useState("");
   const [selectedModules, setSelectedModules] = useState<Record<string, string>>({});
@@ -1160,11 +1179,6 @@ export const ToolsPage = ({mobile}: ToolsPageProps) => {
       <div className={`${mobile ? "grid grid-cols-3 border-b p-2 gap-1" : "flex w-44 shrink-0 flex-col border-r p-3 gap-1.5"} ${borderCls} ${isDark ? "bg-[#14141e]" : "bg-white"}`}>
         {mobile ? (
           <>
-            <button
-              type="button"
-              onClick={() => setTutorialEntryOpen(true)}
-              className={`col-span-3 justify-self-end rounded-md border px-2.5 py-1 text-[11px] font-medium ${isDark ? "border-white/10 text-white/65" : "border-gray-200 text-gray-600"}`}
-            >{locale === "zh" ? "页面引导与 Wiki" : "Guide & Wiki"}</button>
             {TOOL_ITEMS.map((t) => (
               <button
                 key={t.key}
@@ -1180,11 +1194,8 @@ export const ToolsPage = ({mobile}: ToolsPageProps) => {
           </>
         ) : (
           <>
-            <div className="flex items-center justify-between px-2 pb-1.5">
-              <span className={`text-[10px] font-semibold uppercase tracking-widest ${isDark ? "text-white/35" : "text-gray-400"}`}>
-                {locale === "zh" ? "综合工具" : "Tools"}
-              </span>
-              <button type="button" onClick={() => setTutorialEntryOpen(true)} aria-label={locale === "zh" ? "打开综合工具引导" : "Open Tools guide"} className={`flex h-6 w-6 items-center justify-center rounded-full border text-xs ${isDark ? "border-white/15 text-white/60 hover:bg-white/10" : "border-gray-200 text-gray-500 hover:bg-gray-100"}`}>?</button>
+            <div className={`px-2 pb-1.5 text-[10px] font-semibold uppercase tracking-widest ${isDark ? "text-white/35" : "text-gray-400"}`}>
+              {locale === "zh" ? "综合工具" : "Tools"}
             </div>
             {TOOL_ITEMS.map((t) => {
               const active = toolPage === t.key;
@@ -1734,15 +1745,6 @@ export const ToolsPage = ({mobile}: ToolsPageProps) => {
         )
       )}
     </div>
-    {tutorialEntryOpen && (
-      <TutorialEntryModal
-        title={locale === "zh" ? "综合工具" : "Tools"}
-        description={locale === "zh" ? "依次了解学位评定、AI 助手和课程评价的主要入口。" : "Walk through Degree Evaluation, the AI Assistant, and Course Reviews."}
-        onStart={() => { setTutorialEntryOpen(false); startTour(toolTourSteps); }}
-        onOpenWiki={() => { setTutorialEntryOpen(false); navigateTo("guide", "tools-overview"); }}
-        onClose={() => setTutorialEntryOpen(false)}
-      />
-    )}
     </div>
   );
 };

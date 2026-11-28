@@ -13,6 +13,7 @@ export const HelpButton = () => {
         <button
             onClick={openHelp}
             title={locale === "zh" ? "使用帮助" : "Help"}
+            aria-label={locale === "zh" ? "打开使用帮助" : "Open help"}
             className={`flex h-7 w-7 cursor-pointer items-center justify-center rounded-full border text-xs font-bold transition-all duration-300 ${
                 isDark
                     ? "border-white/15 bg-white/10 text-white/80 hover:bg-white/20"

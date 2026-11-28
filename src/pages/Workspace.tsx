@@ -21,6 +21,8 @@ import type {Course} from "@/types/curriculum";
 import {ATTR_LABELS, ATTR_LABELS_EN, cohortScoringTables} from "../utils/recommend";
 import {SchemeManageModal} from "../account/SchemeManageModal";
 import {useAccount} from "../account/AccountContext";
+import {useOnboarding} from "../onboarding/OnboardingContext";
+import {TOUR_STEPS} from "../onboarding/tourSteps";
 
 // 自定义课程属性的双语标签（"通识-艺术" 等），用于通识学分统计展示
 const GE_PROP_LABELS: Record<string, {zh: string; en: string}> = {
@@ -120,7 +122,15 @@ export const Workspace = ({onNavigate: _onNavigate, mobile = false}: WorkspacePr
   const {structuredData, schemeYear} = useSchemeData();
   const {t, locale} = useLocale();
   const {theme} = useAppTheme();
+  const {registerPageHelp} = useOnboarding();
   const isDark = theme === "dark";
+  const workspacePageHelp = useMemo(() => ({
+    title: {zh: "工作台帮助", en: "Workspace Help"},
+    description: {zh: "从导入课程记录开始，认识工作台的历史记录、预选区域和课程目录。", en: "Start with course records, then explore history, preselection, and the catalog."},
+    wikiSection: "workspace",
+    steps: TOUR_STEPS.slice(1, 4),
+  }), [locale]);
+  useEffect(() => registerPageHelp("workspace", workspacePageHelp), [registerPageHelp, workspacePageHelp]);
   const {semester: currentSemester, semesterAuto} = useSemester();
   const {tName, tModule, tSemester, tGroup} = useTName();
 

@@ -32,7 +32,9 @@ interface OnboardingContextValue {
     activeSteps: TourStep[];
     tourSessionId: number;
     helpOpen: boolean;
+    pageHelp: Partial<Record<NavPage, PageHelpConfig>>;
     startTour: (steps?: TourStep[]) => void;
+    registerPageHelp: (page: NavPage, config: PageHelpConfig) => () => void;
     openHelp: () => void;
     closeHelp: () => void;
     next: () => void;
@@ -44,6 +46,13 @@ interface OnboardingContextValue {
     navigateTo: (page: NavPage, guideSection?: string) => void;
 }
 
+export interface PageHelpConfig {
+    title: {zh: string; en: string};
+    description: {zh: string; en: string};
+    wikiSection: string;
+    steps: TourStep[];
+}
+
 const OnboardingContext = createContext<OnboardingContextValue | null>(null);
 
 export const OnboardingProvider = ({children}: {children: ReactNode}) => {
@@ -52,6 +61,7 @@ export const OnboardingProvider = ({children}: {children: ReactNode}) => {
     const [stepIndex, setStepIndex] = useState(0);
     const [activeSteps, setActiveSteps] = useState<TourStep[]>(TOUR_STEPS);
     const [tourSessionId, setTourSessionId] = useState(0);
+    const [pageHelp, setPageHelp] = useState<Partial<Record<NavPage, PageHelpConfig>>>({});
     const navigateRef = useRef<((p: NavPage, guideSection?: string) => void) | null>(null);
 
     // 新用户判定：仅依赖浏览器缓存（无账号/无云端）
@@ -73,6 +83,16 @@ export const OnboardingProvider = ({children}: {children: ReactNode}) => {
 
     const navigateTo = useCallback((page: NavPage, guideSection?: string) => {
         navigateRef.current?.(page, guideSection);
+    }, []);
+
+    const registerPageHelp = useCallback((page: NavPage, config: PageHelpConfig) => {
+        setPageHelp((current) => ({...current, [page]: config}));
+        return () => setPageHelp((current) => {
+            if (current[page] !== config) return current;
+            const next = {...current};
+            delete next[page];
+            return next;
+        });
     }, []);
 
     const startTour = useCallback((steps: TourStep[] = TOUR_STEPS) => {
@@ -116,7 +136,9 @@ export const OnboardingProvider = ({children}: {children: ReactNode}) => {
                 activeSteps,
                 tourSessionId,
                 helpOpen,
+                pageHelp,
                 startTour,
+                registerPageHelp,
                 openHelp,
                 closeHelp,
                 next,

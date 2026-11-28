@@ -108,6 +108,8 @@ export const TourOverlay = () => {
     const [displayedSessionId, setDisplayedSessionId] = useState(-1);
     const [rects, setRects] = useState<DOMRect[]>([]);
     const [position, setPosition] = useState<CardPosition | null>(null);
+    const [cardVisible, setCardVisible] = useState(false);
+    const [positionMotion, setPositionMotion] = useState(false);
     const cardRef = useRef<HTMLDivElement>(null);
     const target = activeSteps[stepIndex] ?? activeSteps[0];
     const step = activeSteps[displayIndex] ?? target;
@@ -117,6 +119,8 @@ export const TourOverlay = () => {
     useEffect(() => {
         if (!tourActive || (stepIndex === displayIndex && tourSessionId === displayedSessionId)) return;
         setPosition(null);
+        setCardVisible(false);
+        setPositionMotion(false);
         target.beforeShow?.();
         if (target.targetPage) navigateTo(target.targetPage);
         const timer = window.setTimeout(() => {
@@ -127,14 +131,24 @@ export const TourOverlay = () => {
         return () => window.clearTimeout(timer);
     }, [tourActive, stepIndex, displayIndex, target, activeSteps, tourSessionId, displayedSessionId, navigateTo]);
 
-    // Place the card after its content has been measured; keep it outside every highlighted target.
+    // Measure and place while hidden, then reveal in place. This prevents a new card
+    // from animating from the fallback top-left coordinate to its target.
     useLayoutEffect(() => {
-        if (!tourActive || displayIndex < 0 || window.innerWidth < 640) return;
+        if (!tourActive || displayIndex < 0) return;
+        if (window.innerWidth < 640) {
+            const frame = window.requestAnimationFrame(() => setCardVisible(true));
+            return () => window.cancelAnimationFrame(frame);
+        }
         const card = cardRef.current;
         if (!card) return;
         const width = Math.min(CARD_MAX_WIDTH, window.innerWidth - VIEWPORT_GUTTER * 2);
         const height = Math.min(card.getBoundingClientRect().height, window.innerHeight - VIEWPORT_GUTTER * 2);
         setPosition(chooseCardPosition(step, rects, width, height));
+        const frame = window.requestAnimationFrame(() => {
+            setPositionMotion(true);
+            setCardVisible(true);
+        });
+        return () => window.cancelAnimationFrame(frame);
     }, [tourActive, displayIndex, rects, step]);
 
     // Keep the cutout and callout near the target as the page or viewport moves.
@@ -155,7 +169,7 @@ export const TourOverlay = () => {
     if (mobileViewport) {
         return (
             <div className="fixed inset-0 z-[10000] flex items-end justify-center bg-black/55 p-3 sm:items-center sm:p-6" role="dialog" aria-modal="true">
-                <section className={`max-h-[82vh] w-full max-w-lg overflow-y-auto rounded-2xl border p-5 shadow-2xl ${
+                <section className={`max-h-[82vh] w-full max-w-lg overflow-y-auto rounded-2xl border p-5 shadow-2xl transition-[opacity,transform] duration-150 ease-out ${cardVisible ? "translate-y-0 scale-100 opacity-100" : "translate-y-2 scale-[0.99] opacity-0"} ${
                     isDark ? "border-white/10 bg-[#1c1c28] text-white/90" : "border-gray-200 bg-white text-gray-800"
                 }`}>
                     <div className={`mb-2 text-[11px] font-semibold uppercase tracking-wide ${isDark ? "text-violet-300" : "text-violet-600"}`}>
@@ -224,7 +238,9 @@ export const TourOverlay = () => {
                     maxHeight: `calc(100vh - ${VIEWPORT_GUTTER * 2}px)`,
                     overflowY: "auto",
                     visibility: position ? "visible" : "hidden",
-                    transition: position ? "top 0.18s ease, left 0.18s ease" : "none",
+                    opacity: cardVisible ? 1 : 0,
+                    transform: cardVisible ? "translateY(0) scale(1)" : "translateY(4px) scale(0.985)",
+                    transition: positionMotion ? "top 0.14s ease, left 0.14s ease, opacity 0.16s ease, transform 0.16s ease" : "opacity 0.16s ease, transform 0.16s ease",
                 }}
             >
                 {arrowStyle && <span aria-hidden="true" className={`absolute h-3 w-3 ${notchClass} ${isDark ? "border-white/10 bg-[#1c1c28]" : "border-gray-200 bg-white"}`} style={arrowStyle} />}

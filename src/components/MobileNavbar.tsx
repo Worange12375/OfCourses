@@ -2,9 +2,9 @@ import {useEffect, useRef, useState} from "react";
 import {useLocale} from "../i18n/LocaleContext";
 import {useAppTheme} from "../theme/ThemeContext";
 import {useMobileMode} from "../hooks/useMobileMode";
-import {useOnboarding} from "../onboarding/OnboardingContext";
 import {SiteMail} from "./SiteMail";
 import {AccountButton} from "../account/AccountButton";
+import {HelpButton} from "../onboarding/HelpButton";
 import {type NavPage} from "./Navbar";
 import singleLogo from "../assets/OfCourses_singleLogo.ico";
 
@@ -143,10 +143,9 @@ export const MobileTopBar = ({onNavigate}: MobileTopBarProps) => {
   const {locale, setLocale} = useLocale();
   const {theme, toggleTheme} = useAppTheme();
   const {chooseMode} = useMobileMode();
-  const {openHelp} = useOnboarding();
   const isDark = theme === "dark";
   const zh = locale === "zh";
-  // 设置抽屉：收纳 中英切换 / 教程 / PC 切换 / 亮暗切换，点齿轮向下平滑拉出
+  // 设置抽屉：收纳中英切换、PC/手机模式与亮暗切换；教程入口常驻顶部导航
   const [settingsOpen, setSettingsOpen] = useState(false);
   const settingsPanelRef = useRef<HTMLDivElement>(null);
   const settingsButtonRef = useRef<HTMLButtonElement>(null);
@@ -203,6 +202,7 @@ export const MobileTopBar = ({onNavigate}: MobileTopBarProps) => {
         <div className="flex items-center gap-2">
           <SiteMail variant="mobile" />
           <AccountButton compact />
+          <HelpButton />
           <button
             ref={settingsButtonRef}
             onClick={() => setSettingsOpen((v) => !v)}
@@ -262,21 +262,6 @@ export const MobileTopBar = ({onNavigate}: MobileTopBarProps) => {
               label={zh ? "语言 Language" : "Language 语言"}
               value={zh ? "中文" : "English"}
               onClick={() => setLocale(zh ? "en" : "zh")}
-            />
-            <SettingRow
-              isDark={isDark}
-              icon={
-                <svg className={iconCls} viewBox="0 0 24 24" {...strokeProps}>
-                  <circle cx="12" cy="12" r="10" />
-                  <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
-                  <line x1="12" y1="17" x2="12.01" y2="17" />
-                </svg>
-              }
-              label={zh ? "使用教程" : "Tutorial"}
-              onClick={() => {
-                setSettingsOpen(false);
-                openHelp();
-              }}
             />
             <SettingRow
               isDark={isDark}

@@ -4,9 +4,7 @@ import {useAppTheme} from "../theme/ThemeContext";
 import {CurriculumMindMap} from "../components/CurriculumMindMap";
 import {CurriculumTreeMap} from "../components/CurriculumTreeMap";
 import {CurriculumRelationMap} from "../components/CurriculumRelationMap";
-import {CurriculumMapTutorial} from "../components/CurriculumMapTutorial";
 import {useOnboarding} from "../onboarding/OnboardingContext";
-import {TutorialEntryModal} from "../onboarding/TutorialEntryModal";
 import type {TourStep} from "../onboarding/types";
 import crossMd from "@/assets/doc/交叉培养指南.md?raw";
 // 三版本培养方案/教学计划文档（按当前用户年级加载；2024 沿用人工整理版，2025/2026 由 Word 自动转换）
@@ -277,7 +275,7 @@ const SimpleMarkdown = ({
 export const CurriculumPage = ({mobile}: CurriculumPageProps) => {
   const {locale} = useLocale();
   const {theme} = useAppTheme();
-  const {navigateTo, startTour} = useOnboarding();
+  const {registerPageHelp} = useOnboarding();
   // 当前年级的培养方案版本（未登录回落 2024）；文档 tabs 与之联动
   const {schemeYear} = useSchemeData();
   const TABS = useMemo(() => buildTabs(schemeYear), [schemeYear]);
@@ -285,8 +283,6 @@ export const CurriculumPage = ({mobile}: CurriculumPageProps) => {
   const [activeTab, setActiveTab] = useState("plan");
   const [leftWidth, setLeftWidth] = useState(40);
   const [mapView, setMapView] = useState<MapView>("list");
-  const [showTutorial, setShowTutorial] = useState(false);
-  const [showPageTutorial, setShowPageTutorial] = useState(false);
   const [mobileTab, setMobileTab] = useState<"map" | "doc">("map");
   const isDragging = useRef(false);
   const [showFeishuLinks, setShowFeishuLinks] = useState(false);
@@ -326,6 +322,27 @@ export const CurriculumPage = ({mobile}: CurriculumPageProps) => {
       },
     },
   ], [locale]);
+  const curriculumPageHelp = useMemo(() => {
+    if (mobile && mobileTab === "map") return {
+      title: {zh: "培养方案导图帮助", en: "Curriculum Map Help"},
+      description: {zh: "了解列表、树状和关系视图的用途及基本操作。", en: "Learn when to use List, Tree, and Graph views and how to explore them."},
+      wikiSection: "curriculum-map",
+      steps: curriculumTourSteps.slice(0, 1),
+    };
+    if (mobile && mobileTab === "doc") return {
+      title: {zh: "培养方案资料帮助", en: "Curriculum Documents Help"},
+      description: {zh: "了解如何切换资料并在文档中搜索。", en: "Learn how to switch documents and search within them."},
+      wikiSection: "curriculum",
+      steps: curriculumTourSteps.slice(1),
+    };
+    return {
+      title: {zh: "培养方案帮助", en: "Curriculum Help"},
+      description: {zh: "了解导图视图、方案资料和文档搜索。", en: "Learn about map views, curriculum documents, and document search."},
+      wikiSection: "curriculum",
+      steps: curriculumTourSteps,
+    };
+  }, [curriculumTourSteps, mobile, mobileTab]);
+  useEffect(() => registerPageHelp("curriculum", curriculumPageHelp), [registerPageHelp, curriculumPageHelp]);
 
   // ---- Document search state ----
   const [searchTerm, setSearchTerm] = useState("");
@@ -451,18 +468,6 @@ export const CurriculumPage = ({mobile}: CurriculumPageProps) => {
             })}
           </div>
 
-          {/* 导图教程入口 */}
-          <button
-            onClick={() => setShowTutorial(true)}
-            title={locale === "zh" ? "查看使用说明" : "How to use"}
-            className={`ml-1 flex h-7 w-7 items-center justify-center rounded-lg border text-xs font-semibold transition-colors ${
-              isDark
-                ? "border-white/10 text-white/70 hover:bg-white/10 hover:text-white"
-                : "border-gray-200 text-gray-500 hover:bg-gray-100 hover:text-gray-800"
-            }`}
-          >
-            ?
-          </button>
         </div>
         {mapView === "list" && <CurriculumMindMap key={schemeYear} mobile={mobile} />}
         {mapView === "tree" && <CurriculumTreeMap key={schemeYear} mobile={mobile} />}
@@ -546,13 +551,6 @@ export const CurriculumPage = ({mobile}: CurriculumPageProps) => {
           }`}>
             +
           </button>
-          <button
-            type="button"
-            onClick={() => setShowPageTutorial(true)}
-            title={locale === "zh" ? "培养方案页面引导" : "Curriculum page guide"}
-            aria-label={locale === "zh" ? "培养方案页面引导" : "Curriculum page guide"}
-            className={`mx-2 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-[11px] font-semibold ${isDark ? "border-white/15 text-white/60 hover:bg-white/10" : "border-gray-200 text-gray-500 hover:bg-gray-100"}`}
-          >?</button>
           {showFeishuLinks && (
             <div className="fixed inset-0 z-50 flex items-center justify-center" style={{background: "rgba(0,0,0,0.4)"}} onClick={() => setShowFeishuLinks(false)}>
               <div className={`w-80 rounded-xl shadow-2xl border px-5 py-4 ${isDark ? "bg-[#1e1e2a] border-white/10" : "bg-white border-gray-200"}`} onClick={(e) => e.stopPropagation()}>
@@ -665,13 +663,6 @@ export const CurriculumPage = ({mobile}: CurriculumPageProps) => {
             >
               {locale === "zh" ? "方案" : "Docs"}
             </button>
-            <button
-              type="button"
-              onClick={() => setShowPageTutorial(true)}
-              title={locale === "zh" ? "培养方案页面引导" : "Curriculum page guide"}
-              aria-label={locale === "zh" ? "培养方案页面引导" : "Curriculum page guide"}
-              className={`shrink-0 px-4 text-sm font-medium ${isDark ? "text-white/50" : "text-gray-500"}`}
-            >?</button>
           </nav>
         </div>
       ) : (
@@ -691,18 +682,6 @@ export const CurriculumPage = ({mobile}: CurriculumPageProps) => {
         </div>
       )}
 
-      {showTutorial && <CurriculumMapTutorial
-        onClose={() => setShowTutorial(false)}
-        onStart={() => { setShowTutorial(false); startTour(curriculumTourSteps.slice(0, 1)); }}
-        onOpenWiki={() => { setShowTutorial(false); navigateTo("guide", "curriculum-map"); }}
-      />}
-      {showPageTutorial && <TutorialEntryModal
-        title={locale === "zh" ? "培养方案页面" : "Curriculum page"}
-        description={locale === "zh" ? "了解导图视图、方案资料和文档搜索。" : "Learn about map views, curriculum documents, and document search."}
-        onStart={() => { setShowPageTutorial(false); startTour(curriculumTourSteps); }}
-        onOpenWiki={() => { setShowPageTutorial(false); navigateTo("guide", "curriculum"); }}
-        onClose={() => setShowPageTutorial(false)}
-      />}
     </div>
   );
 };

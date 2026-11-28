@@ -106,7 +106,7 @@ const AppShell = () => {
 
             {/* Onboarding UI (tour overlay + help panel) */}
             <TourOverlay />
-            <HelpPanel />
+            <HelpPanel currentPage={page} />
 
             {/* 账号系统：登录/注册弹窗（全局唯一，由 Navbar/工作台云同步面板触发） */}
             <AuthModal />

@@ -14,8 +14,6 @@ import { saveAiDisplay, tierLabel } from "../utils/aiTierLabels";
 import { useAccount } from "../account/AccountContext";
 import { useSemester } from "../hooks/SemesterContext";
 import { useTName } from "../hooks/useCurriculumData";
-import {useOnboarding} from "../onboarding/OnboardingContext";
-import {TutorialEntryModal} from "../onboarding/TutorialEntryModal";
 
 // AI 推荐助手：对话式 UI。
 // - 会话保存在浏览器 localStorage，仅保留 30 分钟（页内显著提示）；服务器不保存任何对话内容；
@@ -243,8 +241,6 @@ export default function AiAssistant({
       return null;
     }
   });
-  const [showTutorial, setShowTutorial] = useState<"entry" | "guide" | null>(null);
-  const {navigateTo} = useOnboarding();
   const [messages, setMessages] = useState<ChatMsg[]>(() => loadLocalHistory());
   const [input, setInput] = useState("");
   const [phase, setPhase] = useState<Phase>("idle");
@@ -756,14 +752,6 @@ export default function AiAssistant({
           {zh ? "导出对话 txt" : "Export txt"}
         </button>
         <button
-          onClick={() => setShowTutorial("entry")}
-          className={`cursor-pointer rounded-lg border px-3 py-1 text-xs font-medium ${
-            isDark ? "border-white/20 text-white/80 hover:bg-white/5" : "border-gray-300 text-gray-700 hover:bg-gray-50"
-          }`}
-        >
-          {zh ? "教程" : "Guide"}
-        </button>
-        <button
           onClick={() => setShowModal(true)}
           className={`cursor-pointer rounded-lg border px-3 py-1 text-xs font-medium ${
             isDark ? "border-white/20 text-white/80 hover:bg-white/5" : "border-gray-300 text-gray-700 hover:bg-gray-50"
@@ -1204,107 +1192,6 @@ export default function AiAssistant({
             />,
           document.body,
         )}
-      {/* 简易使用教程弹窗 */}
-      {showTutorial && createPortal(
-        showTutorial === "entry" ? (
-          <TutorialEntryModal
-            title={zh ? "AI 选课助手" : "AI course assistant"}
-            description={zh ? "先了解助手的使用方法，或直接查看 Wiki 中的 AI 助手说明。" : "Read the assistant walkthrough or open its Wiki topic."}
-            onStart={() => setShowTutorial("guide")}
-            onOpenWiki={() => { setShowTutorial(null); navigateTo("guide", "ai-assistant"); }}
-            onClose={() => setShowTutorial(null)}
-          />
-        ) : (
-          <TutorialModal zh={zh} isDark={isDark} onClose={() => setShowTutorial(null)} />
-        ),
-        document.body,
-      )}
-    </div>
-  );
-}
-
-function TutorialModal({
-  zh,
-  isDark,
-  onClose,
-}: {
-  zh: boolean;
-  isDark: boolean;
-  onClose: () => void;
-}) {
-  const steps: Array<{ h: string; body: string }> = zh
-    ? [
-        {
-          h: "① 它能做什么",
-          body: "结合本站的课程与培养方案信息，辅助理解选课要求、查看课程建议，并讨论学期规划。复杂结论请继续核对培养方案和官方通知。",
-        },
-        {
-          h: "② 检查关联数据",
-          body: "先查看输入区上方的选课数据关联面板，确认显示的数据来源和范围。若没有关联到需要的数据，可使用面板提供的本地文件或云端方案入口。",
-        },
-        {
-          h: "③ 选择模型并提问",
-          body: `可在输入区上方切换 ${tierLabel("flash", true)} 与 ${tierLabel("strong", true)}。额度和可用状态会显示在模型区域，请以页面实时提示为准。描述年级、目标学期和具体问题；Enter 发送，Shift+Enter 换行。`,
-        },
-        {
-          h: "④ 提问技巧",
-          body: "一次聚焦一个目标；复杂规划分几轮讨论。对课程建议可以继续追问依据，或补充自己的时间、学分和兴趣限制。重要对话可用「导出对话 txt」保存。",
-        },
-        {
-          h: "⑤ 注意事项",
-          body: "使用前请阅读页面上的《使用声明》。不要输入不必要的敏感信息；AI 输出仅供参考，选课以教务和书院的最新官方通知为准。",
-        },
-      ]
-    : [
-        {
-          h: "① What it can do",
-          body: "Use the site's course and curriculum information to understand requirements, review course suggestions, and discuss semester plans. Verify important conclusions against official documents and notices.",
-        },
-        {
-          h: "② Check linked course data",
-          body: "Review the course-data panel above the message box and confirm its source and scope. If the needed data is missing, use the local-file or cloud-plan options shown in that panel.",
-        },
-        {
-          h: "③ Which model to pick",
-          body: `Switch between ${tierLabel("flash", false)} and ${tierLabel("strong", false)} above the input. Current availability and quota are shown beside the model selector; follow the live notice because limits can change.`,
-        },
-        {
-          h: "④ Asking tips",
-          body: "Focus on one goal at a time. Break complex plans into several questions and include your cohort, target semester, and constraints. Ask follow-up questions when you need the reason for a suggestion. Export important conversations as txt.",
-        },
-        {
-          h: "⑤ Notes",
-          body: "Read the Terms of Use before chatting. Avoid entering unnecessary sensitive information. AI responses are references; follow the latest official registration notices.",
-        },
-      ];
-  return (
-    <div className="fixed inset-0 z-[999] flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
-      <div
-        onClick={(e) => e.stopPropagation()}
-        className={`flex max-h-[85vh] w-full max-w-lg flex-col rounded-xl shadow-2xl ${
-          isDark ? "bg-[#1a1a26] text-white/90" : "bg-white text-gray-800"
-        }`}
-      >
-        <div className={`border-b px-5 py-3 text-sm font-semibold ${isDark ? "border-white/10" : "border-gray-200"}`}>
-          {zh ? "AI 选课助手 · 简易教程" : "AI Assistant — Quick Guide"}
-        </div>
-        <div className={`flex-1 overflow-y-auto px-5 py-4 text-xs leading-relaxed ${isDark ? "text-white/75" : "text-gray-600"}`}>
-          {steps.map((s) => (
-            <div key={s.h} className="mb-3">
-              <div className={`mb-1 text-xs font-semibold ${isDark ? "text-white" : "text-gray-800"}`}>{s.h}</div>
-              <div>{s.body}</div>
-            </div>
-          ))}
-        </div>
-        <div className={`flex items-center px-5 py-3 ${isDark ? "border-white/10" : "border-gray-200"}`}>
-          <button
-            onClick={onClose}
-            className="ml-auto cursor-pointer rounded-lg border-none bg-blue-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-blue-500"
-          >
-            {zh ? "开始使用" : "Get started"}
-          </button>
-        </div>
-      </div>
     </div>
   );
 }
