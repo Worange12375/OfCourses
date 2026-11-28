@@ -1,14 +1,16 @@
-import {useEffect, useMemo, useState, type ReactNode} from "react";
+import {useEffect, useId, useMemo, useRef, useState, type ReactNode} from "react";
 import {useLocale} from "../i18n/LocaleContext";
 import {useAppTheme} from "../theme/ThemeContext";
 
 type GuideId = "getting-started" | "site-navigation" | "workspace" | "workspace-data" | "workspace-history" | "workspace-planning" | "workspace-search" | "workspace-validation" | "workspace-custom-courses" | "curriculum" | "curriculum-map" | "tools-overview" | "degree" | "ai-assistant" | "course-reviews" | "accounts" | "settings" | "messages" | "about" | "faq" | "help-system";
-type GuideImage = {number: string; filename: string; caption: string; alt?: string; src?: string};
+type GuideDevice = "pc" | "mobile";
+type GuideFocusRect = {x: number; y: number; width: number; height: number};
+type GuideFocus = {crop?: GuideFocusRect; boxes?: GuideFocusRect[]; arrows?: {fromX: number; fromY: number; toX: number; toY: number}[]};
+type GuideImage = {number: string; filename: string; caption: string; alt?: string; src?: string; focus?: GuideFocus};
+type GuideText = {text: string; deviceText?: Partial<Record<GuideDevice, string>>};
 type GuideBlock =
-  | {type: "paragraph"; text: string}
-  | {type: "step"; text: string}
-  | {type: "subheading"; text: string}
-  | {type: "callout"; title?: string; text: string}
+  | ({type: "paragraph" | "step" | "subheading"} & GuideText)
+  | ({type: "callout"; title?: string} & GuideText)
   | {type: "image"; image: GuideImage};
 type GuideSection = {
   heading: string;
@@ -21,80 +23,85 @@ type GuideSection = {
 type GuideArticle = {id: GuideId; category: string; title: string; summary: string; sections: GuideSection[]; related?: GuideId[]};
 
 const GUIDE_ZH: GuideArticle[] = [
-  {id: "getting-started", category: "快速入门", title: "快速入门：规划你的第一个学期", summary: "从已有记录或空白计划开始，完成一次课程预选，并按接下来的目标进入其他功能。", related: ["workspace", "workspace-data", "curriculum", "curriculum-map", "tools-overview", "degree", "ai-assistant", "course-reviews"], sections: [
-    {heading: "先了解这是什么工具", blocks: [
-      {type: "paragraph", text: "OfCourses 是笃实书院学生用来查阅课程资料、整理个人课程记录和规划学期课程的网站。第一次使用时，可以先在工作台选择一个目标学期、加入准备考虑的课程、检查页面提示，再把计划保存为该学期的课程记录。"},
-      {type: "paragraph", text: "这里保存的是你在 OfCourses 中整理的个人计划，方便自己查看、评估和继续修改。正式选课与最终课程要求仍按学校教务系统和书院当期通知办理。"},
-      {type: "subheading", text: "先认识工作台里的几个词"},
-      {type: "paragraph", text: "“历史记录”是已经保存的课程清单，按学期分别显示。打开某学期可以回看课程；点击编辑可以把原课程载入预选区域继续修改。“预选课程”是当前正在编辑、尚未保存到历史记录的课程列表。点击课程旁的“+”后，课程先出现在预选区域；点击“保存到历史记录”后，才会保存到目标学期。“课程目录”是网站收录的课程列表，你可以在里面搜索、筛选、查看课程详情，再把课程加入预选。"},
-      {type: "paragraph", text: "“当前学期”是网站根据日期推算并展示的时间参考；“目标学期”是你此刻正在规划的学期，显示在预选课程区域的学期选择框里。两者可能不同：例如你可以在当前学期为下一学期做计划。保存前请看一眼学期选择框，确认课程会记到你想要的学期。"},
-      {type: "paragraph", text: "“学分”是课程计入学习计划的数值；工作台会把当前预选课程的学分合计起来。“课组”或“模块”是培养方案用来归类课程的栏目。“先修课程”是建议或要求先完成的课程，课程详情及保存检查可能会提醒你。“推荐学期”是网站课程资料中记录的学期信息，便于筛选和参考，不代表该课本学期一定开课。"},
-      {type: "paragraph", text: "JSON（常读作“杰森”）是一种保存结构化数据的文件格式。OfCourses 导出的 JSON 文件包含课程记录和自定义课程等数据，可作为备份，也可在另一浏览器导入。没有 JSON 文件也没关系，可以直接从空白计划开始。"},
-      {type: "image", image: {number: "01", filename: "wiki-01-home-pc.png", caption: "PC 首页导航：进入培养方案、工作台和综合工具", alt: "OfCourses PC 首页和顶部导航栏"}},
-      {type: "image", image: {number: "02", filename: "wiki-02-home-mobile.png", caption: "手机首页导航：通过底部导航切换主要页面", alt: "OfCourses 手机首页和底部导航栏"}},
-      {type: "callout", title: "不知道从哪里开始？", text: "如果你以前用过 OfCourses 并导出过 JSON，先按“路线 A”恢复记录；如果是第一次使用，或暂时没有备份，直接看“路线 B”。两条路线最后都会回到工作台规划课程。"},
+  {id: "getting-started", category: "快速入门", title: "快速入门：完成第一次课程规划", summary: "从进入工作台开始，选择记录来源，挑选目标学期的课程，检查后保存。每一步都说明入口、操作结果和容易误解的地方。", related: ["workspace", "workspace-data", "curriculum", "curriculum-map", "tools-overview", "degree", "ai-assistant", "course-reviews"], sections: [
+    {heading: "这篇教程会带你完成什么", blocks: [
+      {type: "paragraph", text: "OfCourses 可以用来查阅课程资料、整理个人课程记录和规划学期课程。本教程会带你从工作台开始，完成一次“选一个学期—加入课程—检查提示—保存记录”的流程。这里保存的是 OfCourses 中的个人规划记录，不会替你提交教务系统的选课申请。正式选课和学分认定仍以学校教务系统、书院正式文件及当期通知为准。"},
+      {type: "callout", title: "先确定你要看哪一种教程", text: "本页右上方可以切换“跟随设备 / PC 教程 / 手机教程”。默认跟随网站当前显示的 PC 或手机布局；如果你用手机浏览器的“电脑模式”，请按网站实际显示的布局阅读，也可以手动切换教程版本。"},
     ]},
-    {heading: "路线 A：我已经有课程记录", blocks: [
-      {type: "subheading", text: "我有以前导出的 OfCourses JSON 文件"},
-      {type: "paragraph", text: "本路线所说的 JSON 文件，是从 OfCourses「方案管理 → 导出到文件」生成的备份，或网站提供的 OfCourses 教学示例文件。网站不能直接读取教务系统导出的选课文件；如果你手里只有教务系统文件，请先按页面提示手动整理，或从空白工作台开始。"},
-      {type: "step", text: "进入“工作台”。PC 模式下，在左侧“历史记录”标题旁找到“方案管理”；手机模式下，先点底部的“历史”，再点“方案管理”。点击后会弹出方案管理窗口。"},
-      {type: "image", image: {number: "03", filename: "wiki-03-plan-management-pc.png", caption: "PC：工作台历史记录区域中的方案管理入口", alt: "PC 工作台历史记录区域和方案管理按钮"}},
-      {type: "image", image: {number: "04", filename: "wiki-03-plan-management-mobile.png", caption: "手机：从历史区域打开方案管理", alt: "手机工作台历史区域中的方案管理入口"}},
-      {type: "step", text: "在弹窗靠下的“本地备份（JSON 文件）”区域，点击“从文件导入”，然后在系统文件选择器中找到 OfCourses 导出的 .json 文件并确认。这个文件选择器由你的电脑或手机系统打开；选好文件后会回到 OfCourses。"},
-      {type: "step", text: "先停在导入预览，不要急着点确认。预览中的“历史学期数”是文件里有多少个学期，“历史课程数”是这些学期记录中的课程总数，“自定义课程数”是你手动添加的课程数。如果数字明显不符合预期，点“取消”，重新选文件。文件格式无法读取时，页面会提示导入错误，也不会把它当作成功导入。"},
-      {type: "image", image: {number: "05", filename: "wiki-04-plan-import-preview-pc.png", caption: "PC：选择 JSON 文件后出现的导入预览和确认选项", alt: "PC 方案管理窗口内显示学期、课程和自定义课程数量的导入预览"}},
-      {type: "image", image: {number: "06", filename: "wiki-04-plan-import-preview-mobile.png", caption: "手机：选择 JSON 文件后出现的导入预览和确认选项", alt: "手机方案管理窗口内显示导入统计和合并覆盖选项"}},
-      {type: "step", text: "想把文件内容补到当前记录里，点“合并导入”。对于同一个学期，网站会把两边课程合在一起，并自动去掉重复课程；文件中有而本机没有的学期也会加入。你不用逐门勾选。自定义课程按课程编号合并，编号相同的条目采用文件里的版本。"},
-      {type: "callout", title: "合并适合什么情况？", text: "例如本机已经有大一课程，备份文件还包括大二课程，合并可以把大二记录补进来。同一学期若两边内容不同，合并后会同时保留两边的课程，所以确认后请检查该学期是否符合你的实际记录。"},
-      {type: "step", text: "只有当你确认文件就是要完整使用的版本时，才点“覆盖导入”。它会用文件中的历史记录和自定义课程，整体替换本机现有的这些数据；没有列在文件里的旧记录也会被移除。若不确定，请点“取消”，然后先点“导出到文件”备份当前记录。"},
-      {type: "step", text: "合并或覆盖成功后，预览区会关闭，工作台历史记录会更新。回到历史记录，展开一两个学期，核对学期名称、课程名称和数量；确认记录正确后再继续改计划。导入写入的是当前浏览器中的工作台记录。"},
-      {type: "subheading", text: "我的记录保存在云端"},
-      {type: "step", text: "如果以前是在账号下使用云端方案，先用原账号登录，再打开“方案管理”。云端区域会列出账号里的方案；查看方案名称和页面标注，确认当前选中的方案是你要继续用的那一套。切换前先留意“未同步”或冲突提示，避免把不同设备上尚未同步的修改混在一起。"},
-      {type: "paragraph", text: "本地 JSON 是你手动下载、保存和导入的文件备份；云端方案属于登录账号，并通过网络同步。两者是不同保存渠道。换设备时，可以用同一账号的云端方案，也可以从原设备导出 JSON 后在新设备导入。"},
+    {heading: "第一步：先进入工作台", blocks: [
+      {type: "step", text: "先进入工作台，再开始读下面的操作。", deviceText: {pc: "在页面顶部主导航中点击“工作台”。如果当前仍在首页，也可以点击首页中央的“工作台”按钮。进入后，你会看到与课程记录和课程目录有关的工作区。", mobile: "点击屏幕底部导航中的“工作台”。进入后，工作台会显示课程目录；底部的“预选”和“历史”用于切换其他工作区。"}},
+      {type: "image", image: {number: "01", filename: "wiki-01-home-pc.png", caption: "PC：在首页中央点击“工作台”进入课程规划", alt: "PC 首页中央的工作台入口已用红框标出，箭头指向按钮", focus: {crop: {x: 15, y: 43, width: 70, height: 47}, boxes: [{x: 41, y: 72, width: 8, height: 6}], arrows: [{fromX: 35, fromY: 63, toX: 44, toY: 72}]} }},
+      {type: "image", image: {number: "02", filename: "wiki-02-home-mobile.png", caption: "手机：在底部导航点击“工作台”", alt: "手机首页底部导航的工作台入口已用红框标出", focus: {crop: {x: 0, y: 69, width: 100, height: 31}, boxes: [{x: 40, y: 93, width: 19, height: 6}], arrows: [{fromX: 68, fromY: 86, toX: 51, toY: 94}]} }},
+      {type: "paragraph", text: "工作台里的“历史记录”是已保存的各学期课程；“预选课程”是正在编辑、还没有保存的课程清单；“课程目录”是用来搜索和查看课程的列表。点击目录里的“+”只会先把课程加入预选课程，确认并保存后才会更新历史记录。", deviceText: {pc: "PC 页面会同时显示三个区域：左侧“历史记录”、中间“预选课程”、右侧“课程目录”。后面的文字会按这个从左到右的顺序指引你。", mobile: "手机页面一次主要显示一个区域：课程目录默认占据主内容区；点底部“预选”打开预选课程，点“历史”查看已保存记录。下面会分别说明每一步需要切换到哪个区域。"}},
+      {type: "image", image: {number: "03", filename: "wiki-05-workspace-overview-pc.png", caption: "PC：工作台三栏区域的位置", alt: "工作台左侧历史记录、中间预选课程、右侧课程目录的标题已分别用红框标出", focus: {crop: {x: 0, y: 0, width: 100, height: 43}, boxes: [{x: 1, y: 8, width: 29, height: 6}, {x: 30, y: 8, width: 19, height: 6}, {x: 50, y: 8, width: 48, height: 6}]} }},
+      {type: "image", image: {number: "04", filename: "wiki-06-workspace-overview-mobile.png", caption: "手机：从底部标签切换预选课程和历史记录", alt: "手机工作台底部的预选和历史入口已用红框标出", focus: {crop: {x: 0, y: 70, width: 100, height: 30}, boxes: [{x: 17, y: 93, width: 18, height: 5}, {x: 68, y: 93, width: 17, height: 5}], arrows: [{fromX: 49, fromY: 84, toX: 27, toY: 94}]} }},
     ]},
-    {heading: "路线 B：我从空白计划开始", blocks: [
-      {type: "step", text: "打开“工作台”。PC 模式从左到右有三个区域：历史记录、预选课程、课程目录。历史记录显示已经保存的各学期课程；预选课程显示当前正在编辑、尚未保存的课程；课程目录用于搜索、筛选和查看网站收录的课程。手机模式下，区域布局会调整，底部可以在“预选”和“历史”间切换。"},
-      {type: "image", image: {number: "07", filename: "wiki-05-workspace-overview-pc.png", caption: "PC：工作台的历史记录、预选课程和课程目录", alt: "PC 工作台三栏布局"}},
-      {type: "image", image: {number: "08", filename: "wiki-06-workspace-overview-mobile.png", caption: "手机：工作台课程目录及预选、历史切换", alt: "手机工作台课程目录和底部预选、历史切换栏"}},
-      {type: "step", text: "先看中间的“预选课程”区域，找到“您当前选择的是”旁边的学期选择框。点开它并选择你要规划的学期，例如“大二·秋季”。这就是“目标学期”：之后加入和保存的课程都会记到这里。页面上方的“当前学期”由系统按日期显示，主要用来帮助你判断时间，不一定等于目标学期。"},
-      {type: "step", text: "在“课程目录”搜索框输入课程名称的一部分或课程编号。输入后列表会缩小，显示匹配的课程；如果不知道课程叫什么，可以展开筛选，按课程类别/课组、推荐学期、模块和模块内的 A/B 课组逐步缩小范围。手机上点“展开搜索与筛选”会打开筛选抽屉，选完后点“完成”或收起抽屉，再查看课程列表。"},
-      {type: "step", text: "先读课程行，再决定是否加入。课程编号用于区分课程；学分会计入本学期总数；“推荐学期”是网站整理的参考信息；课组和模块告诉你课程在培养方案里的分类。点课程名称通常可以打开详情，查看简介、先修或其他收录信息。课程目录中的资料用于规划参考，具体开课与选课资格仍要核对当期官方通知。"},
-      {type: "step", text: "决定加入后，点击该课程行左侧的“+”。按钮会变成勾选状态，预选课程区域会新增这门课程。这表示它已加入当前预选列表，还没有保存为历史记录。若点错了，点击勾选按钮或在预选区移除，就能从当前预选列表中移除。"},
-      {type: "step", text: "重复搜索和加入，直到列出你想规划的课程。然后回到“预选课程”区域，确认顶部目标学期正确，逐门核对课程名称，并查看底部显示的课程数和总学分。修改课程时，目录按钮状态和预选清单会一起更新。"},
-      {type: "step", text: "检查保存提示。红色“错误”代表网站发现了需要认真处理的问题，例如学分低于该学期下限、同一门课程已记在其他学期，或某些学期记录缺少要求课程；这类问题会阻止普通保存。黄色“提醒”通常是先修课程或课组选择等需要你核对的情况，普通保存仍可能通过。先根据提示改课程或学期。"},
-      {type: "callout", title: "出现“仍然保存”怎么办？", text: "在红色错误出现后，工作台会提供额外的“仍然保存”操作，并再次列出问题供你确认。它用于确有特殊原因、且你理解后果时继续保存；第一次使用建议先处理错误，再保存。黄色提醒也请逐项阅读，不要只看颜色。"},
-      {type: "step", text: "准备好后，点击预选区域底部的“保存到历史记录”。保存成功后，课程会出现在左侧对应学期的历史卡片中，预选清单会清空；如果还有可继续规划的学期，页面会自动切换到下一个学期。请回到历史记录，确认卡片中的学期、课程数和课程名称。"},
-      {type: "callout", title: "如果你正在改旧记录", text: "点历史学期卡片上的编辑后，原课程会回到预选区域，页面进入编辑状态。底部会出现“取消修改”等操作。保存会更新原学期；取消修改会放弃本次编辑。切换到其他编辑学期且本次有未保存改动时，页面会先让你确认如何处理。"},
+    {heading: "第二步：选择你的课程记录从哪里来", blocks: [
+      {type: "paragraph", text: "继续之前，先想一下：工作台里已经有你要用的记录吗？"},
+      {type: "callout", title: "已经有 OfCourses 记录", text: "如果你之前从 OfCourses 导出过 JSON 备份，可以先按下一节导入；如果记录保存在账号云端方案里，先登录并在“方案管理”选择对应方案，不需要重复导入 JSON。"},
+      {type: "callout", title: "第一次使用，或手头没有备份", text: "跳过导入，直接从“选择目标学期”开始。之后你可以逐门搜索课程加入预选，不需要先准备文件。"},
+      {type: "paragraph", text: "JSON（读作“杰森”）是 OfCourses 用来保存课程记录的文件格式。这里所说的 JSON 必须是 OfCourses 导出的备份或网站提供的 OfCourses 示例文件，不能直接导入教务系统导出的选课表。"},
     ]},
-    {heading: "保存在哪里？需要登录吗？", blocks: [
-      {type: "paragraph", text: "第一次使用时，工作台记录通常保存在当前设备、当前浏览器的网站数据中，不需要登录。刷新同一个网站页面后，本地记录一般还在；换浏览器、换设备、使用无痕窗口或清理网站数据时，记录可能无法自动带过去。重要计划建议定期在“方案管理”里点“导出到文件”，把 JSON 备份保存在自己能找到的位置。"},
-      {type: "paragraph", text: "登录后，你可以在方案管理中使用账号下的云端方案。云端方案需要网络同步；工作台和方案管理会显示同步状态。看到“未同步”“同步失败”或数据冲突提示时，先保留当前设备数据，并按“本地备份与云端方案”主题处理，再清理浏览器数据或切换设备。"},
+    {heading: "有 JSON 备份时：导入并核对记录", blocks: [
+      {type: "step", text: "打开工作台的“方案管理”。", deviceText: {pc: "在左侧“历史记录”标题旁点击“方案管理”。弹窗打开后，向下找到“本地备份（JSON 文件）”。", mobile: "先点底部“历史”切到历史记录，再点“方案管理”。弹出的方案管理窗口中，向下找到“本地备份（JSON 文件）”。"}},
+      {type: "image", image: {number: "05", filename: "wiki-03-plan-management-pc.png", caption: "PC：工作台历史记录旁的方案管理入口", alt: "PC 工作台中的方案管理按钮已用红框标出", focus: {crop: {x: 0, y: 0, width: 42, height: 42}, boxes: [{x: 7.5, y: 9, width: 7.5, height: 3.5}], arrows: [{fromX: 25, fromY: 5, toX: 12, toY: 10}]} }},
+      {type: "image", image: {number: "06", filename: "wiki-03-plan-management-mobile.png", caption: "手机：打开方案管理后找到本地 JSON 区域", alt: "手机方案管理窗口中的本地备份区域已用红框标出", focus: {crop: {x: 0, y: 20, width: 100, height: 80}, boxes: [{x: 3, y: 92, width: 47, height: 5}], arrows: [{fromX: 73, fromY: 84, toX: 28, toY: 93}]} }},
+      {type: "step", text: "点击“从文件导入”，在电脑或手机弹出的系统文件选择器中找到 OfCourses 导出的 .json 文件并确认。选好后会回到网站，页面会先显示导入预览；这时数据还没有写入工作台。"},
+      {type: "step", text: "先核对预览数字：“历史学期数”是文件包含的学期数量，“历史课程数”是记录课程总数，“自定义课程数”是手动添加的课程数。数字明显不对或选错文件时，点击“取消”重新选择。"},
+      {type: "image", image: {number: "07", filename: "wiki-04-plan-import-preview-pc.png", caption: "PC：导入预览中的数据统计、合并和覆盖选项", alt: "PC 导入预览中的合并导入和覆盖导入按钮已用红框标出", focus: {crop: {x: 10, y: 32, width: 80, height: 54}, boxes: [{x: 28, y: 73, width: 8, height: 4}, {x: 34, y: 73, width: 8, height: 4}], arrows: [{fromX: 59, fromY: 51, toX: 32, toY: 73}]} }},
+      {type: "image", image: {number: "08", filename: "wiki-04-plan-import-preview-mobile.png", caption: "手机：在导入预览底部选择合并或覆盖", alt: "手机导入预览底部的合并导入和覆盖导入按钮已用红框标出", focus: {crop: {x: 0, y: 30, width: 100, height: 70}, boxes: [{x: 6, y: 91, width: 20, height: 4}, {x: 27, y: 91, width: 20, height: 4}], arrows: [{fromX: 71, fromY: 70, toX: 16, toY: 92}]} }},
+      {type: "step", text: "想把文件里的记录补进当前浏览器，选择“合并导入”。相同学期的课程会合并并去重；文件里有、本机没有的学期会加入。想完全以文件为准，才选择“覆盖导入”：本机现有的历史记录和自定义课程会被文件内容整体替换。"},
+      {type: "callout", title: "不确定时先取消并备份", text: "覆盖导入可能移除文件中没有的旧记录；合并导入则可能把同一学期两边不同的课程都保留下来。拿不准时先取消，在方案管理中点击“导出到文件”保存当前记录，再决定导入方式。"},
+      {type: "step", text: "导入完成后，预览关闭，工作台历史记录更新。展开一两个学期，核对学期、课程名称和数量，再继续规划。"},
     ]},
-    {heading: "接下来，你想完成什么？", blocks: [
-      {type: "subheading", text: "查看本年级的培养方案"},
-      {type: "step", text: "点击主导航“培养方案”，先核对页面显示的年级或资料版本。用资料标签切换培养方案、教学计划等文件；在搜索框输入课程名、课程编号或关键词，点击搜索结果定位到文档中的相关位置。需要浏览课程、课组和模块之间的关系时，打开“培养方案导图”。具体搜索和导图操作见相关主题“查阅培养方案”“培养方案导图”。"},
-      {type: "subheading", text: "查看学位评定进度"},
-      {type: "step", text: "点击“综合工具 → 学位评定”，选择工作台记录、本地 OfCourses JSON 或账号云端方案作为数据来源。关联后先核对页面显示的课程和学分，再查看各评定轨道的完成情况。需要判断具体门槛或模块选择时，继续阅读“学位评定”；评定结果用于规划自查，不代替正式审核。"},
-      {type: "subheading", text: "向 AI 助手询问选课问题"},
-      {type: "step", text: "打开“综合工具 → AI 推荐助手”，先确认数据面板当前连接了哪份课程记录。提问前说明目标学期、已修或计划课程、学分和时间等限制；如果不希望某次提问带上个人课程数据，先检查页面的“提问时附带”设置。模型和可用额度以页面实时显示为准。完整说明见“AI 选课助手”。"},
-      {type: "subheading", text: "阅读同学的课程评价"},
-      {type: "step", text: "打开“综合工具 → 课程评价”，输入课程名称搜索，或按首字母浏览课程。阅读评价时留意发布时间、审核状态和互动反馈；热度榜反映互动情况，不等于课程质量排名。浏览公开评价不需要登录；发布评价、互动或举报时，按页面提示登录。"},
-      {type: "paragraph", text: "导航栏的“？”会根据当前页面优先显示本页交互引导和对应 Wiki 主题，也提供全站入门与 Wiki 入口。要查某个按钮、状态或完整操作过程，可以用本页相关主题、左侧目录或 Wiki 搜索继续阅读。"},
+    {heading: "第三步：选择这次要规划的学期", blocks: [
+      {type: "step", text: "选择目标学期。", deviceText: {pc: "看中间的“预选课程”区域，点击“您当前选择的是”旁边的学期下拉框，再选择要规划的学期。", mobile: "点底部“预选”打开预选课程区域；如果显示的是课程目录，点页面上的“预选”按钮打开抽屉。在抽屉顶部点击“您当前选择的是”旁边的学期下拉框，再选择要规划的学期。"}},
+      {type: "image", image: {number: "09", filename: "wiki-workspace-validation-pc.png", caption: "PC：预选区域中的目标学期和保存按钮", alt: "PC 预选区域中目标学期选择框和保存到历史记录按钮已用红框标出", focus: {crop: {x: 35, y: 0, width: 65, height: 48}, boxes: [{x: 77, y: 8, width: 14, height: 4}], arrows: [{fromX: 94, fromY: 4, toX: 84, toY: 9}]} }},
+      {type: "image", image: {number: "10", filename: "wiki-workspace-validation-mobile.png", caption: "手机：预选抽屉顶部的目标学期选择框", alt: "手机预选抽屉中的目标学期选择框已用红框标出", focus: {crop: {x: 0, y: 0, width: 100, height: 52}, boxes: [{x: 30, y: 11, width: 20, height: 5}], arrows: [{fromX: 68, fromY: 7, toX: 41, toY: 12}]} }},
+      {type: "paragraph", text: "这里选出的学期叫“目标学期”：之后加入并保存的课程会记到该学期。页面上方的“当前学期”只是网站根据日期显示的时间参考，可能和目标学期不同；例如当前正在上大一，也可以提前规划大二课程。保存前再核对一次目标学期。"},
     ]},
-  ]},
-  {id: "site-navigation", category: "开始使用", title: "网站导航与页面入口", summary: "认识首页、培养方案、工作台、综合工具和关于页面，并了解 PC 与手机导航的区别。", related: ["getting-started", "settings", "help-system", "messages"], sections: [
+    {heading: "第四步：搜索课程并加入预选", blocks: [
+      {type: "step", text: "在课程目录搜索课程名称或课程编号。", deviceText: {pc: "在右侧“课程目录”顶部的搜索框输入课程名称的一部分或课程编号。输入后，下面的课程列表会缩小到匹配结果。", mobile: "在课程目录顶部点“展开搜索与筛选”，输入课程名称或课程编号。选择筛选条件后点“完成”收起面板；收起只隐藏面板，不会清除已选条件。"}},
+      {type: "image", image: {number: "11", filename: "wiki-workspace-search-pc.png", caption: "PC：课程目录顶部的搜索框", alt: "PC 课程搜索输入框已用红框标出", focus: {crop: {x: 0, y: 0, width: 100, height: 90}, boxes: [{x: 6, y: 14, width: 36, height: 15}], arrows: [{fromX: 57, fromY: 6, toX: 24, toY: 16}]} }},
+      {type: "image", image: {number: "12", filename: "wiki-06-workspace-overview-mobile.png", caption: "手机：展开搜索与筛选的入口", alt: "手机工作台中展开搜索与筛选的按钮已用红框标出", focus: {crop: {x: 0, y: 0, width: 100, height: 50}, boxes: [{x: 2, y: 17, width: 31, height: 4}], arrows: [{fromX: 67, fromY: 14, toX: 19, toY: 18}]} }},
+      {type: "paragraph", text: "不确定课程名称时，可以按课程类别或课组、推荐学期、模块等条件筛选。“课组”和“模块”是培养方案里的课程归类；“推荐学期”是课程资料中的参考信息，不保证课程本学期一定开设。筛选条件会叠加，结果为空时先清除不需要的条件。"},
+      {type: "step", text: "读课程行后再加入：核对课程名称和编号，查看学分、课组及推荐学期。点击课程行左侧的“+”。加入成功后，“+”会变成已选状态，课程也会出现在预选课程区域；这一步还没有写入历史记录。"},
+      {type: "image", image: {number: "13", filename: "wiki-05-workspace-overview-pc.png", caption: "PC：点击课程行左侧的加号加入预选", alt: "PC 课程目录第一行左侧的加号已用红框标出", focus: {crop: {x: 40, y: 23, width: 60, height: 33}, boxes: [{x: 51, y: 41, width: 1.7, height: 2.8}], arrows: [{fromX: 57, fromY: 35, toX: 52, toY: 42}]} }},
+      {type: "image", image: {number: "14", filename: "wiki-workspace-search-mobile.png", caption: "手机：课程列表左侧的加号", alt: "手机课程列表左侧的加号按钮已用红框和箭头标出", focus: {crop: {x: 0, y: 0, width: 100, height: 58}, boxes: [{x: 2, y: 6, width: 6, height: 6}], arrows: [{fromX: 23, fromY: 3, toX: 6, toY: 8}]} }},
+    ]},
+    {heading: "第五步：检查提示并保存", blocks: [
+      {type: "step", text: "回到预选课程，检查学期、课程数量和总学分。", deviceText: {pc: "在中间的“预选课程”区域逐门核对课程，并查看学分合计和保存提示。", mobile: "点底部“预选”或页面上的预选按钮打开预选抽屉，逐门核对课程，并查看学分合计和保存提示。"}},
+      {type: "paragraph", text: "红色“错误”表示网站发现了需要先处理的问题，例如学分、先修或跨学期记录不符合当前检查规则；黄色“提醒”表示有信息需要你进一步核对，例如先修课程或课组选择。先打开提示阅读具体内容，不要只按颜色判断。第一次规划时建议先处理红色错误，再逐条检查黄色提醒。"},
+      {type: "image", image: {number: "15", filename: "wiki-workspace-validation-pc.png", caption: "PC：预选课程中的保存区和检查提示", alt: "PC 预选区域中的保存按钮和诊断提示已用红框标出", focus: {crop: {x: 35, y: 0, width: 65, height: 50}, boxes: [{x: 72, y: 25, width: 18, height: 4}], arrows: [{fromX: 93, fromY: 19, toX: 82, toY: 27}]} }},
+      {type: "image", image: {number: "16", filename: "wiki-workspace-validation-mobile.png", caption: "手机：预选抽屉中的总学分、保存按钮和提示", alt: "手机预选抽屉中的保存按钮及诊断信息已用红框标出", focus: {crop: {x: 0, y: 0, width: 100, height: 62}, boxes: [{x: 48, y: 25, width: 43, height: 5}], arrows: [{fromX: 30, fromY: 20, toX: 67, toY: 27}]} }},
+      {type: "step", text: "确认无误后点击“保存到历史记录”。保存成功时，对应学期会出现在历史记录里；预选课程清空。请再打开该学期，确认课程已经保存。"},
+      {type: "callout", title: "看到“仍然保存”时", text: "部分红色错误允许你在确认后使用“仍然保存”继续，但这并不表示问题已经解决。先读提示，确认有合理原因并理解记录可能不符合规划规则后再选择；第一次使用建议先修正问题。"},
+      {type: "callout", title: "正在修改已保存的学期？", text: "先在历史记录中打开该学期并点击编辑。原课程会载入预选区域；保存会更新原记录，取消修改会丢弃本次尚未保存的改动。看到确认提示时，先看清是保存、取消还是切换学期。"},
+    ]},
+    {heading: "保存后，记录在哪里？", blocks: [
+      {type: "paragraph", text: "未登录时，工作台保存的历史记录通常只在当前浏览器中。换设备、换浏览器、使用无痕窗口或清除网站数据，都可能无法继续看到这些记录。重要数据可在工作台“方案管理”中点击“导出到文件”，保存一份 JSON 备份。"},
+      {type: "paragraph", text: "登录后可在“方案管理”使用账号下的云端方案。云端数据需要网络同步；切换设备或方案前先确认页面显示“已同步”，遇到“未同步”、失败或冲突提示时先不要清理本地数据。详情见“本地备份与云端方案”。"},
+    ]},
+    {heading: "完成第一次规划后，可以继续", blocks: [
+      {type: "step", text: "想确认课程属于哪个培养模块：打开“培养方案”，核对年级版本和正式文件，再用“培养方案导图”浏览课程、课组和模块的关系。"},
+      {type: "step", text: "想检查学位要求进度：打开“综合工具 → 学位评定”，先选择课程数据来源并核对关联的记录，再看各轨道的进度。评定结果用于规划自查，具体要求要按对应年级版本核对。"},
+      {type: "step", text: "想讨论下学期选什么课：打开“综合工具 → AI 推荐助手”，确认已连接的课程记录；提问时写明目标学期、已修或计划课程及学分、时间等限制。是否把个人课程资料附在某次提问中，先看页面里的“提问时附带”设置。"},
+      {type: "step", text: "想了解同学的课程体验：打开“综合工具 → 课程评价”，搜索课程或按首字母浏览。热度榜反映互动情况，不是课程质量排名；发布、互动和举报需按页面提示登录。"},
+      {type: "paragraph", text: "需要跟着当前页面一步步操作时，点击导航栏“？”打开本页交互引导；需要查询具体按钮或完整规则时，回到使用指南，用左侧主题目录或搜索框打开对应 Wiki。"},
+    ]},
+  ]},  {id: "site-navigation", category: "开始使用", title: "网站导航与页面入口", summary: "认识首页、培养方案、工作台、综合工具和关于页面，并了解 PC 与手机导航的区别。", related: ["getting-started", "settings", "help-system", "messages"], sections: [
     {heading: "五个主页面分别在哪里", blocks: [
-      {type: "paragraph", text: "OfCourses 的主导航包含“首页”“培养方案”“工作台”“综合工具”和“关于我们”。PC 模式下它们位于顶部导航栏；手机模式下它们固定在页面底部。点某个导航项只会切换当前页面，不会自动把课程目录、学位评定或 AI 助手使用的数据互相导入。"},
+      {type: "paragraph", text: "主导航包含首页、培养方案、工作台、综合工具和关于我们。点击主导航只会切换页面，不会自动把工作台、学位评定或 AI 助手的数据互相导入。", deviceText: {pc: "PC 版中，主导航位于页面顶部。", mobile: "手机版本中，五个主导航入口固定在页面底部。"}},
       {type: "image", image: {number: "01", filename: "wiki-01-home-pc.png", caption: "PC：顶部主导航和账号、设置、教程入口", alt: "PC OfCourses 首页顶部导航栏和右侧全局操作入口"}},
       {type: "image", image: {number: "02", filename: "wiki-02-home-mobile.png", caption: "手机：底部五个主页面导航", alt: "手机 OfCourses 页面底部的首页、培养方案、工作台、综合工具和关于我们导航"}},
     ]},
     {heading: "各主页面的用途", blocks: [
       {type: "paragraph", text: "“首页”用于了解网站和快速进入主要功能；“培养方案”用于查阅按年级区分的正式培养方案资料及课程结构导图；“工作台”用于整理历史课程记录、规划目标学期并查看检查提示；“综合工具”包含学位评定、AI 推荐助手和课程评价；“关于我们”展示网站介绍和反馈说明。"},
-      {type: "step", text: "在 PC 上，直接点击顶部对应名称即可切换页面；在手机上，点击底部图标和名称切换。当前页面会以颜色或选中状态标记。若浏览器刷新，网站会恢复最近打开的主页面；综合工具还会尝试恢复最近的子页面。"},
+      {type: "step", text: "点击对应主导航入口后，网站会切换到该页面，并用颜色或选中状态标记当前位置。浏览器刷新后会恢复最近打开的主页面；综合工具还会尝试恢复最近的子页面。", deviceText: {pc: "请点击顶部导航栏中的页面名称。", mobile: "请点击底部导航栏中的图标和页面名称。"}},
       {type: "paragraph", text: "页面内的局部切换不会改变主导航：例如培养方案中的“导图 / 方案”是同一主页面内的内容区域；综合工具中的“学位评定 / AI 推荐助手 / 课程评价”是综合工具内的三个子页。"},
     ]},
     {heading: "顶部还有哪些全站入口", blocks: [
-      {type: "paragraph", text: "顶部导航中的信封用于查看网站公告与更新；账号按钮用于登录和查看账号资料；显示主题的控件用于切换浅色/深色；“中 / EN”用于切换界面语言；设备模式入口用于选择 PC 或手机布局；“？”打开统一教程入口。手机模式下，部分显示设置收在齿轮按钮打开的抽屉中。"},
+      {type: "paragraph", text: "信封用于查看网站公告与更新；账号入口用于登录和查看账号资料；主题控件切换浅色或深色；“中 / EN”切换界面语言；设备模式控件选择 PC 或手机布局；“？”打开统一教程入口。", deviceText: {pc: "PC 版中，语言、主题、设备模式和教程入口都在页面顶部导航栏。", mobile: "手机版本中，信封、账号和教程入口在顶部栏；语言、主题和设备模式收在齿轮按钮打开的设置抽屉里。"}},
       {type: "callout", title: "网站消息分为两处", text: "导航信封显示网站公告与版本更新；课程评价页面里的“消息”显示与你的评价、账号有关的个人通知。两者的未读状态和清除方式独立。"},
     ]},
     {heading: "刷新后回到哪一页", blocks: [
@@ -104,13 +111,13 @@ const GUIDE_ZH: GuideArticle[] = [
   ]},
   {id: "workspace", category: "工作台", title: "工作台：认识页面和历史记录", summary: "先看懂工作台各区域如何配合，再查阅历史学期、卡片状态和记录操作。", related: ["getting-started", "workspace-planning", "workspace-search", "workspace-validation", "workspace-custom-courses", "workspace-data"], sections: [
     {heading: "工作台解决什么问题", blocks: [
-      {type: "paragraph", text: "工作台用于按学期整理课程记录、规划下一步课程并检查计划。PC 模式下，页面从左到右是“历史记录”“预选课程”“课程目录”。先确认或选择目标学期，再从课程目录加入课程到预选区域，核对后保存到历史记录。"},
+      {type: "paragraph", text: "工作台用于按学期整理课程记录、规划下一步课程并检查计划。完整流程是选择目标学期、从课程目录添加课程、在预选区域检查，再保存到历史记录。", deviceText: {pc: "PC 版同时显示三个区域：从左到右依次为历史记录、预选课程、课程目录。", mobile: "手机版本一次主要操作一个区域：课程目录显示在页面主体，预选课程和历史记录从底部标签切换。"}},
       {type: "image", image: {number: "01", filename: "wiki-05-workspace-overview-pc.png", caption: "PC 工作台：历史记录、预选课程和课程目录", alt: "PC 工作台的左侧历史记录、中间预选课程和右侧课程目录三个区域"}},
       {type: "image", image: {number: "02", filename: "wiki-06-workspace-overview-mobile.png", caption: "手机工作台：通过底部标签查看预选课程和历史记录", alt: "手机工作台课程目录，以及底部的预选和历史切换入口"}},
       {type: "subheading", text: "三个区域分别显示什么"},
       {type: "paragraph", text: "“历史记录”显示已经保存的学期课程。你可以查看每学期的课程和学分，也可以编辑或删除这条学期记录。页面无历史数据时，这一区域会显示“暂无历史记录”。"},
       {type: "paragraph", text: "“预选课程”显示当前正在编辑、还没有保存到历史记录的课程。它有一个学期选择框；同一个预选列表只对应当前选择的目标学期。加入的课程、总门数、总学分和检查提示都会在这里显示。"},
-      {type: "paragraph", text: "“课程目录”显示网站收录的课程。你可以搜索课程名称或编号，按课程组、推荐学期、模块等条件筛选，查看课程信息，再将课程加入预选。手机模式下，课程目录占主要内容区；预选课程和历史记录通过页面底部标签或抽屉打开。"},
+      {type: "paragraph", text: "“课程目录”显示网站收录的课程，可搜索课程名称或编号、按条件筛选、查看课程信息，再把课程加入预选。", deviceText: {pc: "PC 版的课程目录在工作台右侧，可独立滚动列表。", mobile: "手机版本中，课程目录占主要内容区；底部“预选”和“历史”用于切换相应区域。"}},
     ]},
     {heading: "看懂历史记录里的学期标签", blocks: [
       {type: "paragraph", text: "历史记录按学期显示。学期顺序结合账号年级和网站显示的当前学期判断，因此“当前学期”与正在计划的“目标学期”是两个概念。当前学期由网站根据日期和可识别的年级自动推算；没有可用账号年级时会使用本机保留值或默认值。"},
@@ -128,7 +135,7 @@ const GUIDE_ZH: GuideArticle[] = [
       {type: "paragraph", text: "历史记录标题旁的“清除”用于清空全部学期的课程记录和自定义课程，不是只清理当前选中的学期。点击后会出现确认窗口；选“取消”保留数据，选“确定清除”则删除所有学期记录和自定义课程。该操作不可撤销，执行前建议通过“方案管理 → 导出到文件”保存 JSON 备份。"},
     ]},
     {heading: "PC 与手机的布局", blocks: [
-      {type: "paragraph", text: "PC 模式下三个区域同时显示；历史记录卡片可以横向滚动，课程目录单独滚动。手机模式会把区域拆到不同入口：通过底部的“预选”“历史”切换相应区域，预选课程会以底部抽屉呈现；在历史卡片上编辑时，工作台会打开预选抽屉。手机浏览器若启用了“电脑模式”，页面可能按 PC 布局呈现；可在导航栏设置中切换网站设备模式。"},
+      {type: "paragraph", text: "历史记录、预选课程和课程目录分别承担查看已保存数据、暂存本次编辑和查找课程的任务。", deviceText: {pc: "PC 版会同时显示三个区域；历史记录和课程目录可各自滚动。", mobile: "手机版本通过底部“预选”“历史”切换区域，预选课程以抽屉呈现。编辑历史记录中的学期时，工作台会打开预选抽屉。"}},
     ]},
     {heading: "继续阅读", blocks: [
       {type: "paragraph", text: "要完成一次新规划，请读“选择目标学期并保存课程”；要找课，读“搜索、筛选与课程推荐”；遇到红色错误或黄色提醒，读“学分、先修与诊断提示”；要添加培养方案外的课程，读“自定义课程”；要换设备或管理云端方案，读“本地备份与云端方案”。"},
@@ -138,7 +145,7 @@ const GUIDE_ZH: GuideArticle[] = [
     {heading: "选择目标学期", blocks: [
       {type: "paragraph", text: "“目标学期”是当前预选区域正在编辑的学期。你加入课程后，它们会归入这里；点击“保存到历史记录”后也会保存到这里。页面上方的“当前学期”由系统根据日期和年级显示，主要用于判断时间，不能代替预选区域的学期选择。"},
       {type: "step", text: "打开工作台，在“预选课程”区域找到“您当前选择的是”旁边的下拉框。点击下拉框，从列表中选择准备规划的学期。确认选择框显示的是正确学期，再开始加入课程。"},
-      {type: "step", text: "手机模式下，如果预选区域没有展开，点击底部“预选”或页面上的预选按钮打开抽屉；在抽屉顶部的“您当前选择的是”下拉框选择目标学期。"},
+      {type: "step", text: "打开预选区域顶部的学期下拉框，选择这次要规划的目标学期。", deviceText: {pc: "PC 版的学期下拉框位于中间的预选课程区域顶部。", mobile: "手机版本中先点底部“预选”或页面上的预选按钮打开抽屉，再点抽屉顶部的学期下拉框。"}},
       {type: "callout", title: "当前学期和目标学期可以不同", text: "例如页面显示当前处于大一·春季，你仍可以在预选区域选择大一·夏季或大二·秋季规划课程。保存前再次检查目标学期，避免把课程记入错误的学期。"},
     ]},
     {heading: "把课程加入预选列表", blocks: [
@@ -165,7 +172,7 @@ const GUIDE_ZH: GuideArticle[] = [
   ]},
   {id: "workspace-search", category: "工作台", title: "搜索、筛选与课程推荐", summary: "用课程名、编号或筛选条件缩小目录范围，并理解推荐排序何时生效。", related: ["workspace", "workspace-planning", "curriculum-map"], sections: [
     {heading: "先确认你正在查看课程目录", blocks: [
-      {type: "paragraph", text: "搜索和筛选只改变课程目录中当前显示的课程，不会删除历史记录或预选课程。电脑模式下，课程目录位于工作台右侧；手机模式下，课程目录通常是工作台的主区域，筛选条件可以从“展开搜索与筛选”入口打开。"},
+      {type: "paragraph", text: "搜索和筛选只改变课程目录当前显示的课程，不会删除历史记录或预选课程。", deviceText: {pc: "PC 版中课程目录位于工作台右侧，搜索框和筛选控件在列表上方。", mobile: "手机版本中课程目录占据主要区域；点“展开搜索与筛选”打开筛选面板。"}},
       {type: "image", image: {number: "01", filename: "wiki-workspace-search-pc.png", caption: "PC：工作台课程目录的搜索、筛选和推荐入口", alt: "PC 工作台课程目录搜索框与筛选控件区域"}},
       {type: "image", image: {number: "02", filename: "wiki-workspace-search-mobile.png", caption: "手机：展开搜索与筛选并查看生效条件", alt: "手机工作台课程目录以及搜索筛选入口"}},
     ]},
@@ -180,7 +187,7 @@ const GUIDE_ZH: GuideArticle[] = [
       {type: "step", text: "按课程组或类别筛选时，可以选择具体课组，也可以选择 I、II、III 类课程范围。这个条件关注课程在培养方案中的归类；课程行上的“课程属性”（例如必修、限选）是另一类信息，当前工作台没有单独的课程属性筛选器。"},
       {type: "step", text: "按推荐学期筛选，可以只看本站资料标注为某学期的课程。这里的“推荐学期”是目录中的参考数据，不保证课程当学期实际开设。"},
       {type: "step", text: "按模块筛选时，先选择一个模块；需要继续按 A 组或 B 组缩小范围时，再选择对应课组。没有先选模块时，A/B 选项不可用。若选“无模块”或类似选项，结果会显示未归属模块的课程。"},
-      {type: "step", text: "在手机上打开筛选抽屉后，逐项选择条件，再点“完成”关闭抽屉。关闭抽屉不会清除条件；目录上方会继续显示筛选生效状态。若看不到预期课程，重新打开抽屉检查并清除不需要的条件。"},
+      {type: "step", text: "选择筛选条件后，课程目录会按所有已选条件共同缩小结果。", deviceText: {pc: "PC 版直接在课程目录上方选择筛选控件；再次选择“未启用”可取消对应条件。", mobile: "手机版本在筛选面板逐项选择，再点“完成”收起面板。收起不会清除条件；无结果时重新打开面板，清除不需要的条件。"}},
     ]},
     {heading: "理解推荐开关", blocks: [
       {type: "paragraph", text: "“推荐”开关开启时，工作台会根据你保存的课程记录、当前目标学期和本站课程关系调整目录顺序，帮助你优先浏览可能相关的课程。推荐是排序建议，不代表课程一定适合你，也不代表你满足该课程的先修或选课资格。"},
@@ -219,8 +226,8 @@ const GUIDE_ZH: GuideArticle[] = [
   {id: "workspace-custom-courses", category: "工作台", title: "添加自定义课程", summary: "为课程目录未收录的学习内容添加名称、学分与属性，并理解它如何计入记录。", related: ["workspace", "workspace-planning", "workspace-data", "degree"], sections: [
     {heading: "什么时候使用自定义课程", blocks: [
       {type: "paragraph", text: "课程目录没有你需要记录的课程时，可以在工作台“预选课程”区域底部的“自定义课程”栏手动添加。自定义课程主要用于个人规划、统计和备份；它不会自动变成课程目录中的正式课程，也不会自动获得课程编号、课组关系或先修数据。"},
-      {type: "image", image: {number: "01", filename: "wiki-workspace-custom-course-pc.png", caption: "PC：工作台预选课程区域下方的自定义课程栏", alt: "PC 工作台自定义课程输入框、学分和课程属性选项"}},
-      {type: "image", image: {number: "02", filename: "wiki-workspace-custom-course-mobile.png", caption: "手机：预选抽屉中的自定义课程栏", alt: "手机工作台预选抽屉底部的自定义课程表单"}},
+      {type: "image", image: {number: "01", filename: "wiki-workspace-validation-pc.png", caption: "PC：在预选课程栏找到自定义课程表单", alt: "PC 工作台完整区域中，预选课程栏下方的自定义课程表单已用红框标出", focus: {crop: {x: 40, y: 5, width: 60, height: 62}, boxes: [{x: 65, y: 40, width: 31, height: 18}], arrows: [{fromX: 92, fromY: 30, toX: 82, toY: 42}]} }},
+      {type: "image", image: {number: "02", filename: "wiki-workspace-validation-mobile.png", caption: "手机：打开预选抽屉后找到自定义课程表单", alt: "手机预选抽屉中，学期课程下方的自定义课程表单已用红框标出", focus: {crop: {x: 0, y: 0, width: 100, height: 62}, boxes: [{x: 8, y: 39, width: 84, height: 19}], arrows: [{fromX: 73, fromY: 31, toX: 48, toY: 41}]} }},
     ]},
     {heading: "填写课程并添加", blocks: [
       {type: "step", text: "先在预选区域选择目标学期。自定义课程会归属于这个学期；添加之前确认学期选择框显示正确。"},
@@ -263,8 +270,8 @@ const GUIDE_ZH: GuideArticle[] = [
   {id: "accounts", category: "账号与数据", title: "注册、登录与账号资料", summary: "完成清华邮箱验证，管理昵称与年级，并了解退出登录后本地数据的状态。", related: ["workspace-data", "settings", "course-reviews", "curriculum"], sections: [
     {heading: "哪些功能需要登录", blocks: [
       {type: "paragraph", text: "浏览工作台和培养方案不要求登录，课程记录可以先保存在当前浏览器。登录用于关联账号云端方案、跨设备同步，以及使用页面标明需要账号的功能，例如发布课程评价。登录后依然要检查当前方案与同步状态。"},
-      {type: "image", image: {number: "01", filename: "wiki-account-entry-pc.png", caption: "PC：导航栏中的登录与账号入口", alt: "PC OfCourses 导航栏登录按钮或账号菜单"}},
-      {type: "image", image: {number: "02", filename: "wiki-account-entry-mobile.png", caption: "手机：顶部导航中的登录与账号入口", alt: "手机 OfCourses 顶部导航的登录按钮或账号菜单"}},
+      {type: "image", image: {number: "01", filename: "wiki-account-entry-pc.png", caption: "PC：登录窗口中的登录和注册入口", alt: "PC 登录窗口中的登录与注册标签已用红框标出"}},
+      {type: "image", image: {number: "02", filename: "wiki-account-entry-mobile.png", caption: "手机：登录窗口中的登录和注册入口", alt: "手机登录窗口中的登录与注册标签已用红框标出"}},
     ]},
     {heading: "注册新账号", blocks: [
       {type: "step", text: "点击导航栏“登录 / 注册”，切换到“注册”。输入清华邮箱前缀；页面会自动拼接 @mails.tsinghua.edu.cn。也可以粘贴完整清华邮箱，页面会提取 @ 前的部分。"},
@@ -285,7 +292,7 @@ const GUIDE_ZH: GuideArticle[] = [
   ]},
   {id: "settings", category: "设置与显示", title: "语言、主题与设备模式", summary: "调整中英文、浅色/深色和 PC/手机页面布局，并理解偏好如何保存。", related: ["accounts", "help-system", "faq"], sections: [
     {heading: "设置入口在哪里", blocks: [
-      {type: "paragraph", text: "PC 模式下，语言、主题、设备模式和教程入口在顶部导航栏；手机模式下，语言、主题和设备模式收在右上角设置抽屉中，教程入口仍在顶部。不同设备布局的设置外观不同，但选择会保存在浏览器中。"},
+      {type: "paragraph", text: "语言、主题和页面设备模式是分别保存的浏览器偏好；更换外观后，页面会立即切换到对应版本。", deviceText: {pc: "PC 版的语言、主题和设备模式控件在顶部导航栏。", mobile: "手机版本的语言、主题和设备模式位于顶部齿轮打开的设置抽屉；教程入口仍在顶部栏。"}},
       {type: "image", image: {number: "01", filename: "wiki-settings-pc.png", caption: "PC：导航栏语言、主题和设备模式控件", alt: "PC 导航栏的中英文、浅色深色和手机模式入口"}},
       {type: "image", image: {number: "02", filename: "wiki-settings-mobile.png", caption: "手机：打开设置抽屉查看显示偏好", alt: "手机顶部导航打开后的显示设置抽屉"}},
     ]},
@@ -322,7 +329,7 @@ const GUIDE_ZH: GuideArticle[] = [
   ]},
   {id: "messages", category: "消息与更新", title: "网站公告与版本更新", summary: "查看全站公告和版本通知，理解本机已读标记，并在新版本提示后安全刷新。", related: ["site-navigation", "settings", "course-reviews", "faq"], sections: [
     {heading: "导航信封：网站公告和更新", blocks: [
-      {type: "paragraph", text: "导航栏的信封图标打开全站“站内消息”面板。这里发布网站声明和网站更新，不是课程评价的个人消息中心。PC 上面板从信封旁展开；手机上以底部抽屉显示。信封角标显示本浏览器尚未标记已读的消息数量。"},
+      {type: "paragraph", text: "导航栏的信封图标打开全站“站内消息”，用于查看网站公告和更新；它不是课程评价的个人消息中心。信封角标显示当前浏览器中尚未标记已读的消息数量。", deviceText: {pc: "PC 版的消息面板从顶部导航栏的信封旁展开。", mobile: "手机版本的消息以底部抽屉显示。"}},
       {type: "image", image: {number: "01", filename: "wiki-site-messages-pc.png", caption: "PC：打开站内消息并浏览消息列表", alt: "PC 站内消息窗口列表和未读状态"}},
       {type: "image", image: {number: "02", filename: "wiki-site-messages-mobile.png", caption: "手机：顶部导航中的站内消息窗口", alt: "手机站内消息抽屉或弹窗"}},
     ]},
@@ -376,7 +383,7 @@ const GUIDE_ZH: GuideArticle[] = [
       {type: "paragraph", text: "搜索范围包含培养方案、教学计划和交叉培养指南等文字资料；图片版的“培养方案解读”不能通过这个搜索框识别文字。搜索结果用于快速定位，判断条文时要阅读命中位置前后的完整段落、表格和限定条件。"},
     ]},
     {heading: "PC 与手机的操作差别", blocks: [
-      {type: "paragraph", text: "PC 页面同时显示导图和文档，中间的竖向分隔条可以拖动，改变左右区域宽度。手机页面为了让正文保持可读，一次显示其中一个区域：点页面底部的“导图”回到课程结构，点“方案”阅读资料。手机上的培养方案页面不表示 PC 的左右两栏被缩放到手机里。"},
+      {type: "paragraph", text: "培养方案页提供课程结构导图和正式资料两种内容，导图用于浏览关系，资料用于核对正式要求。", deviceText: {pc: "PC 版同时显示导图和文档；拖动中间分隔条可以调整两侧宽度。", mobile: "手机版本一次显示一个区域：点页面底部“导图”查看课程结构，点“方案”阅读资料。"}},
     ]},
     {heading: "以正式文件和最新通知为准", blocks: [
       {type: "paragraph", text: "网站资料便于查找和理解。涉及实际选课资格、课程是否开设、学分认定或最新政策时，请核对书院与教务部门发布的正式文件及当期通知。搜索到某条规则后，不要只截取关键词所在的一行，应一并阅读其适用对象、前置条件和例外说明。"},
@@ -390,7 +397,7 @@ const GUIDE_ZH: GuideArticle[] = [
     ]},
     {heading: "三种视图的区别", blocks: [
       {type: "paragraph", text: "“列表”按模块、课组和课程层级排列，适合顺着目录逐项查看；“树状”以分支形状突出上级与下级关系；“关系”以节点连线展示课程与课组之间的关联，适合探索某门课属于哪些课组，或哪些课组共享课程。"},
-      {type: "step", text: "在导图区域找到视图切换控件，选择“列表”“树状”或“关系”。切换后内容布局会改变，但读取的仍是当前年级版本的数据。手机上若正在阅读方案文件，先点页面底部“导图”进入导图区域。"},
+      {type: "step", text: "在导图区域选择“列表”“树状”或“关系”视图。切换后只是改变课程关系的呈现方式，使用的仍是当前年级版本的数据。", deviceText: {pc: "PC 版的视图切换控件位于导图上方。", mobile: "手机版本若正在看方案文件，先点页面底部“导图”回到导图，再选择视图。"}},
       {type: "image", image: {number: "03", filename: "wiki-curriculum-map-tree-pc.png", caption: "PC：树状视图展示模块、课组和课程之间的层级", alt: "PC 培养方案导图树状视图，左侧模块向右连接多个课组和课程节点"}},
       {type: "callout", title: "视图名称会随页面宽度收缩", text: "在窄屏上，视图控件可能只显示图标。切换前可查看图标含义或提示文字；如果面板过窄，先收起其他导航或切回列表视图。"},
     ]},
@@ -403,7 +410,7 @@ const GUIDE_ZH: GuideArticle[] = [
     {heading: "在关系视图中检查关联", blocks: [
       {type: "step", text: "选择“课程”视角后，选择或点击课程节点，查看它关联的课组和模块；适合回答“这门课属于哪些培养方案分组”。"},
       {type: "step", text: "选择“课组”视角后，勾选想比较的课组，图中会显示这些课组共同包含的课程。若节点太多，可调整对比数量上限或共享课程数量条件，先让关系图聚焦于你要比较的范围。"},
-      {type: "paragraph", text: "PC 上可将鼠标悬停在节点上查看名称、模块或学分提示。手机上没有鼠标悬停，通常需要点击节点或相关控件查看详情；关系图较密时可先减少同时比较的课组。"},
+      {type: "paragraph", text: "选中节点可查看其课程、课组或模块关系；关系图较密时先减少同时比较的课组。", deviceText: {pc: "PC 版可将鼠标悬停在节点上查看名称、模块或学分提示。", mobile: "手机版本没有鼠标悬停，点节点或相关控件查看详情。"}},
       {type: "image", image: {number: "04", filename: "wiki-curriculum-map-relation-pc.png", caption: "PC：关系视图中比较课程与课组关联", alt: "PC 培养方案导图关系视图，课程和课组节点由连线关联"}},
     ]},
     {heading: "读图时的核对顺序", blocks: [
@@ -502,7 +509,7 @@ const GUIDE_ZH: GuideArticle[] = [
   ]},
   {id: "course-reviews", category: "综合工具", title: "课程评价", summary: "搜索课程、阅读评价、理解热度榜与互动，并发布和管理自己的评价。", related: ["tools-overview", "accounts", "messages", "faq"], sections: [
     {heading: "先认识课程评价页面", blocks: [
-      {type: "paragraph", text: "课程评价是同学分享课程体验的社区页面，和工作台课程记录分开保存。PC 模式通常左侧浏览评价、右侧显示发布入口与热度榜；手机模式会调整为窄屏布局。页面顶部可打开消息、“我的评价”和身份设置；发布评价、互动或举报需要登录。"},
+      {type: "paragraph", text: "课程评价是同学分享课程体验的社区页面，和工作台课程记录分开保存。页面提供搜索、评价列表、热度榜、消息和“我的评价”；发布评价、互动或举报需要登录。", deviceText: {pc: "PC 版通常左侧浏览评价，右侧显示发布入口与热度榜。", mobile: "手机版本将搜索、发布入口和列表排成窄屏页面，顶部可打开消息、“我的评价”和身份设置。"}},
       {type: "image", image: {number: "01", filename: "wiki-course-reviews-pc.png", caption: "PC：课程搜索栏和首字母快速索引", alt: "PC 课程评价页的课程搜索栏、放大镜和首字母索引区域"}},
       {type: "image", image: {number: "02", filename: "wiki-course-reviews-mobile.png", caption: "手机：发布入口、热度榜、搜索和首字母索引", alt: "手机课程评价页顶部区域，显示我要评价、热度榜、搜索栏和首字母索引"}},
     ]},
@@ -515,8 +522,8 @@ const GUIDE_ZH: GuideArticle[] = [
     {heading: "查看热度榜", blocks: [
       {type: "paragraph", text: "热度榜提供月榜和年榜切换，分别统计最近 30 天和最近 365 天已发布、且热度分大于 0 的评价，最多列出十项。热度分按互动计算：“赞”+“实用！”×2+“观望中”−“真的吗？”−“不实用”×2；因此它反映互动反馈，不是课程质量或普遍口碑分。"},
       {type: "paragraph", text: "列表顶部的单行摘要会自动轮播榜单前几条；点摘要或展开控件可以查看完整榜单。编号表示当前返回榜单中的位置，切换月榜/年榜或刷新数据后可能变化；如果榜单为空，不会显示虚构的名次。"},
-      {type: "image", image: {number: "01", filename: "wiki-course-reviews-board-pc.png", caption: "PC：月榜和年榜及当前排名", alt: "PC 课程评价热度排行榜，显示月榜、年榜和榜单条目"}},
-      {type: "image", image: {number: "02", filename: "wiki-course-reviews-board-mobile.png", caption: "手机：单行轮播摘要与展开后的榜单", alt: "手机课程评价热度榜，显示单行轮播摘要和展开后的排名列表"}},
+      {type: "image", image: {number: "01", filename: "wiki-course-reviews-pc.png", caption: "PC：热度榜位于课程评价页面右侧", alt: "PC 完整课程评价页面中，右侧的热度榜已用红框标出", focus: {crop: {x: 0, y: 0, width: 100, height: 62}, boxes: [{x: 79, y: 16, width: 18, height: 18}], arrows: [{fromX: 69, fromY: 14, toX: 83, toY: 19}]} }},
+      {type: "image", image: {number: "02", filename: "wiki-course-reviews-mobile.png", caption: "手机：热度榜位于发布入口和搜索栏之间", alt: "手机课程评价页面中，发布入口下方的热度榜已用红框标出", focus: {crop: {x: 0, y: 0, width: 100, height: 72}, boxes: [{x: 2, y: 34, width: 96, height: 10}], arrows: [{fromX: 83, fromY: 30, toX: 76, toY: 36}]} }},
       {type: "step", text: "点击“月榜”或“年榜”切换统计范围，等待榜单完成加载。若该范围暂无已发布且热度为正的评价，页面会显示空状态；审核中的帖子不会作为已发布内容进入榜单。"},
       {type: "paragraph", text: "热度榜用于发现近期互动较多的内容，不等于课程质量、难度或普遍口碑排名。点榜单条目可进入相应课程评价。"},
     ]},
@@ -665,13 +672,26 @@ const GUIDE_EN: GuideArticle[] = [
 
 interface Props {mobile: boolean; active: boolean; initialSection: string; onSectionChange: (section: string) => void;}
 
-function sectionBlocks(section: GuideSection): GuideBlock[] {
-  if (section.blocks) return section.blocks;
-  return [
+function sectionBlocks(section: GuideSection, device?: GuideDevice): GuideBlock[] {
+  const blocks = section.blocks ?? [
     ...(section.paragraphs ?? []).map((text): GuideBlock => ({type: "paragraph", text})),
     ...(section.steps ?? []).map((text): GuideBlock => ({type: "step", text})),
     ...(section.images ?? []).map((image): GuideBlock => ({type: "image", image})),
   ];
+  if (!device) return blocks;
+  return blocks.filter((block) => {
+    if (block.type !== "image") return true;
+    const filename = block.image.filename.toLowerCase();
+    const imageDevice = /-mobile\.(png|jpe?g|webp|svg)$/.test(filename) ? "mobile"
+      : /-pc\.(png|jpe?g|webp|svg)$/.test(filename) ? "pc"
+        : null;
+    return imageDevice === null || imageDevice === device;
+  });
+}
+
+function blockText(block: Exclude<GuideBlock, {type: "image"}>, device: GuideDevice): string {
+  const deviceNote = block.deviceText?.[device];
+  return deviceNote ? `${block.text} ${deviceNote}` : block.text;
 }
 
 function articleSearchText(article: GuideArticle): string {
@@ -679,20 +699,176 @@ function articleSearchText(article: GuideArticle): string {
     section.heading,
     ...sectionBlocks(section).map((block) => block.type === "image"
       ? `${block.image.number} ${block.image.filename} ${block.image.caption}`
-      : block.text),
+      : [block.text, ...Object.values(block.deviceText ?? {})].join(" ")),
   ])].join(" ").toLocaleLowerCase();
+}
+
+function guideEntryText(id: GuideId, device: GuideDevice, zh: boolean): string | null {
+  const workspaceTopics: GuideId[] = ["getting-started", "workspace", "workspace-data", "workspace-history", "workspace-planning", "workspace-search", "workspace-validation", "workspace-custom-courses"];
+  const targets: Partial<Record<GuideId, {zh: string; en: string; parent?: {zh: string; en: string}}>> = {
+    "site-navigation": {zh: "主导航和全站入口", en: "the main navigation and site-wide controls"},
+    workspace: {zh: "工作台", en: "Workspace"},
+    "workspace-data": {zh: "方案管理", en: "Plans"},
+    "workspace-history": {zh: "历史记录", en: "Course History"},
+    "workspace-planning": {zh: "预选课程", en: "Preselected Courses"},
+    "workspace-search": {zh: "课程目录", en: "Course Catalog"},
+    "workspace-validation": {zh: "预选课程", en: "Preselected Courses"},
+    "workspace-custom-courses": {zh: "预选课程", en: "Preselected Courses"},
+    curriculum: {zh: "培养方案", en: "Curriculum"},
+    "curriculum-map": {zh: "导图", en: "Map"},
+    "tools-overview": {zh: "综合工具", en: "Tools"},
+    degree: {zh: "学位评定", en: "Degree Evaluation", parent: {zh: "综合工具", en: "Tools"}},
+    "ai-assistant": {zh: "AI 推荐助手", en: "AI Assistant", parent: {zh: "综合工具", en: "Tools"}},
+    "course-reviews": {zh: "课程评价", en: "Course Reviews", parent: {zh: "综合工具", en: "Tools"}},
+    accounts: {zh: "账号按钮或登录入口", en: "the account or sign-in control"},
+    settings: {zh: "设置入口", en: "Settings"},
+    messages: {zh: "导航栏信封", en: "the envelope in the navigation"},
+    about: {zh: "关于我们", en: "About"},
+    "help-system": {zh: "导航栏问号", en: "the question-mark help control"},
+    faq: {zh: "使用指南左侧的主题目录或搜索框", en: "the topic list or search field in this guide"},
+  };
+
+  if (id === "getting-started") return null;
+  if (id === "site-navigation") {
+    return zh ? "本篇从你当前所在的 Wiki 页面开始；需要离开 Wiki 时，使用页面顶部或底部的主导航。"
+      : "Start from this Wiki page. Use the main navigation at the top or bottom if you need to leave the guide.";
+  }
+  if (id === "faq") {
+    return zh ? "先留在本页，用左侧主题目录或搜索框找到与你遇到的情况相同的条目。"
+      : "Stay on this page and use the topic list or search field to find the matching issue.";
+  }
+  const target = targets[id];
+  if (!target) return null;
+  if (id === "settings") {
+    return zh
+      ? (device === "pc" ? "在页面顶部导航栏找到语言、主题和设备模式控件。" : "点顶部栏右侧的齿轮打开设置抽屉。")
+      : (device === "pc" ? "Find the language, theme, and device controls in the top navigation." : "Tap the gear at the top right to open Settings.");
+  }
+  if (id === "accounts") {
+    return zh
+      ? (device === "pc" ? "在页面顶部点击“登录 / 注册”或账号按钮。" : "点顶部栏中的“登录”或账号头像。")
+      : (device === "pc" ? "Select Sign in / Sign up or the account control in the top navigation." : "Tap Sign in or the account avatar in the top bar.");
+  }
+  if (id === "messages") {
+    return zh
+      ? (device === "pc" ? "点击页面顶部导航栏左侧的信封图标。" : "点顶部栏中的信封图标。")
+      : (device === "pc" ? "Select the envelope icon in the top navigation." : "Tap the envelope icon in the top bar.");
+  }
+  if (id === "help-system") {
+    return zh
+      ? (device === "pc" ? "点击页面顶部导航栏右侧的“？”按钮。" : "点顶部栏中的“？”按钮。")
+      : (device === "pc" ? "Select the “?” control at the top right." : "Tap the “?” control in the top bar.");
+  }
+  const nav = id === "curriculum" || id === "curriculum-map" ? {zh: "培养方案", en: "Curriculum"}
+    : workspaceTopics.includes(id) ? {zh: "工作台", en: "Workspace"}
+      : id === "about" ? {zh: "关于我们", en: "About"}
+        : {zh: "综合工具", en: "Tools"};
+  const navPosition = zh
+    ? (device === "pc" ? "页面顶部主导航" : "页面底部主导航")
+    : (device === "pc" ? "the top navigation" : "the bottom navigation");
+  const navInstruction = zh ? `在${navPosition}点击“${nav.zh}”` : `Select ${nav.en} in ${navPosition}`;
+  const destination = target.parent
+    ? (zh ? `，再选择“${target.zh}”` : `, then select ${target.en}`)
+    : (target.zh === nav.zh && target.en === nav.en ? "" : (zh ? `，再打开“${target.zh}”` : `, then open ${target.en}`));
+  return `${navInstruction}${destination}。`;
+}
+
+const GUIDE_IMAGE_FOCUS: Record<string, GuideFocus> = {
+  "wiki-account-entry-pc.png": {crop: {x: 3, y: 4, width: 94, height: 92}, boxes: [{x: 10, y: 14, width: 28, height: 8}], arrows: [{fromX: 52, fromY: 7, toX: 32, toY: 16}]},
+  "wiki-account-entry-mobile.png": {crop: {x: 3, y: 11, width: 94, height: 72}, boxes: [{x: 9, y: 18, width: 29, height: 8}], arrows: [{fromX: 56, fromY: 14, toX: 31, toY: 19}]},
+  "wiki-site-messages-pc.png": {crop: {x: 10, y: 0, width: 66, height: 57}, boxes: [{x: 20, y: 3, width: 5, height: 8}, {x: 20, y: 11, width: 44, height: 36}], arrows: [{fromX: 28, fromY: 8, toX: 33, toY: 13}]},
+  "wiki-site-messages-mobile.png": {crop: {x: 0, y: 0, width: 100, height: 100}, boxes: [{x: 51, y: 1, width: 8, height: 6}, {x: 0, y: 72, width: 100, height: 28}, {x: 79, y: 77, width: 17, height: 5}, {x: 5, y: 82, width: 90, height: 8}], arrows: [{fromX: 58, fromY: 7, toX: 56, toY: 74}]},
+  "wiki-settings-pc.png": {crop: {x: 0, y: 0, width: 100, height: 100}, boxes: [{x: 4, y: 18, width: 25, height: 64}, {x: 30, y: 18, width: 24, height: 64}, {x: 62, y: 18, width: 22, height: 64}]},
+  "wiki-settings-mobile.png": {crop: {x: 0, y: 0, width: 100, height: 30}, boxes: [{x: 0, y: 5, width: 100, height: 14}]},
+  "wiki-curriculum-docs-01-pc.png": {crop: {x: 10, y: 0, width: 90, height: 24}, boxes: [{x: 24, y: 7, width: 74, height: 4}], arrows: [{fromX: 17, fromY: 20, toX: 45, toY: 9}]},
+  "wiki-curriculum-docs-02-mobile.png": {crop: {x: 0, y: 0, width: 100, height: 34}, boxes: [{x: 3, y: 6, width: 94, height: 4}], arrows: [{fromX: 49, fromY: 3, toX: 49, toY: 7}]},
+  "wiki-curriculum-map-list-pc.png": {crop: {x: 0, y: 0, width: 100, height: 43}, boxes: [{x: 60, y: 1, width: 36, height: 6}, {x: 2, y: 7, width: 75, height: 10}]},
+  "wiki-curriculum-map-mobile.png": {crop: {x: 0, y: 0, width: 100, height: 36}, boxes: [{x: 49, y: 6, width: 45, height: 5}, {x: 2, y: 14, width: 94, height: 5}]},
+  "wiki-curriculum-map-tree-pc.png": {crop: {x: 0, y: 0, width: 100, height: 88}, boxes: [{x: 60, y: 1, width: 36, height: 6}, {x: 50, y: 25, width: 36, height: 9}]},
+  "wiki-tools-overview-pc.png": {crop: {x: 0, y: 0, width: 32, height: 40}, boxes: [{x: 1, y: 11, width: 11, height: 14}], arrows: [{fromX: 24, fromY: 8, toX: 9, toY: 12}]},
+  "wiki-tools-overview-mobile.png": {crop: {x: 0, y: 0, width: 100, height: 24}, boxes: [{x: 2, y: 6, width: 31, height: 5}, {x: 34, y: 6, width: 31, height: 5}, {x: 67, y: 6, width: 31, height: 5}]},
+  "wiki-curriculum-map-relation-pc.png": {crop: {x: 0, y: 0, width: 100, height: 44}, boxes: [{x: 80, y: 1, width: 17, height: 6}, {x: 0, y: 6, width: 42, height: 24}]},
+  "wiki-cloud-schemes-pc.png": {crop: {x: 0, y: 0, width: 100, height: 100}, boxes: [{x: 3, y: 13, width: 94, height: 15}, {x: 3, y: 34, width: 94, height: 11}, {x: 3, y: 46, width: 94, height: 7}], arrows: [{fromX: 92, fromY: 31, toX: 82, toY: 38}]},
+  "wiki-cloud-schemes-mobile.png": {crop: {x: 0, y: 0, width: 100, height: 78}, boxes: [{x: 2, y: 15, width: 96, height: 22}, {x: 2, y: 46, width: 96, height: 20}], arrows: [{fromX: 84, fromY: 41, toX: 74, toY: 51}]},
+  "wiki-degree-source-pc.png": {crop: {x: 0, y: 0, width: 100, height: 100}, boxes: [{x: 4, y: 66, width: 22, height: 22}], arrows: [{fromX: 34, fromY: 53, toX: 19, toY: 68}]},
+  "wiki-degree-source-mobile.png": {crop: {x: 0, y: 0, width: 100, height: 46}, boxes: [{x: 10, y: 29, width: 46, height: 5}], arrows: [{fromX: 79, fromY: 22, toX: 43, toY: 30}]},
+  "wiki-course-reviews-pc.png": {crop: {x: 0, y: 0, width: 100, height: 42}, boxes: [{x: 14, y: 16, width: 65, height: 5}], arrows: [{fromX: 77, fromY: 34, toX: 75, toY: 20}]},
+  "wiki-course-reviews-mobile.png": {crop: {x: 0, y: 0, width: 100, height: 80}, boxes: [{x: 2, y: 22, width: 74, height: 12}, {x: 2, y: 34, width: 96, height: 10}, {x: 2, y: 46, width: 96, height: 9}], arrows: [{fromX: 86, fromY: 43, toX: 77, toY: 50}]},
+  "wiki-course-reviews-board-pc.png": {crop: {x: 0, y: 0, width: 100, height: 100}, boxes: [{x: 64, y: 10, width: 31, height: 20}, {x: 7, y: 31, width: 90, height: 52}], arrows: [{fromX: 62, fromY: 24, toX: 77, toY: 34}]},
+  "wiki-course-reviews-board-mobile.png": {crop: {x: 0, y: 0, width: 100, height: 100}, boxes: [{x: 67, y: 27, width: 29, height: 12}, {x: 6, y: 53, width: 90, height: 39}], arrows: [{fromX: 57, fromY: 37, toX: 74, toY: 58}]},
+  "wiki-course-reviews-mine-pc.png": {crop: {x: 0, y: 0, width: 100, height: 100}, boxes: [{x: 3, y: 18, width: 94, height: 16}, {x: 3, y: 37, width: 94, height: 59}], arrows: [{fromX: 51, fromY: 34, toX: 51, toY: 40}]},
+  "wiki-course-reviews-mine-mobile.png": {crop: {x: 0, y: 0, width: 100, height: 100}, boxes: [{x: 4, y: 14, width: 92, height: 20}, {x: 4, y: 40, width: 92, height: 57}], arrows: [{fromX: 52, fromY: 35, toX: 52, toY: 42}]},
+  "wiki-course-reviews-inbox-pc.png": {crop: {x: 0, y: 0, width: 100, height: 100}, boxes: [{x: 4, y: 29, width: 92, height: 67}]},
+  "wiki-course-reviews-inbox-mobile.png": {crop: {x: 0, y: 0, width: 100, height: 100}, boxes: [{x: 4, y: 29, width: 92, height: 67}]},
+  "wiki-course-reviews-compose-pc.png": {crop: {x: 0, y: 0, width: 100, height: 100}, boxes: [{x: 4, y: 13, width: 92, height: 11}, {x: 4, y: 26, width: 92, height: 30}, {x: 4, y: 86, width: 11, height: 10}], arrows: [{fromX: 37, fromY: 8, toX: 34, toY: 15}, {fromX: 48, fromY: 62, toX: 11, toY: 88}]},
+  "wiki-course-reviews-compose-mobile.png": {crop: {x: 0, y: 0, width: 100, height: 100}, boxes: [{x: 5, y: 13, width: 90, height: 10}, {x: 5, y: 25, width: 90, height: 27}, {x: 5, y: 87, width: 15, height: 9}], arrows: [{fromX: 61, fromY: 8, toX: 43, toY: 15}, {fromX: 49, fromY: 76, toX: 13, toY: 89}]},
+  "wiki-ai-assistant-pc.png": {crop: {x: 0, y: 0, width: 100, height: 85}, boxes: [{x: 5, y: 21, width: 92, height: 6}, {x: 44, y: 68, width: 13, height: 7}], arrows: [{fromX: 81, fromY: 31, toX: 54, toY: 69}]},
+  "wiki-ai-assistant-mobile.png": {crop: {x: 0, y: 0, width: 100, height: 82}, boxes: [{x: 8, y: 15, width: 84, height: 10}, {x: 33, y: 57, width: 34, height: 7}], arrows: [{fromX: 78, fromY: 42, toX: 51, toY: 59}]},
+  "wiki-help-entry-pc.png": {crop: {x: 0, y: 0, width: 100, height: 100}, boxes: [{x: 19, y: 15, width: 62, height: 53}], arrows: [{fromX: 89, fromY: 9, toX: 79, toY: 17}]},
+  "wiki-help-entry-mobile.png": {crop: {x: 0, y: 0, width: 100, height: 100}, boxes: [{x: 4, y: 19, width: 92, height: 77}], arrows: [{fromX: 89, fromY: 10, toX: 91, toY: 21}]},
+  "wiki-workspace-custom-course-pc.png": {crop: {x: 0, y: 0, width: 100, height: 100}, boxes: [{x: 4, y: 35, width: 92, height: 59}], arrows: [{fromX: 18, fromY: 25, toX: 19, toY: 38}]},
+};
+
+function GuideImageVisual({guideImage, imagePath, crop, onError}: {guideImage: GuideImage; imagePath: string; crop: boolean; onError?: () => void}) {
+  const [dimensions, setDimensions] = useState<{width: number; height: number} | null>(null);
+  const markerId = `guide-arrow-${useId().replace(/:/g, "")}`;
+  const focus = guideImage.focus ?? GUIDE_IMAGE_FOCUS[guideImage.filename];
+  const onErrorRef = useRef(onError);
+
+  useEffect(() => {onErrorRef.current = onError;}, [onError]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const image = new Image();
+    const updateDimensions = () => {
+      if (!cancelled && image.naturalWidth && image.naturalHeight) setDimensions({width: image.naturalWidth, height: image.naturalHeight});
+    };
+    image.onerror = () => {if (!cancelled) onErrorRef.current?.();};
+    image.onload = updateDimensions;
+    image.src = imagePath;
+    if (image.complete) updateDimensions();
+    return () => {cancelled = true;};
+  }, [imagePath]);
+
+  if (!dimensions) return <img src={imagePath} alt={guideImage.alt ?? guideImage.caption} onError={onError} className="mx-auto block max-h-[72vh] max-w-full object-contain" />;
+
+  const view = crop && focus?.crop
+    ? {x: dimensions.width * focus.crop.x / 100, y: dimensions.height * focus.crop.y / 100, width: dimensions.width * focus.crop.width / 100, height: dimensions.height * focus.crop.height / 100}
+    : {x: 0, y: 0, width: dimensions.width, height: dimensions.height};
+  const rect = (box: GuideFocusRect) => ({x: dimensions.width * box.x / 100, y: dimensions.height * box.y / 100, width: dimensions.width * box.width / 100, height: dimensions.height * box.height / 100});
+
+  return (
+    <svg aria-hidden="true" focusable="false" width={view.width} height={view.height} viewBox={`${view.x} ${view.y} ${view.width} ${view.height}`} preserveAspectRatio="xMidYMid meet" className="mx-auto block max-h-[72vh] max-w-full">
+      <image href={imagePath} x="0" y="0" width={dimensions.width} height={dimensions.height} preserveAspectRatio="none" />
+      {(focus?.boxes ?? []).map((box, index) => {
+        const r = rect(box);
+        return <rect key={`box-${index}`} {...r} rx="5" fill="#ef4444" fillOpacity="0.055" stroke="#ef4444" strokeWidth="3" vectorEffect="non-scaling-stroke" />;
+      })}
+      {(focus?.arrows ?? []).map((arrow, index) => (
+        <line key={`arrow-${index}`} x1={dimensions.width * arrow.fromX / 100} y1={dimensions.height * arrow.fromY / 100} x2={dimensions.width * arrow.toX / 100} y2={dimensions.height * arrow.toY / 100} stroke="#ef4444" strokeWidth="3" vectorEffect="non-scaling-stroke" markerEnd={`url(#${markerId})`} />
+      ))}
+      <defs>
+        <marker id={markerId} markerWidth="11" markerHeight="11" refX="9" refY="5.5" orient="auto" markerUnits="userSpaceOnUse" viewBox="0 0 11 11">
+          <path d="M 0 0 L 11 5.5 L 0 11 z" fill="#ef4444" />
+        </marker>
+      </defs>
+    </svg>
+  );
 }
 
 function GuideScreenshot({guideImage, isDark, muted, zh, onOpen}: {guideImage: GuideImage; isDark: boolean; muted: string; zh: boolean; onOpen: () => void}) {
   const [failed, setFailed] = useState(false);
   const imagePath = guideImage.src ?? `/wiki/${guideImage.filename}`;
+  const hasFocus = !!(guideImage.focus ?? GUIDE_IMAGE_FOCUS[guideImage.filename]);
 
   return (
     <figure className={`overflow-hidden rounded-xl border ${isDark ? "border-white/10 bg-black/10" : "border-gray-200 bg-gray-50"}`}>
       <div className={`relative flex min-h-40 items-center justify-center overflow-hidden p-2 sm:p-3 ${isDark ? "bg-white/[0.025]" : "bg-gray-50"}`}>
         {!failed ? (
           <button type="button" onClick={onOpen} aria-label={zh ? `放大查看：${guideImage.caption}` : `View full size: ${guideImage.caption}`} className="group relative block max-w-full cursor-zoom-in focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-500">
-            <img src={imagePath} alt={guideImage.alt ?? guideImage.caption} onError={() => setFailed(true)} className="mx-auto block max-h-[72vh] max-w-full object-contain" />
+            <span className="block">
+              <GuideImageVisual guideImage={guideImage} imagePath={imagePath} crop={hasFocus} onError={() => setFailed(true)} />
+            </span>
             <span className="absolute bottom-2 right-2 rounded-full bg-black/65 px-2.5 py-1 text-[11px] font-medium text-white opacity-90 transition-opacity sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-visible:opacity-100">{zh ? "点击放大" : "View larger"}</span>
           </button>
         ) : (
@@ -716,11 +892,13 @@ export function GuidePage({mobile, active, initialSection, onSectionChange}: Pro
   const zh = locale === "zh";
   const isDark = theme === "dark";
   const articles = zh ? GUIDE_ZH : GUIDE_EN;
+  const [tutorialVersion, setTutorialVersion] = useState<"follow" | GuideDevice>("follow");
+  const guideDevice: GuideDevice = tutorialVersion === "follow" ? (mobile ? "mobile" : "pc") : tutorialVersion;
   const [selectedId, setSelectedId] = useState<GuideId>((initialSection as GuideId) || "getting-started");
   const [query, setQuery] = useState("");
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const selected = articles.find((article) => article.id === selectedId) ?? articles[0];
-  const screenshots = selected.sections.flatMap((section) => sectionBlocks(section).flatMap((block) => block.type === "image" ? [block.image] : []));
+  const screenshots = selected.sections.flatMap((section) => sectionBlocks(section, guideDevice).flatMap((block) => block.type === "image" ? [block.image] : []));
   const screenshotCount = screenshots.length;
   const isLightboxOpen = lightboxIndex !== null;
   const lightboxImage = lightboxIndex === null ? null : screenshots[lightboxIndex] ?? null;
@@ -764,7 +942,7 @@ export function GuidePage({mobile, active, initialSection, onSectionChange}: Pro
   const muted = isDark ? "text-white/55" : "text-gray-500";
   const selectedCls = isDark ? "bg-white/10 text-white" : "bg-violet-50 text-violet-700";
 
-  const renderBlocks = (blocks: GuideBlock[]): ReactNode[] => {
+  const renderBlocks = (blocks: GuideBlock[], device: GuideDevice): ReactNode[] => {
     const nodes: ReactNode[] = [];
     let stepNumber = 0;
     let index = 0;
@@ -777,7 +955,7 @@ export function GuidePage({mobile, active, initialSection, onSectionChange}: Pro
           const step = blocks[index];
           if (step.type !== "step") break;
           stepNumber += 1;
-          items.push({text: step.text, number: stepNumber});
+          items.push({text: blockText(step, device), number: stepNumber});
           index += 1;
         }
         nodes.push(
@@ -791,14 +969,14 @@ export function GuidePage({mobile, active, initialSection, onSectionChange}: Pro
         continue;
       }
       if (block.type === "paragraph") {
-        nodes.push(<p key={`paragraph-${index}`} className={`mb-2 max-w-4xl text-sm leading-7 ${muted}`}>{block.text}</p>);
+        nodes.push(<p key={`paragraph-${index}`} className={`mb-2 max-w-4xl text-sm leading-7 ${muted}`}>{blockText(block, device)}</p>);
       } else if (block.type === "subheading") {
-        nodes.push(<h4 key={`subheading-${index}`} className="mb-2 mt-5 text-sm font-semibold">{block.text}</h4>);
+        nodes.push(<h4 key={`subheading-${index}`} className="mb-2 mt-5 text-sm font-semibold">{blockText(block, device)}</h4>);
       } else if (block.type === "callout") {
         nodes.push(
           <aside key={`callout-${index}`} className={`my-3 max-w-4xl rounded-lg border-l-4 px-4 py-3 text-sm leading-6 ${isDark ? "border-sky-400 bg-sky-400/10 text-white/75" : "border-sky-500 bg-sky-50 text-slate-700"}`}>
             {block.title && <strong className="mb-1 block">{block.title}</strong>}
-            <span>{block.text}</span>
+            <span>{blockText(block, device)}</span>
           </aside>,
         );
       } else if (block.type === "image") {
@@ -821,6 +999,21 @@ export function GuidePage({mobile, active, initialSection, onSectionChange}: Pro
           <div className="text-xs font-semibold uppercase tracking-[0.16em] text-violet-500">OfCourses · Wiki</div>
           <h1 className="mt-1 text-xl font-semibold">{zh ? "使用指南" : "User guide"}</h1>
           <p className={`mt-1 text-sm ${muted}`}>{zh ? "按功能查阅完整操作说明；导航栏教程入口会优先跳到当前页面主题。" : "Browse complete instructions by feature; the navigation tutorial opens the current page topic first."}</p>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <span className={`text-xs font-medium ${muted}`}>{zh ? "教程设备" : "Guide device"}</span>
+            <div role="group" aria-label={zh ? "切换教程设备版本" : "Choose guide device"} className={`inline-flex rounded-lg border p-1 ${isDark ? "border-white/10 bg-black/10" : "border-gray-200 bg-gray-50"}`}>
+              {([
+                ["follow", zh ? "跟随设备" : "Follow device"],
+                ["pc", zh ? "PC 教程" : "PC guide"],
+                ["mobile", zh ? "手机教程" : "Mobile guide"],
+              ] as const).map(([value, label]) => (
+                <button key={value} type="button" aria-pressed={tutorialVersion === value} onClick={() => setTutorialVersion(value)} className={`rounded-md px-2.5 py-1.5 text-xs transition-colors ${tutorialVersion === value ? (isDark ? "bg-white/15 text-white" : "bg-white text-violet-700 shadow-sm") : (isDark ? "text-white/55 hover:text-white/80" : "text-gray-500 hover:text-gray-800")}`}>
+                  {label}
+                </button>
+              ))}
+            </div>
+            <span className={`text-xs ${muted}`}>{zh ? `当前显示：${guideDevice === "mobile" ? "手机" : "PC"} 教程` : `Showing: ${guideDevice === "mobile" ? "mobile" : "PC"} guide`}</span>
+          </div>
         </div>
       </header>
       <div className={`mx-auto flex min-h-0 w-full max-w-7xl flex-1 gap-4 overflow-hidden p-3 sm:gap-6 sm:p-6 ${mobile ? "flex-col" : "flex-row"}`}>
@@ -843,11 +1036,17 @@ export function GuidePage({mobile, active, initialSection, onSectionChange}: Pro
           <div className="mb-2 text-xs font-medium text-violet-500">{selected.category}</div>
           <h2 className="text-xl font-semibold sm:text-2xl">{selected.title}</h2>
           <p className={`mt-2 border-b pb-5 text-sm leading-relaxed ${muted} ${isDark ? "border-white/10" : "border-gray-100"}`}>{selected.summary}</p>
+          {guideEntryText(selected.id, guideDevice, zh) && (
+            <aside className={`mt-4 max-w-4xl rounded-lg border-l-4 px-4 py-3 text-sm leading-6 ${isDark ? "border-violet-400 bg-violet-400/10 text-white/75" : "border-violet-500 bg-violet-50 text-slate-700"}`}>
+              <strong className="mb-1 block text-xs font-semibold">{zh ? "从这里开始" : "Start here"}</strong>
+              <span>{guideEntryText(selected.id, guideDevice, zh)}</span>
+            </aside>
+          )}
           <div className="space-y-7 py-5">
             {selected.sections.map((section) => (
               <section key={section.heading}>
                 <h3 className="mb-2 text-base font-semibold">{section.heading}</h3>
-                {renderBlocks(sectionBlocks(section))}
+                {renderBlocks(sectionBlocks(section, guideDevice), guideDevice)}
               </section>
             ))}
           </div>
@@ -877,7 +1076,7 @@ export function GuidePage({mobile, active, initialSection, onSectionChange}: Pro
           <button type="button" onClick={() => setLightboxIndex(null)} aria-label={zh ? "关闭图片" : "Close image"} className="absolute right-4 top-4 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-2xl text-white transition-colors hover:bg-white/20">×</button>
           {screenshots.length > 1 && <button type="button" onClick={(event) => {event.stopPropagation(); setLightboxIndex((index) => index === null ? index : (index - 1 + screenshots.length) % screenshots.length);}} aria-label={zh ? "上一张" : "Previous image"} className="absolute left-2 top-1/2 z-10 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-white/10 text-2xl text-white hover:bg-white/20 sm:left-5">‹</button>}
           <figure className="flex max-h-full max-w-full flex-col items-center gap-3" onClick={(event) => event.stopPropagation()}>
-            <img src={lightboxImage.src ?? `/wiki/${lightboxImage.filename}`} alt={lightboxImage.alt ?? lightboxImage.caption} className="max-h-[calc(100vh-7rem)] max-w-[94vw] object-contain" />
+            <GuideImageVisual guideImage={lightboxImage} imagePath={lightboxImage.src ?? `/wiki/${lightboxImage.filename}`} crop={false} />
             <figcaption className="text-center text-sm text-white/85">{lightboxImage.number} · {lightboxImage.caption}<span className="mt-1 block text-xs text-white/50">{lightboxIndex + 1} / {screenshots.length}</span></figcaption>
           </figure>
           {screenshots.length > 1 && <button type="button" onClick={(event) => {event.stopPropagation(); setLightboxIndex((index) => index === null ? index : (index + 1) % screenshots.length);}} aria-label={zh ? "下一张" : "Next image"} className="absolute right-2 top-1/2 z-10 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-white/10 text-2xl text-white hover:bg-white/20 sm:right-5">›</button>}
