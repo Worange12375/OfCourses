@@ -114,6 +114,10 @@ export const TourOverlay = () => {
     const target = activeSteps[stepIndex] ?? activeSteps[0];
     const step = activeSteps[displayIndex] ?? target;
     const isLast = stepIndex === activeSteps.length - 1;
+    // A new tour session can briefly inherit the last card's coordinates before
+    // the layout effect runs. Keep that stale card hidden until this step has
+    // been measured, so the first card cannot flash or travel from its old spot.
+    const displayReady = stepIndex === displayIndex && tourSessionId === displayedSessionId;
 
     // Switch the page first, then measure the target in its visible layout.
     useEffect(() => {
@@ -169,7 +173,7 @@ export const TourOverlay = () => {
     if (mobileViewport) {
         return (
             <div className="fixed inset-0 z-[10000] flex items-end justify-center bg-black/55 p-3 sm:items-center sm:p-6" role="dialog" aria-modal="true">
-                <section className={`max-h-[82vh] w-full max-w-lg overflow-y-auto rounded-2xl border p-5 shadow-2xl transition-[opacity,transform] duration-150 ease-out ${cardVisible ? "translate-y-0 scale-100 opacity-100" : "translate-y-2 scale-[0.99] opacity-0"} ${
+                <section className={`max-h-[82vh] w-full max-w-lg overflow-y-auto rounded-2xl border p-5 shadow-2xl transition-[opacity,transform] duration-150 ease-out ${cardVisible && displayReady ? "translate-y-0 scale-100 opacity-100" : "translate-y-2 scale-[0.99] opacity-0"} ${
                     isDark ? "border-white/10 bg-[#1c1c28] text-white/90" : "border-gray-200 bg-white text-gray-800"
                 }`}>
                     <div className={`mb-2 text-[11px] font-semibold uppercase tracking-wide ${isDark ? "text-violet-300" : "text-violet-600"}`}>
@@ -237,9 +241,9 @@ export const TourOverlay = () => {
                     width: `min(${CARD_MAX_WIDTH}px, calc(100vw - ${VIEWPORT_GUTTER * 2}px))`,
                     maxHeight: `calc(100vh - ${VIEWPORT_GUTTER * 2}px)`,
                     overflowY: "auto",
-                    visibility: position ? "visible" : "hidden",
-                    opacity: cardVisible ? 1 : 0,
-                    transform: cardVisible ? "translateY(0) scale(1)" : "translateY(4px) scale(0.985)",
+                    visibility: position && displayReady ? "visible" : "hidden",
+                    opacity: cardVisible && displayReady ? 1 : 0,
+                    transform: cardVisible && displayReady ? "translateY(0) scale(1)" : "translateY(4px) scale(0.985)",
                     transition: positionMotion ? "top 0.14s ease, left 0.14s ease, opacity 0.16s ease, transform 0.16s ease" : "opacity 0.16s ease, transform 0.16s ease",
                 }}
             >
