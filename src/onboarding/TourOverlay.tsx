@@ -8,15 +8,20 @@ const CARD_MAX_WIDTH = 360;
 const VIEWPORT_GUTTER = 16;
 const TARGET_GAP = 16;
 const FOCUS_PADDING = 8;
+const MOBILE_TOP_SAFE_AREA = 56;
+const MOBILE_BOTTOM_SAFE_AREA = 72;
 
 type CardSide = "top" | "right" | "bottom" | "left" | "center";
 interface CardPosition {top: number; left: number; side: CardSide; arrowOffset: number;}
 interface Candidate {top: number; left: number; side: Exclude<CardSide, "center">; target: DOMRect;}
 
-function readTargetRects(step: TourStep): DOMRect[] {
+function readTargetElements(step: TourStep): Element[] {
     const selectors = step.selectors ?? (step.selector ? [step.selector] : []);
-    return selectors
-        .flatMap((selector) => Array.from(document.querySelectorAll(selector)))
+    return selectors.flatMap((selector) => Array.from(document.querySelectorAll(selector)));
+}
+
+function readTargetRects(step: TourStep): DOMRect[] {
+    return readTargetElements(step)
         .map((element) => element.getBoundingClientRect())
         .filter((rect) => rect.width > 0 && rect.height > 0);
 }
@@ -127,27 +132,52 @@ export const TourOverlay = () => {
         setPositionMotion(false);
         target.beforeShow?.();
         if (target.targetPage) navigateTo(target.targetPage);
-        const timer = window.setTimeout(() => {
+        const timers: number[] = [];
+        const showStep = () => {
             setRects(readTargetRects(target));
             setDisplayIndex(stepIndex);
             setDisplayedSessionId(tourSessionId);
+        };
+        const timer = window.setTimeout(() => {
+            if (window.innerWidth < 640) {
+                const element = readTargetElements(target).find((candidate) => {
+                    const rect = candidate.getBoundingClientRect();
+                    return rect.width > 0 && rect.height > 0;
+                });
+                const rect = element?.getBoundingClientRect();
+                if (element && rect && (rect.top < 64 || rect.bottom > window.innerHeight - 96)) {
+                    element.scrollIntoView({behavior: "smooth", block: "center", inline: "nearest"});
+                    timers.push(window.setTimeout(showStep, 360));
+                    return;
+                }
+            }
+            showStep();
         }, target.targetPage ? 180 : 0);
-        return () => window.clearTimeout(timer);
+        timers.push(timer);
+        return () => timers.forEach(window.clearTimeout);
     }, [tourActive, stepIndex, displayIndex, target, activeSteps, tourSessionId, displayedSessionId, navigateTo]);
 
     // Measure and place while hidden, then reveal in place. This prevents a new card
     // from animating from the fallback top-left coordinate to its target.
     useLayoutEffect(() => {
         if (!tourActive || displayIndex < 0) return;
-        if (window.innerWidth < 640) {
-            const frame = window.requestAnimationFrame(() => setCardVisible(true));
-            return () => window.cancelAnimationFrame(frame);
-        }
         const card = cardRef.current;
         if (!card) return;
-        const width = Math.min(CARD_MAX_WIDTH, window.innerWidth - VIEWPORT_GUTTER * 2);
-        const height = Math.min(card.getBoundingClientRect().height, window.innerHeight - VIEWPORT_GUTTER * 2);
-        setPosition(chooseCardPosition(step, rects, width, height));
+        const mobileViewport = window.innerWidth < 640;
+        const gutter = mobileViewport ? 12 : VIEWPORT_GUTTER;
+        const width = Math.min(CARD_MAX_WIDTH, window.innerWidth - gutter * 2);
+        const safeTop = mobileViewport ? MOBILE_TOP_SAFE_AREA : gutter;
+        const safeBottom = mobileViewport ? MOBILE_BOTTOM_SAFE_AREA : gutter;
+        const heightLimit = Math.max(160, window.innerHeight - safeTop - safeBottom - gutter);
+        const height = Math.min(card.getBoundingClientRect().height, heightLimit);
+        const suggestedPosition = mobileViewport && rects.length === 0
+            ? {top: window.innerHeight - height - safeBottom, left: (window.innerWidth - width) / 2, side: "center" as const, arrowOffset: 0}
+            : chooseCardPosition(step, rects, width, height);
+        const nextPosition = {
+            ...suggestedPosition,
+            top: clamp(suggestedPosition.top, safeTop, window.innerHeight - height - safeBottom),
+        };
+        setPosition(nextPosition);
         const frame = window.requestAnimationFrame(() => {
             setPositionMotion(true);
             setCardVisible(true);
@@ -157,7 +187,7 @@ export const TourOverlay = () => {
 
     // Keep the cutout and callout near the target as the page or viewport moves.
     useEffect(() => {
-        if (!tourActive || displayIndex < 0 || window.innerWidth < 640) return;
+        if (!tourActive || displayIndex < 0) return;
         const updateTargets = () => setRects(readTargetRects(step));
         window.addEventListener("resize", updateTargets);
         window.addEventListener("scroll", updateTargets, true);
@@ -170,12 +200,34 @@ export const TourOverlay = () => {
     if (!tourActive) return null;
 
     const mobileViewport = window.innerWidth < 640;
+    const holes = rects.map(focusRect);
+    const pointerThrough = holes.length > 0;
     if (mobileViewport) {
         return (
-            <div className="fixed inset-0 z-[10000] flex items-end justify-center bg-black/55 p-3 sm:items-center sm:p-6" role="dialog" aria-modal="true">
-                <section className={`max-h-[82vh] w-full max-w-lg overflow-y-auto rounded-2xl border p-5 shadow-2xl transition-[opacity,transform] duration-150 ease-out ${cardVisible && displayReady ? "translate-y-0 scale-100 opacity-100" : "translate-y-2 scale-[0.99] opacity-0"} ${
+            <div className={`fixed inset-0 z-[10000] ${pointerThrough ? "pointer-events-none" : ""}`} role="dialog" aria-modal="true">
+                <svg className="pointer-events-none absolute inset-0 h-full w-full" aria-hidden="true">
+                    <defs>
+                        <mask id="tour-cutout-mobile">
+                            <rect x="0" y="0" width="100%" height="100%" fill="white" />
+                            {holes.map((hole, index) => <rect key={index} x={hole.left} y={hole.top} width={hole.width} height={hole.height} rx={12} fill="black" />)}
+                        </mask>
+                    </defs>
+                    <rect x="0" y="0" width="100%" height="100%" fill="rgba(0,0,0,0.58)" mask="url(#tour-cutout-mobile)" />
+                    {holes.map((hole, index) => <rect key={index} x={hole.left} y={hole.top} width={hole.width} height={hole.height} rx={12} fill="none" stroke={accent} strokeWidth={3} />)}
+                </svg>
+                <section
+                    ref={cardRef}
+                    className={`fixed z-[10001] overflow-y-auto rounded-2xl border p-4 shadow-2xl transition-[opacity,transform] duration-150 ease-out ${cardVisible && displayReady ? "translate-y-0 scale-100 opacity-100" : "translate-y-2 scale-[0.99] opacity-0"} ${pointerThrough ? "pointer-events-auto" : ""} ${
                     isDark ? "border-white/10 bg-[#1c1c28] text-white/90" : "border-gray-200 bg-white text-gray-800"
-                }`}>
+                }`}
+                    style={{
+                        top: position?.top ?? 16,
+                        left: position?.left ?? 12,
+                        width: `min(${CARD_MAX_WIDTH}px, calc(100vw - 24px))`,
+                        maxHeight: Math.max(160, window.innerHeight - MOBILE_TOP_SAFE_AREA - MOBILE_BOTTOM_SAFE_AREA - 12),
+                        visibility: position && displayReady ? "visible" : "hidden",
+                    }}
+                >
                     <div className={`mb-2 text-[11px] font-semibold uppercase tracking-wide ${isDark ? "text-violet-300" : "text-violet-600"}`}>
                         {locale === "zh" ? `交互引导 · ${stepIndex + 1}/${activeSteps.length}` : `Guided tour · ${stepIndex + 1}/${activeSteps.length}`}
                     </div>
@@ -192,8 +244,6 @@ export const TourOverlay = () => {
         );
     }
 
-    const holes = rects.map(focusRect);
-    const pointerThrough = holes.length > 0;
     const side = position?.side ?? "center";
     const arrowStyle = side === "bottom"
         ? {left: position?.arrowOffset ?? "50%", top: -7}

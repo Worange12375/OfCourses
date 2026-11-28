@@ -164,15 +164,18 @@ const GUIDE_EN: GuideArticle[] = [
 
 interface Props {mobile: boolean; active: boolean; initialSection: string; onSectionChange: (section: string) => void;}
 
-function GuideScreenshot({guideImage, isDark, muted, zh}: {guideImage: GuideImage; isDark: boolean; muted: string; zh: boolean}) {
+function GuideScreenshot({guideImage, isDark, muted, zh, onOpen}: {guideImage: GuideImage; isDark: boolean; muted: string; zh: boolean; onOpen: () => void}) {
   const [failed, setFailed] = useState(false);
   const imagePath = guideImage.src ?? `/wiki/${guideImage.filename}`;
 
   return (
     <figure className={`overflow-hidden rounded-xl border ${isDark ? "border-white/10 bg-black/10" : "border-gray-200 bg-gray-50"}`}>
-      <div className={`relative flex aspect-video items-center justify-center overflow-hidden ${isDark ? "bg-white/[0.025]" : "bg-white"}`}>
+      <div className={`relative flex min-h-40 items-center justify-center overflow-hidden p-2 sm:p-3 ${isDark ? "bg-white/[0.025]" : "bg-gray-50"}`}>
         {!failed ? (
-          <img src={imagePath} alt={guideImage.caption} onError={() => setFailed(true)} className="h-full w-full object-contain" />
+          <button type="button" onClick={onOpen} aria-label={zh ? `放大查看：${guideImage.caption}` : `View full size: ${guideImage.caption}`} className="group relative block max-w-full cursor-zoom-in focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-500">
+            <img src={imagePath} alt={guideImage.caption} onError={() => setFailed(true)} className="mx-auto block max-h-[72vh] max-w-full object-contain" />
+            <span className="absolute bottom-2 right-2 rounded-full bg-black/65 px-2.5 py-1 text-[11px] font-medium text-white opacity-90 transition-opacity sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-visible:opacity-100">{zh ? "点击放大" : "View larger"}</span>
+          </button>
         ) : (
           <div className="flex flex-col items-center gap-1 px-3 text-center">
             <span className="text-xs font-semibold text-violet-500">{zh ? `配图 ${guideImage.number} · 待补充` : `Image ${guideImage.number} · to be added`}</span>
@@ -196,7 +199,12 @@ export function GuidePage({mobile, active, initialSection, onSectionChange}: Pro
   const articles = zh ? GUIDE_ZH : GUIDE_EN;
   const [selectedId, setSelectedId] = useState<GuideId>((initialSection as GuideId) || "getting-started");
   const [query, setQuery] = useState("");
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const selected = articles.find((article) => article.id === selectedId) ?? articles[0];
+  const screenshots = selected.sections.flatMap((section) => section.images ?? []);
+  const screenshotCount = screenshots.length;
+  const isLightboxOpen = lightboxIndex !== null;
+  const lightboxImage = lightboxIndex === null ? null : screenshots[lightboxIndex] ?? null;
   const filtered = useMemo(() => {
     const normalized = query.trim().toLocaleLowerCase();
     if (!normalized) return articles;
@@ -211,10 +219,27 @@ export function GuidePage({mobile, active, initialSection, onSectionChange}: Pro
   }, [active, initialSection, articles]);
 
   const chooseArticle = (id: GuideId) => {
+    setLightboxIndex(null);
     setSelectedId(id);
     onSectionChange(id);
     window.history.replaceState(null, "", `#guide/${id}`);
   };
+
+  useEffect(() => {
+    if (!isLightboxOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setLightboxIndex(null);
+      if (event.key === "ArrowRight") setLightboxIndex((index) => index === null ? index : (index + 1) % screenshotCount);
+      if (event.key === "ArrowLeft") setLightboxIndex((index) => index === null ? index : (index - 1 + screenshotCount) % screenshotCount);
+    };
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [isLightboxOpen, screenshotCount]);
 
   const surface = isDark ? "border-white/10 bg-[#171720] text-white/90" : "border-gray-200 bg-white text-gray-800";
   const muted = isDark ? "text-white/55" : "text-gray-500";
@@ -223,13 +248,13 @@ export function GuidePage({mobile, active, initialSection, onSectionChange}: Pro
   return (
     <main className={`flex min-h-0 flex-1 flex-col overflow-hidden ${isDark ? "bg-[#0e0e14]" : "bg-gray-50"}`}>
       <header className={`shrink-0 border-b px-4 py-4 sm:px-7 ${isDark ? "border-white/10" : "border-gray-200"}`}>
-        <div className="mx-auto w-full max-w-6xl">
+        <div className="mx-auto w-full max-w-7xl">
           <div className="text-xs font-semibold uppercase tracking-[0.16em] text-violet-500">OfCourses · Wiki</div>
           <h1 className="mt-1 text-xl font-semibold">{zh ? "使用指南" : "User guide"}</h1>
           <p className={`mt-1 text-sm ${muted}`}>{zh ? "按功能查阅完整操作说明；导航栏教程入口会优先跳到当前页面主题。" : "Browse complete instructions by feature; the navigation tutorial opens the current page topic first."}</p>
         </div>
       </header>
-      <div className={`mx-auto flex min-h-0 w-full max-w-6xl flex-1 gap-4 overflow-hidden p-3 sm:gap-6 sm:p-6 ${mobile ? "flex-col" : "flex-row"}`}>
+      <div className={`mx-auto flex min-h-0 w-full max-w-7xl flex-1 gap-4 overflow-hidden p-3 sm:gap-6 sm:p-6 ${mobile ? "flex-col" : "flex-row"}`}>
         <aside className={`${mobile ? "max-h-[38%] shrink-0" : "w-64 shrink-0"} flex flex-col overflow-hidden rounded-xl border ${surface}`}>
           <label className={`m-3 flex items-center gap-2 rounded-lg border px-3 py-2 ${isDark ? "border-white/10 bg-black/10" : "border-gray-200 bg-gray-50"}`}>
             <span className={muted} aria-hidden="true">⌕</span>
@@ -249,27 +274,27 @@ export function GuidePage({mobile, active, initialSection, onSectionChange}: Pro
           <div className="mb-2 text-xs font-medium text-violet-500">{selected.category}</div>
           <h2 className="text-xl font-semibold sm:text-2xl">{selected.title}</h2>
           <p className={`mt-2 border-b pb-5 text-sm leading-relaxed ${muted} ${isDark ? "border-white/10" : "border-gray-100"}`}>{selected.summary}</p>
-          <div className="max-w-3xl space-y-7 py-5">
+          <div className="space-y-7 py-5">
             {selected.sections.map((section) => (
               <section key={section.heading}>
                 <h3 className="mb-2 text-base font-semibold">{section.heading}</h3>
-                {section.paragraphs?.map((paragraph, index) => <p key={index} className={`mb-2 text-sm leading-7 ${muted}`}>{paragraph}</p>)}
-                {section.steps && <ol className="space-y-2">
+                {section.paragraphs?.map((paragraph, index) => <p key={index} className={`mb-2 max-w-4xl text-sm leading-7 ${muted}`}>{paragraph}</p>)}
+                {section.steps && <ol className="max-w-4xl space-y-2">
                   {section.steps.map((step, index) => <li key={step} className="flex gap-3 text-sm leading-6">
                     <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-violet-500/10 text-[11px] font-semibold text-violet-500">{index + 1}</span>
                     <span className={muted}>{step}</span>
                   </li>)}
                 </ol>}
                 {section.images?.length ? (
-                  <div className={`mt-4 grid gap-3 ${section.images.length > 1 ? "sm:grid-cols-2" : "grid-cols-1"}`}>
-                    {section.images.map((guideImage) => <GuideScreenshot key={guideImage.number} guideImage={guideImage} isDark={isDark} muted={muted} zh={zh} />)}
+                  <div className="mt-4 grid grid-cols-1 gap-4">
+                    {section.images.map((guideImage) => <GuideScreenshot key={guideImage.number} guideImage={guideImage} isDark={isDark} muted={muted} zh={zh} onOpen={() => setLightboxIndex(screenshots.indexOf(guideImage))} />)}
                   </div>
                 ) : null}
               </section>
             ))}
           </div>
           {selected.related?.length ? (
-            <section className={`max-w-3xl border-t pt-4 ${isDark ? "border-white/10" : "border-gray-100"}`}>
+            <section className={`border-t pt-4 ${isDark ? "border-white/10" : "border-gray-100"}`}>
               <h3 className="mb-2 text-sm font-semibold">{zh ? "相关主题" : "Related topics"}</h3>
               <div className="flex flex-wrap gap-2">
                 {selected.related.map((id) => {
@@ -289,6 +314,17 @@ export function GuidePage({mobile, active, initialSection, onSectionChange}: Pro
           ) : null}
         </article>
       </div>
+      {lightboxImage && lightboxIndex !== null && (
+        <div className="fixed inset-0 z-[10050] flex items-center justify-center bg-black/90 p-3 sm:p-8" role="dialog" aria-modal="true" aria-label={lightboxImage.caption} onClick={() => setLightboxIndex(null)}>
+          <button type="button" onClick={() => setLightboxIndex(null)} aria-label={zh ? "关闭图片" : "Close image"} className="absolute right-4 top-4 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-2xl text-white transition-colors hover:bg-white/20">×</button>
+          {screenshots.length > 1 && <button type="button" onClick={(event) => {event.stopPropagation(); setLightboxIndex((index) => index === null ? index : (index - 1 + screenshots.length) % screenshots.length);}} aria-label={zh ? "上一张" : "Previous image"} className="absolute left-2 top-1/2 z-10 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-white/10 text-2xl text-white hover:bg-white/20 sm:left-5">‹</button>}
+          <figure className="flex max-h-full max-w-full flex-col items-center gap-3" onClick={(event) => event.stopPropagation()}>
+            <img src={lightboxImage.src ?? `/wiki/${lightboxImage.filename}`} alt={lightboxImage.caption} className="max-h-[calc(100vh-7rem)] max-w-[94vw] object-contain" />
+            <figcaption className="text-center text-sm text-white/85">{lightboxImage.number} · {lightboxImage.caption}<span className="mt-1 block text-xs text-white/50">{lightboxIndex + 1} / {screenshots.length}</span></figcaption>
+          </figure>
+          {screenshots.length > 1 && <button type="button" onClick={(event) => {event.stopPropagation(); setLightboxIndex((index) => index === null ? index : (index + 1) % screenshots.length);}} aria-label={zh ? "下一张" : "Next image"} className="absolute right-2 top-1/2 z-10 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-white/10 text-2xl text-white hover:bg-white/20 sm:right-5">›</button>}
+        </div>
+      )}
     </main>
   );
 }

@@ -32,15 +32,15 @@ export function TutorialEntryModal({title, description, pageContext = false, onS
         <div className="grid gap-3 sm:grid-cols-2">
           <button type="button" onClick={onStart} className={`group rounded-xl border p-4 text-left transition-colors ${card}`}>
             <span className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-violet-500/15 text-lg text-violet-500" aria-hidden="true">↗</span>
-            <span className="block text-sm font-semibold">{pageContext ? (zh ? "本页交互引导" : "This page's walkthrough") : (zh ? "全站交互引导" : "Full site walkthrough")}</span>
-            <span className={`mt-1 block text-xs leading-relaxed ${muted}`}>{pageContext ? (zh ? "跟随提示了解当前页面的主要区域和操作。" : "Follow prompts through the key areas and actions on this page.") : (zh ? "从工作台开始，逐步认识网站的主要功能。" : "Start at Workspace and explore the site's main features step by step.")}</span>
-            <span className="mt-4 block text-xs font-semibold text-violet-500">{zh ? "开始引导 →" : "Start walkthrough →"}</span>
+            <span className="block text-sm font-semibold">{pageContext ? (zh ? "本页快速上手 · 简略版" : "Quick start · this page") : (zh ? "全站快速上手 · 简略版" : "Quick start · full site")}</span>
+            <span className={`mt-1 block text-xs leading-relaxed ${muted}`}>{pageContext ? (zh ? "跟随少量提示，先掌握当前页面最常用的区域和操作。" : "Follow a few prompts to learn the most-used areas and actions on this page.") : (zh ? "从工作台开始，用几步了解网站的主要功能。" : "Start at Workspace and learn the main features in a few steps.")}</span>
+            <span className="mt-4 block text-xs font-semibold text-violet-500">{zh ? "开始快速引导 →" : "Start quick guide →"}</span>
           </button>
           <button type="button" onClick={onOpenWiki} className={`group rounded-xl border p-4 text-left transition-colors ${card}`}>
             <span className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-sky-500/15 text-lg text-sky-500" aria-hidden="true">≡</span>
-            <span className="block text-sm font-semibold">{pageContext ? (zh ? "本页 Wiki" : "This page in the Wiki") : (zh ? "完整使用指南 Wiki" : "Full user guide Wiki")}</span>
-            <span className={`mt-1 block text-xs leading-relaxed ${muted}`}>{pageContext ? (zh ? "直接阅读与当前页面相关的操作说明。" : "Open instructions related to the current page.") : (zh ? "按功能查找完整操作说明和常见问题。" : "Browse complete instructions and common questions by feature.")}</span>
-            <span className="mt-4 block text-xs font-semibold text-sky-500">{zh ? "打开使用指南 →" : "Open the guide →"}</span>
+            <span className="block text-sm font-semibold">{pageContext ? (zh ? "本页详细教程 · 图文版" : "Detailed guide · this page") : (zh ? "完整详细教程 · 图文 Wiki" : "Detailed guide · full Wiki")}</span>
+            <span className={`mt-1 block text-xs leading-relaxed ${muted}`}>{pageContext ? (zh ? "查看完整步骤、界面截图和使用注意事项。" : "Read the full steps, screenshots, and practical notes.") : (zh ? "按功能查找完整步骤、界面截图和常见问题。" : "Browse full instructions, screenshots, and common questions by feature.")}</span>
+            <span className="mt-4 block text-xs font-semibold text-sky-500">{zh ? "阅读详细教程 →" : "Read detailed guide →"}</span>
           </button>
         </div>
         {globalActions && (
@@ -48,10 +48,10 @@ export function TutorialEntryModal({title, description, pageContext = false, onS
             <span className={`text-xs ${muted}`}>{zh ? "需要了解整个网站？" : "Looking for the whole site?"}</span>
             <div className="flex flex-wrap gap-2">
               <button type="button" onClick={globalActions.onStart} className={`rounded-lg border px-3 py-2 text-xs font-medium transition-colors ${isDark ? "border-white/10 text-white/70 hover:bg-white/10" : "border-gray-200 text-gray-600 hover:bg-gray-100"}`}>
-                {zh ? "全站交互引导" : "Full walkthrough"}
+                {zh ? "全站快速上手" : "Full site quick start"}
               </button>
               <button type="button" onClick={globalActions.onOpenWiki} className={`rounded-lg border px-3 py-2 text-xs font-medium transition-colors ${isDark ? "border-white/10 text-white/70 hover:bg-white/10" : "border-gray-200 text-gray-600 hover:bg-gray-100"}`}>
-                {zh ? "完整 Wiki" : "Full Wiki"}
+                {zh ? "完整详细教程" : "Full detailed guide"}
               </button>
             </div>
           </div>

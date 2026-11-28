@@ -1528,7 +1528,7 @@ export const Workspace = ({onNavigate: _onNavigate, mobile = false}: WorkspacePr
           }`}
           style={mobile ? undefined : {flex: leftExpanded ? "4" : "3"}}
         >
-          <Island className={`flex h-full flex-col ${bgCard}`}>
+          <Island className={`flex h-full flex-col ${bgCard} ${mobile && !isDark ? "oc-mobile-workspace-island-light" : ""}`}>
             <Header border wrapWithTitle={false}>
               <div data-tour="history" className="flex w-full flex-col">
                 <div className={`flex w-full items-center gap-3 ${mobile ? "flex-wrap" : ""}`}>
@@ -2045,7 +2045,7 @@ export const Workspace = ({onNavigate: _onNavigate, mobile = false}: WorkspacePr
             pointerEvents: drawerOpen ? "auto" : "none",
           } : {flex: "2", minWidth: 240}}
         >
-          <Island className={`flex h-full flex-col ${bgCard}`}>
+          <Island className={`flex h-full flex-col ${bgCard} ${mobile && !isDark ? "oc-mobile-workspace-island-light" : ""}`}>
             {/* 拖动条：按住并向下滑动可关闭预选抽屉 */}
             {mobile && (
               <div
@@ -2733,7 +2733,7 @@ export const Workspace = ({onNavigate: _onNavigate, mobile = false}: WorkspacePr
             </div>
           )}
 
-          <Island className={`flex ${mobile ? "flex-1 min-h-0" : "h-full"} flex-col ${bgCard}`}>
+          <Island className={`flex ${mobile ? "flex-1 min-h-0" : "h-full"} flex-col ${bgCard} ${mobile && !isDark ? "oc-mobile-workspace-island-light" : ""}`}>
             {!mobile && (
               <Header border wrapWithTitle={false}>
               <div data-tour="catalog" className="flex w-full items-center justify-between gap-2">

@@ -89,6 +89,12 @@ html.oc-mobile .oc-mobile-tool-island {
     flex-shrink: 0;
 }
 
+/* Ring Island's default popup shadow reads as a dark strip on the mobile
+   Workspace in light mode. Keep its dividers, but remove that card shadow. */
+html.oc-mobile .oc-mobile-workspace-island-light {
+    box-shadow: none;
+}
+
 /* Ring UI 弹层（Select/List）通过 portal 渲染到 body，脱离 RingThemeProvider 包裹层，
    无法继承暗色 CSS 变量。这里用 html[data-theme="dark"] 覆盖其背景与文字色。 */
 [data-theme="dark"] .ring-select-popup,
